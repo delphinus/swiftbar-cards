@@ -1,0 +1,313 @@
+// weather.10m.sh が使う、天気のカードを描くプログラム。
+//
+// 標準入力に JSON を受け取り、PNG を Base64 にして標準出力に書く。
+// 1 行目に画像の大きさ (pt) を「幅 高さ」で書き、2 行目に Base64 を書く。
+//
+// カードは上から次の 4 つ。
+// 1. 今の観測値 (アメダス): 気温を大きく、湿度・降水量・風を横に
+// 2. 今後 24 時間の気温のグラフ: 実線は今の観測値から予報をつなぎ、破線は同じ
+//    時刻の前日の観測値 (= 過去 24 時間)。下に時刻・天気のアイコン・降水確率。
+//    Weathernews のウィジェットの気温のグラフにならった。
+// 3. 3 日分の予報の文
+// 4. 週間予報: 7 日を横に並べる
+//
+// 色は weather.10m.sh が外観 (ダーク / ライト) に合わせて選んで渡す。
+// メニューの文字と違い、画像の中の色は指定どおりに描かれる。
+//
+// SwiftBar のプラグインのフォルダには置かない (実行できるファイルは
+// プラグインとして読まれる)。weather.10m.sh が初回にコンパイルする。
+
+import AppKit
+
+struct Obs: Decodable {
+    let point: String
+    let time: String
+    let temp: Double?
+    let tempColor: String?
+    let humidity: Double?
+    let precip: Double?
+    let wind: Double?
+    let windDir: String?
+}
+
+struct Graph: Decodable {
+    let current: Double?
+    let past: [[Double]]
+    let forecast: [[Double]]
+    let weather: [[String]] // [時刻, アイコン, 色]
+    let pops: [[String]]    // [時刻, 降水確率, 色]
+}
+
+struct Day: Decodable {
+    let label: String
+    let text: String
+    let icon: String
+    let color: String
+}
+
+struct WeekDay: Decodable {
+    let date: String
+    let wday: String
+    let icon: String
+    let color: String
+    let max: String
+    let maxColor: String?
+    let min: String
+    let minColor: String?
+    let pop: String
+    let popColor: String?
+}
+
+struct Input: Decodable {
+    let dark: Bool
+    let now: Double
+    let obs: Obs?
+    let graph: Graph?
+    let daysTitle: String
+    let days: [Day]
+    let week: [WeekDay]
+}
+
+let data = FileHandle.standardInput.readDataToEndOfFile()
+let input: Input
+do {
+    input = try JSONDecoder().decode(Input.self, from: data)
+} catch {
+    FileHandle.standardError.write("weather-card: JSON を読めない: \(error)\n".data(using: .utf8)!)
+    exit(1)
+}
+
+let fg = input.dark ? NSColor(white: 0.93, alpha: 1) : NSColor(white: 0.1, alpha: 1)
+let sub = input.dark ? NSColor(white: 0.6, alpha: 1) : NSColor(white: 0.42, alpha: 1)
+let grid = input.dark ? NSColor(white: 1, alpha: 0.13) : NSColor(white: 0, alpha: 0.12)
+let rule = input.dark ? NSColor(white: 1, alpha: 0.18) : NSColor(white: 0, alpha: 0.15)
+
+func hex(_ s: String?) -> NSColor {
+    guard let s, !s.isEmpty else { return fg }
+    var v: UInt64 = 0
+    Scanner(string: s.replacingOccurrences(of: "#", with: "")).scanHexInt64(&v)
+    return NSColor(red: CGFloat((v >> 16) & 0xff) / 255, green: CGFloat((v >> 8) & 0xff) / 255,
+                   blue: CGFloat(v & 0xff) / 255, alpha: 1)
+}
+
+// 大きさ (pt)。上から順に積む。PNG はこの 2 倍の画素で描く。
+let width: CGFloat = 340
+let pad: CGFloat = 2
+let obsH: CGFloat = input.obs != nil ? 52 : 0
+let graphH: CGFloat = input.graph != nil ? 178 : 0
+let dayRowH: CGFloat = 21
+let daysH: CGFloat = input.days.isEmpty ? 0 : 20 + dayRowH * CGFloat(input.days.count)
+let weekH: CGFloat = input.week.isEmpty ? 0 : 20 + 98
+let gap: CGFloat = 13 // 節の間 (区切り線を含む)
+let sections = [obsH, graphH, daysH, weekH].filter { $0 > 0 }
+let height = sections.reduce(0, +) + gap * CGFloat(max(sections.count - 1, 0))
+let scale: CGFloat = 2
+
+let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(width * scale), pixelsHigh: Int(height * scale),
+                           bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                           colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+rep.size = NSSize(width: width, height: height)
+let base = NSGraphicsContext(bitmapImageRep: rep)!
+let ctx = base.cgContext
+// 上から下へ座標を取る (y は上端からの距離)
+ctx.translateBy(x: 0, y: height)
+ctx.scaleBy(x: 1, y: -1)
+NSGraphicsContext.saveGraphicsState()
+NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: true)
+
+// 文字は y を上端として描く。数字は等幅の数字 (tabular figures) にする。
+@discardableResult
+func text(_ s: String, x: CGFloat, y: CGFloat, size: CGFloat, color: NSColor = fg,
+          weight: NSFont.Weight = .regular, align: NSTextAlignment = .left) -> CGSize {
+    let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: weight)
+    let str = NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: color])
+    let sz = str.size()
+    let dx: CGFloat = align == .center ? -sz.width / 2 : (align == .right ? -sz.width : 0)
+    str.draw(at: CGPoint(x: x + dx, y: y))
+    return sz
+}
+
+// SF Symbols のアイコンを、中心が (cx, cy) に来るよう描く
+func symbol(_ name: String, color: NSColor, cx: CGFloat, cy: CGFloat, size: CGFloat) {
+    let cfg = NSImage.SymbolConfiguration(pointSize: size, weight: .regular)
+        .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
+    guard let img = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(cfg) else { return }
+    let s = img.size
+    img.draw(in: CGRect(x: cx - s.width / 2, y: cy - s.height / 2, width: s.width, height: s.height),
+             from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+}
+
+func hline(_ y: CGFloat, color: NSColor, from x0: CGFloat = pad, to x1: CGFloat = width - pad) {
+    ctx.setStrokeColor(color.cgColor)
+    ctx.setLineWidth(1)
+    ctx.setLineDash(phase: 0, lengths: [])
+    ctx.move(to: CGPoint(x: x0, y: y))
+    ctx.addLine(to: CGPoint(x: x1, y: y))
+    ctx.strokePath()
+}
+
+func fmt(_ v: Double, _ digits: Int = 0) -> String { String(format: "%.\(digits)f", v) }
+
+var top: CGFloat = 0
+func nextSection(_ h: CGFloat) {
+    top += h
+    if top < height - 1 {
+        hline(top + gap / 2, color: rule)
+        top += gap
+    }
+}
+
+// 1. 今の観測値
+if let o = input.obs {
+    let tempStr = o.temp.map { fmt($0, 1) } ?? "-"
+    let big = text(tempStr, x: pad, y: top - 2, size: 32, color: hex(o.tempColor), weight: .light)
+    text("°C", x: pad + big.width + 1, y: top + 4, size: 16, color: hex(o.tempColor), weight: .light)
+    text("\(o.point)  \(o.time) の観測", x: pad, y: top + 36, size: 11, color: sub)
+    let rx: CGFloat = 176
+    var ry = top + 2
+    func row(_ label: String, _ value: String, _ color: NSColor = fg) {
+        text(label, x: rx, y: ry, size: 12, color: sub)
+        text(value, x: rx + 48, y: ry, size: 12, color: color, weight: .medium)
+        ry += 16
+    }
+    if let h = o.humidity { row("湿度", "\(fmt(h))%") }
+    if let p = o.precip { row("降水量", "\(fmt(p, 1)) mm/h", p > 0 ? hex(input.dark ? "#64B5FF" : "#0A6FD8") : fg) }
+    if let w = o.wind { row("風", "\(o.windDir ?? "") \(fmt(w, 1)) m/s") }
+    nextSection(obsH)
+}
+
+// 2. 今後 24 時間の気温のグラフ
+if let g = input.graph {
+    text("今後 24 時間", x: pad, y: top, size: 11, color: sub)
+    let plot = CGRect(x: 14, y: top + 26, width: width - 14 - 30, height: 78)
+    let hourY = plot.maxY + 8
+    let iconCY = hourY + 32
+    let popY = iconCY + 14
+
+    let t0 = floor(input.now / 3600) * 3600
+    let t1 = t0 + 24 * 3600
+    var solid: [(Double, Double)] = []
+    if let c = g.current { solid.append((input.now, c)) }
+    for p in g.forecast where p.count == 2 && p[0] > input.now { solid.append((p[0], p[1])) }
+    let dotted = g.past.filter { $0.count == 2 }.map { ($0[0] + 24 * 3600, $0[1]) }
+
+    // 縦軸: 描く値すべてが入るよう、2°C 刻みに広げる
+    let visible = (solid + dotted).filter { $0.0 >= t0 - 3 * 3600 && $0.0 <= t1 + 3 * 3600 }.map { $0.1 }
+    var lo = floor(((visible.min() ?? 0) - 0.5) / 2) * 2
+    var hi = ceil(((visible.max() ?? 10) + 0.5) / 2) * 2
+    if hi - lo < 6 { lo = floor(((hi + lo) / 2 - 3) / 2) * 2; hi = lo + 6 }
+    func x(_ t: Double) -> CGFloat { plot.minX + CGFloat((t - t0) / (t1 - t0)) * plot.width }
+    func y(_ v: Double) -> CGFloat { plot.maxY - CGFloat((v - lo) / (hi - lo)) * plot.height }
+
+    var v = lo
+    while v <= hi + 0.01 { hline(y(v), color: grid, from: plot.minX, to: plot.maxX); v += 2 }
+    text(fmt(hi), x: plot.maxX + 4, y: y(hi) - 7, size: 10, color: sub)
+    text(fmt(lo), x: plot.maxX + 4, y: y(lo) - 7, size: 10, color: sub)
+
+    ctx.saveGState()
+    ctx.clip(to: CGRect(x: plot.minX - 4, y: plot.minY - 20, width: plot.width + 8, height: plot.height + 40))
+    func path(_ pts: [(Double, Double)]) {
+        for (i, p) in pts.enumerated() {
+            let q = CGPoint(x: x(p.0), y: y(p.1))
+            if i == 0 { ctx.move(to: q) } else { ctx.addLine(to: q) }
+        }
+    }
+    ctx.setLineCap(.round)
+    ctx.setLineJoin(.round)
+    if dotted.count > 1 {
+        ctx.setStrokeColor(sub.cgColor)
+        ctx.setLineWidth(2)
+        ctx.setLineDash(phase: 0, lengths: [0.1, 4])
+        path(dotted)
+        ctx.strokePath()
+    }
+    if solid.count > 1 {
+        ctx.setStrokeColor(fg.cgColor)
+        ctx.setLineWidth(2.5)
+        ctx.setLineDash(phase: 0, lengths: [])
+        path(solid)
+        ctx.strokePath()
+    }
+    ctx.restoreGState()
+
+    // 今の気温と、予報の最高気温に点と値を添える (最低気温は今の気温の近くに来やすく、値が重なる)
+    func mark(_ p: (Double, Double)) {
+        let q = CGPoint(x: x(p.0), y: y(p.1))
+        ctx.setFillColor(fg.cgColor)
+        ctx.fillEllipse(in: CGRect(x: q.x - 3.5, y: q.y - 3.5, width: 7, height: 7))
+        text(fmt(p.1.rounded()), x: min(max(q.x, plot.minX + 8), plot.maxX - 8), y: q.y - 19, size: 11,
+             weight: .semibold, align: .center)
+    }
+    if g.current != nil, let first = solid.first { mark(first) }
+    let future = solid.filter { $0.0 >= t0 && $0.0 <= t1 }.dropFirst(g.current != nil ? 1 : 0)
+    if let mx = future.max(by: { $0.1 < $1.1 }) { mark(mx) }
+
+    // 時刻: 3 時間ごとに数字、その間は点
+    var t = t0
+    while t <= t1 {
+        let hour = Calendar.current.component(.hour, from: Date(timeIntervalSince1970: t))
+        if hour % 3 == 0 {
+            text("\(hour)", x: x(t), y: hourY, size: 10, color: sub, align: .center)
+        } else {
+            ctx.setFillColor(sub.cgColor)
+            ctx.fillEllipse(in: CGRect(x: x(t) - 1, y: hourY + 6, width: 2, height: 2))
+        }
+        t += 3600
+    }
+    // 天気のアイコン: 3 時間ごとの予報を、その時間帯の真ん中に置く
+    for w in g.weather where w.count == 3 {
+        guard let ts = Double(w[0]) else { continue }
+        let mid = ts + 1.5 * 3600
+        guard mid > t0, mid < t1 else { continue }
+        symbol(w[1], color: hex(w[2]), cx: x(mid), cy: iconCY, size: 15)
+    }
+    // 降水確率: 6 時間ごとの値を、その時間帯 (アイコン 2 つ分) の真ん中に置く
+    for p in g.pops where p.count == 3 {
+        guard let ts = Double(p[0]), !p[1].isEmpty else { continue }
+        let mid = ts + 3 * 3600
+        guard mid > t0, mid < t1 else { continue }
+        text("\(p[1])%", x: x(mid), y: popY, size: 10, color: hex(p[2]), weight: .semibold, align: .center)
+    }
+    nextSection(graphH)
+}
+
+// 3. 3 日分の予報の文
+if !input.days.isEmpty {
+    text(input.daysTitle, x: pad, y: top, size: 11, color: sub)
+    var ry = top + 20
+    for d in input.days {
+        symbol(d.icon, color: hex(d.color), cx: pad + 9, cy: ry + 8, size: 14)
+        text(d.label, x: pad + 26, y: ry, size: 13, color: sub)
+        text(d.text, x: pad + 88, y: ry, size: 13)
+        ry += dayRowH
+    }
+    nextSection(daysH)
+}
+
+// 4. 週間予報: 7 日を横に並べる
+if !input.week.isEmpty {
+    text("週間予報", x: pad, y: top, size: 11, color: sub)
+    let colW = (width - pad * 2) / CGFloat(input.week.count)
+    let y0 = top + 20
+    for (i, d) in input.week.enumerated() {
+        let cx = pad + colW * (CGFloat(i) + 0.5)
+        // 土曜は青、日曜は赤
+        let wcolor: NSColor = d.wday == "土" ? hex(input.dark ? "#64B5FF" : "#0A6FD8")
+            : d.wday == "日" ? hex(input.dark ? "#FF6961" : "#D70015") : sub
+        text(d.date, x: cx, y: y0, size: 11, color: sub, align: .center)
+        text("(\(d.wday))", x: cx, y: y0 + 13, size: 10, color: wcolor, align: .center)
+        symbol(d.icon, color: hex(d.color), cx: cx, cy: y0 + 41, size: 17)
+        text(d.max.isEmpty ? "-" : "\(d.max)°", x: cx, y: y0 + 56, size: 13, color: hex(d.maxColor),
+             weight: .semibold, align: .center)
+        text(d.min.isEmpty ? "-" : "\(d.min)°", x: cx, y: y0 + 71, size: 13,
+             color: d.minColor == nil ? sub : hex(d.minColor), align: .center)
+        text(d.pop.isEmpty ? "-" : "\(d.pop)%", x: cx, y: y0 + 86, size: 11,
+             color: d.popColor == nil ? sub : hex(d.popColor), weight: .semibold, align: .center)
+    }
+    top += weekH
+}
+
+NSGraphicsContext.restoreGraphicsState()
+let png = rep.representation(using: .png, properties: [:])!
+print("\(Int(width)) \(Int(ceil(height)))")
+print(png.base64EncodedString())
