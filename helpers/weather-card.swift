@@ -115,11 +115,12 @@ ctx.scaleBy(x: 1, y: -1)
 NSGraphicsContext.saveGraphicsState()
 NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: true)
 
-// 和字を囲む括弧は、全角の括弧にしてヒラギノ角ゴシックの palt (プロポーショナル
+// 和文の中の括弧は、全角の括弧にしてヒラギノ角ゴシックの palt (プロポーショナル
 // メトリクス) で描く。半角の括弧は欧文の字形で、基準線の下まで伸びる位置にある
-// ので、「(日)」のように漢字を囲むと括弧が下にずれて見える。全角の括弧は漢字と
-// 同じ枠の中央に描かれ、palt で左右の余分な空きを詰める。括弧の中に英数字を
-// 含むとき (「(17:00 発表)」など) は半角のままにする。
+// ので、和文の中に置くと括弧が下にずれて見える。日本語の組版では、括弧を全角に
+// するか半角にするかは中身ではなく置かれた文で決める (JIS X 4051、日本語組版処理の
+// 要件)。そこで、括弧の直前が和字か、括弧の中に和字を含むなら全角にし、前の空白は
+// 消す (全角の括弧は字形に空きを含む)。前後も中身も英数字だけなら半角のままにする。
 func hiragino(_ size: CGFloat, _ weight: NSFont.Weight) -> NSFont {
     let w = weight == .light ? "W2" : weight == .medium ? "W5" : weight == .semibold ? "W6" : weight == .bold ? "W7" : "W3"
     let feature: [NSFontDescriptor.FeatureKey: Any] = [
@@ -129,13 +130,24 @@ func hiragino(_ size: CGFloat, _ weight: NSFont.Weight) -> NSFont {
     let d = NSFontDescriptor(name: "HiraginoSans-\(w)", size: size).addingAttributes([.featureSettings: [feature]])
     return NSFont(descriptor: d, size: size) ?? NSFont.systemFont(ofSize: size, weight: weight)
 }
-let wakuParen = try! NSRegularExpression(pattern: "\\(([\\u3000-\\u9FFF\\uF900-\\uFAFF]+)\\)")
+func isWaji(_ c: Character) -> Bool {
+    c.unicodeScalars.contains { (0x3000...0x9FFF).contains($0.value) || (0xF900...0xFAFF).contains($0.value) || (0xFF00...0xFFEF).contains($0.value) }
+}
+let parenPair = try! NSRegularExpression(pattern: "( ?)\\(([^()]*)\\)")
 func styled(_ s: String, font: NSFont, color: NSColor, size: CGFloat, weight: NSFont.Weight) -> NSAttributedString {
+    let ns = s as NSString
     let out = NSMutableAttributedString(string: s, attributes: [.font: font, .foregroundColor: color])
-    for m in wakuParen.matches(in: s, range: NSRange(s.startIndex..., in: s)).reversed() {
-        let inner = (s as NSString).substring(with: m.range(at: 1))
-        out.replaceCharacters(in: m.range, with: NSAttributedString(string: "（\(inner)）",
-            attributes: [.font: hiragino(size, weight), .foregroundColor: color]))
+    let paren = hiragino(size, weight)
+    for m in parenPair.matches(in: s, range: NSRange(location: 0, length: ns.length)).reversed() {
+        let inner = ns.substring(with: m.range(at: 2))
+        // 括弧 (と前の空白) の直前の文字
+        let before = m.range.location > 0 ? ns.substring(with: NSRange(location: m.range.location - 1, length: 1)) : ""
+        guard inner.contains(where: isWaji) || before.contains(where: isWaji) else { continue }
+        let rep = NSMutableAttributedString(string: "（", attributes: [.font: paren, .foregroundColor: color])
+        rep.append(NSAttributedString(string: inner, attributes: [.font: font, .foregroundColor: color]))
+        rep.append(NSAttributedString(string: "）", attributes: [.font: paren, .foregroundColor: color]))
+        // 前の空白も含めて置き換える (m.range は空白から閉じ括弧まで)
+        out.replaceCharacters(in: m.range, with: rep)
     }
     return out
 }
