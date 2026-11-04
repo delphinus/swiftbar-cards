@@ -115,12 +115,37 @@ ctx.scaleBy(x: 1, y: -1)
 NSGraphicsContext.saveGraphicsState()
 NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: true)
 
+// 和字を囲む括弧は、全角の括弧にしてヒラギノ角ゴシックの palt (プロポーショナル
+// メトリクス) で描く。半角の括弧は欧文の字形で、基準線の下まで伸びる位置にある
+// ので、「(日)」のように漢字を囲むと括弧が下にずれて見える。全角の括弧は漢字と
+// 同じ枠の中央に描かれ、palt で左右の余分な空きを詰める。括弧の中に英数字を
+// 含むとき (「(17:00 発表)」など) は半角のままにする。
+func hiragino(_ size: CGFloat, _ weight: NSFont.Weight) -> NSFont {
+    let w = weight == .light ? "W2" : weight == .medium ? "W5" : weight == .semibold ? "W6" : weight == .bold ? "W7" : "W3"
+    let feature: [NSFontDescriptor.FeatureKey: Any] = [
+        NSFontDescriptor.FeatureKey(rawValue: kCTFontOpenTypeFeatureTag as String): "palt",
+        NSFontDescriptor.FeatureKey(rawValue: kCTFontOpenTypeFeatureValue as String): 1,
+    ]
+    let d = NSFontDescriptor(name: "HiraginoSans-\(w)", size: size).addingAttributes([.featureSettings: [feature]])
+    return NSFont(descriptor: d, size: size) ?? NSFont.systemFont(ofSize: size, weight: weight)
+}
+let wakuParen = try! NSRegularExpression(pattern: "\\(([\\u3000-\\u9FFF\\uF900-\\uFAFF]+)\\)")
+func styled(_ s: String, font: NSFont, color: NSColor, size: CGFloat, weight: NSFont.Weight) -> NSAttributedString {
+    let out = NSMutableAttributedString(string: s, attributes: [.font: font, .foregroundColor: color])
+    for m in wakuParen.matches(in: s, range: NSRange(s.startIndex..., in: s)).reversed() {
+        let inner = (s as NSString).substring(with: m.range(at: 1))
+        out.replaceCharacters(in: m.range, with: NSAttributedString(string: "（\(inner)）",
+            attributes: [.font: hiragino(size, weight), .foregroundColor: color]))
+    }
+    return out
+}
+
 // 文字は y を上端として描く。数字は等幅の数字 (tabular figures) にする。
 @discardableResult
 func text(_ s: String, x: CGFloat, y: CGFloat, size: CGFloat, color: NSColor = fg,
           weight: NSFont.Weight = .regular, align: NSTextAlignment = .left) -> CGSize {
     let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: weight)
-    let str = NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: color])
+    let str = styled(s, font: font, color: color, size: size, weight: weight)
     let sz = str.size()
     let dx: CGFloat = align == .center ? -sz.width / 2 : (align == .right ? -sz.width : 0)
     str.draw(at: CGPoint(x: x + dx, y: y))
