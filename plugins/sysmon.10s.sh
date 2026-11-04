@@ -114,6 +114,10 @@ function meter(v, width, col,  n, cells, full, part, s, i) {
 	if (v < 0) v = 0; if (v > 100) v = 100
 	n = int(width / bw)
 	cells = v / 100 * n; full = int(cells); part = int((cells - full) * 8)
+	# 代わりに描かれるブロック文字では、1/8 刻みの半端なブロック (▍ など) が █ より
+	# 細く描かれ、バーの先端だけ太さが変わる。ブロックの幅が 2 のときは半端なブロックを
+	# 使わず、いちばん近い個数に丸める。
+	if (bw == 2) { full = int(cells + 0.5); part = 0 }
 	s = ""
 	for (i = 0; i < full; i++) s = s "█"
 	if (full < n) { s = s (part ? PART[part] : EMPTY); for (i = full + 1; i < n; i++) s = s EMPTY }
