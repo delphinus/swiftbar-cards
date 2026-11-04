@@ -52,16 +52,52 @@ sort -k1,1nr "$tmp/ps" | head -5 >"$tmp/ps_cpu"
 sort -k2,2nr "$tmp/ps" | head -5 >"$tmp/ps_mem"
 wait
 
+# CPU 使用率の履歴。メニューバーには直近 8 回分 (80 秒)、メニューには 36 回分
+# (6 分) を折れ線グラフ風に出す。
+read -r cpu_us cpu_sy _ < <(tail -1 "$tmp/iostat")
+history=~/Library/Caches/swiftbar-sysmon-cpu-history.txt
+hist=$( { cat "$history" 2>/dev/null; echo $((cpu_us + cpu_sy)); } | tail -36)
+printf "%s\n" "$hist" >"$history"
+# awk の -v には改行を含められないので空白区切りで渡す
+hist=${hist//$'\n'/ }
+
 # メモリは Activity Monitor の「使用済みメモリ」と同じく、アプリ (anonymous から
 # purgeable を除く) + wired + 圧縮で数える。
 # メモリプレッシャーは 1 = 正常、2 = 警告、4 = 危険。
 # SwiftBar は " | " 以降を表示のパラメータとして読むので、名前の中の | を逃がす。
-awk -v mono="font=Menlo size=12" -v tmp="$tmp" -v names="$bt_names" -v temps="$temps" '
+# 色は ANSI のエスケープで付ける (SwiftBar の ansi=true)。
+awk -v tmp="$tmp" -v names="$bt_names" -v temps="$temps" -v hist="$hist" '
 function gb(b) { return sprintf("%.1f GB", b / 1073741824) }
 function size(k) { return k >= 1048576 ? sprintf("%.1f GB", k / 1048576) : sprintf("%d MB", k / 1024) }
 function esc(s) { gsub(/\|/, "｜", s); return s }
 function rest(  s, i) { s = $3; for (i = 4; i <= NF; i++) s = s " " $i; return s }
+# 値に応じた色。warn 以上で黄、crit 以上で赤。
+function color(v, warn, crit) { return v >= crit ? RED : v >= warn ? YELLOW : GREEN }
+function paint(s, v, warn, crit) { return color(v, warn, crit) s RESET }
+# 0〜100 の値を 1 文字の高さで表す
+function level(v,  i) { i = int(v / 100 * 8) + 1; if (i < 1) i = 1; if (i > 8) i = 8; return BLOCK[i] }
+# 横棒のメーター。width 文字ぶんを 1/8 刻みで塗り、col の色を付ける。
+function meter(v, width, col,  cells, full, part, s, i) {
+	if (v < 0) v = 0; if (v > 100) v = 100
+	cells = v / 100 * width; full = int(cells); part = int((cells - full) * 8)
+	s = ""
+	for (i = 0; i < full; i++) s = s "█"
+	if (full < width) { s = s (part ? PART[part] : " "); for (i = full + 1; i < width; i++) s = s " " }
+	return col s RESET DIM "▏" RESET
+}
+# 履歴の末尾 n 個で折れ線グラフ風の文字列を作る。足りない分は最低の高さで埋める。
+function spark(n, warn, crit,  s, i, v) {
+	s = ""
+	for (i = nh - n + 1; i <= nh; i++) { v = (i >= 1) ? H[i] : 0; s = s color(v, warn, crit) level(v) }
+	return s RESET
+}
 BEGIN {
+	GREEN = "\033[32m"; YELLOW = "\033[33m"; RED = "\033[31m"; DIM = "\033[2m"; RESET = "\033[0m"
+	split("▁ ▂ ▃ ▄ ▅ ▆ ▇ █", BLOCK, " ")
+	split("▏ ▎ ▍ ▌ ▋ ▊ ▉", PART, " ")
+	mono = "font=Menlo size=12 ansi=true"
+	nh = split(hist, H, " ")
+
 	while ((getline < (tmp "/iostat")) > 0) { us = $1; sy = $2; la = $4 " / " $5 " / " $6 }
 	cpu = us + sy
 
@@ -71,7 +107,8 @@ BEGIN {
 	while ((getline line < (tmp "/sysctl")) > 0) s[++n] = line
 	total = s[1]; pagesize = s[2]
 	split(s[3], sw, " "); for (i in sw) if (sw[i] == "used") swap = sw[i + 2]
-	pressure = s[4] == 1 ? "正常" : s[4] == 2 ? "警告" : s[4] == 4 ? "危険" : "不明"
+	pl = s[4] + 0
+	pressure = pl == 1 ? GREEN "正常" : pl == 2 ? YELLOW "警告" : pl == 4 ? RED "危険" : "不明"
 
 	FS = ":"
 	while ((getline < (tmp "/vm_stat")) > 0) { v = $2; gsub(/[ .]/, "", v); vm[$1] = v }
@@ -92,38 +129,50 @@ BEGIN {
 	}
 	FS = " "
 
-	# メニューバー。数字の幅が変わっても位置がずれないよう等幅のフォントにする。
-	bar = sprintf("CPU %2d%% MEM %2d%%", cpu, mem)
-	if (ctemp != "") bar = bar " " ctemp "°C"
-	if (low) bar = bar " ⚠︎"
-	print bar " | font=Menlo size=11"
+	# メニューバー。CPU は直近 80 秒の推移、メモリは 1 文字の高さ、温度は色で示す。
+	# 数字の幅が変わっても位置がずれないよう等幅のフォントにする。
+	bar = "CPU " spark(8, 50, 80) sprintf(" %2d%%", cpu)
+	bar = bar "  MEM " paint(level(mem) sprintf(" %2d%%", mem), mem, 70, 85)
+	if (ctemp != "") bar = bar "  " paint(ctemp "°C", ctemp, 70, 85)
+	if (low) bar = bar " " RED "⚠︎" RESET
+	print bar " | font=Menlo size=11 ansi=true"
 	print "---"
 
 	print "CPU | sfimage=cpu"
-	printf "使用率      %3d%%  (ユーザ %d%% / システム %d%%) | %s\n", cpu, us, sy, mono
-	if (ecpu != "") printf "コアの稼働  E %d%% / P %d%% | %s\n", ecpu, pcpu, mono
-	printf "負荷        %s | %s\n", la, mono
-	if (ctemp != "") printf "温度        CPU %d°C / GPU %d°C | %s\n", ctemp, gtemp, mono
-	else printf "温度        macmon が見つからない | %s\n", mono
+	printf "使用率    %s %3d%%  (ユーザ %d%% / システム %d%%) | %s\n", meter(cpu, 16, color(cpu, 50, 80)), cpu, us, sy, mono
+	if (ecpu != "") {
+		printf "E コア    %s %3d%% | %s\n", meter(ecpu, 16, color(ecpu, 70, 90)), ecpu, mono
+		printf "P コア    %s %3d%% | %s\n", meter(pcpu, 16, color(pcpu, 50, 80)), pcpu, mono
+	}
+	printf "推移      %s  (6 分) | %s\n", spark(36, 50, 80), mono
+	printf "負荷      %s | %s\n", la, mono
+	if (ctemp != "") {
+		# 温度のメーターは 30〜100°C を 0〜100% として描く
+		printf "CPU 温度  %s %3d°C | %s\n", meter((ctemp - 30) / 70 * 100, 16, color(ctemp, 70, 85)), ctemp, mono
+		printf "GPU 温度  %s %3d°C | %s\n", meter((gtemp - 30) / 70 * 100, 16, color(gtemp, 70, 85)), gtemp, mono
+	} else printf "温度      macmon が見つからない | %s\n", mono
 	print "---"
 
 	print "メモリ | sfimage=memorychip"
-	printf "使用済み    %s / %s  (%d%%) | %s\n", gb(used), gb(total), mem, mono
-	printf "圧縮        %s | %s\n", gb(compressed), mono
-	printf "スワップ    %s | %s\n", (swap == "" ? "0" : swap), mono
-	printf "メモリプレッシャー  %s | %s\n", pressure, mono
+	printf "使用済み  %s %3d%%  (%s / %s) | %s\n", meter(mem, 16, color(mem, 70, 85)), mem, gb(used), gb(total), mono
+	printf "圧縮      %s | %s\n", gb(compressed), mono
+	printf "スワップ  %s | %s\n", (swap == "" ? "0" : swap), mono
+	printf "メモリプレッシャー  %s%s | %s\n", pressure, RESET, mono
 	print "---"
 
-	# ps の %CPU は直近の平均なので、iostat の値と合計は一致しない。
+	# ps の %CPU は直近の平均で、1 コアを使い切ると 100%。メーターは 100% で頭打ちにする。
 	print "CPU を使っているプロセス | sfimage=flame"
-	while ((getline < (tmp "/ps_cpu")) > 0) printf "%6.1f%%  %s | %s\n", $1, esc(rest()), mono
+	while ((getline < (tmp "/ps_cpu")) > 0) printf "%s %6.1f%%  %s | %s\n", meter($1, 8, color($1, 50, 90)), $1, esc(rest()), mono
+	# メモリのメーターは 4 GB を 100% として描く
 	print "メモリを使っているプロセス | sfimage=square.stack.3d.up"
-	while ((getline < (tmp "/ps_mem")) > 0) printf "%9s  %s | %s\n", size($2), esc(rest()), mono
+	while ((getline < (tmp "/ps_mem")) > 0) printf "%s %8s  %s | %s\n", meter($2 / 4194304 * 100, 8, color($2 / 4194304 * 100, 50, 90)), size($2), esc(rest()), mono
 	print "---"
 
 	if (nb) {
 		print "バッテリー | sfimage=battery.75percent"
-		for (i = 1; i <= nb; i++) printf "%4d%%  %s | %s\n", bp[i], esc(bn[i]), mono
+		# 残量は少ないほど危ないので、少ないときに黄・赤にする
+		for (i = 1; i <= nb; i++)
+			printf "%s %3d%%  %s | %s\n", meter(bp[i], 10, (bp[i] < 20 ? RED : bp[i] < 40 ? YELLOW : GREEN)), bp[i], esc(bn[i]), mono
 		print "---"
 	}
 	print "アクティビティモニタを開く | sfimage=arrow.up.forward.circle bash=/usr/bin/open param1=-a param2=\"Activity Monitor\" terminal=false"
