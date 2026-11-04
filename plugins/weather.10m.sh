@@ -191,12 +191,14 @@ jq -r -n --argjson dark "$dark" \
 	#   (232〜255) は標準どおりに変換される。
 	# - 低い値を薄く描こうと \e[2m を使うと、SwiftBar はこれを無視して標準の
 	#   文字色で描き、かえって目立つ。
-	# ダーク: 75 (#79D0FF) → 247 (#9E9E9E) → 242 (#6C6C6C)
-	# ライト: 26 (#007AFF) → 244 (#808080) → 250 (#C8C8C8)
+	# メニューの背景は半透明で壁紙が透けるので、灰色どうしの差は大きく取る
+	# (247 と 242 では見分けられなかった)。
+	# ダーク: 75 (#79D0FF) → 252 (#D0D0D0) → 241 (#626262)
+	# ライト: 26 (#007AFF) → 239 (#4E4E4E) → 249 (#BEBEBE)
 	def pop_ansi: (tonumber? // -1) as $p
 		| if $p >= 60 then esc(if $dark then "38;5;75" else "38;5;26" end)
-		  elif $p >= 30 then esc(if $dark then "38;5;247" else "38;5;244" end)
-		  elif $p >= 0 then esc(if $dark then "38;5;242" else "38;5;250" end) else "" end;
+		  elif $p >= 30 then esc(if $dark then "38;5;252" else "38;5;239" end)
+		  elif $p >= 0 then esc(if $dark then "38;5;241" else "38;5;249" end) else "" end;
 	# 気温の色。暑いほど赤、寒いほど青。
 	def temp_ansi: (tonumber? // null) as $t
 		| if $t == null then "" elif $t >= 30 then esc("31") elif $t >= 25 then esc("33")
@@ -257,7 +259,7 @@ jq -r -n --argjson dark "$dark" \
 
 	  # 気温のグラフ (weather-graph.swift が描いた PNG)
 	  (if ($graph | length) > 0 then
-		"今後 24 時間の気温と降水確率 (実線: 予報 / 破線: 前日の観測) | sfimage=chart.xyaxis.line",
+		"今後 24 時間の気温と降水確率 | sfimage=chart.xyaxis.line",
 		" | image=\($graph | rtrimstr("\n")) width=320 height=166",
 		"---"
 	  else empty end),
