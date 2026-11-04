@@ -20,15 +20,21 @@
 
 export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
 
-# メニューの等幅の行に使うフォント。日本語を英数字のちょうど 2 倍の幅で描くので、
-# 空白で列を揃えられる (Menlo は日本語を別のフォントで代わりに描き、その幅が
-# 英数字 2 文字分にならないので列がずれる)。入っていなければ Menlo にする。
-# SF Mono Square は同じポイント数だとシステムフォントより小さく描かれるので、
-# メニューの標準 (13pt のシステムフォント) と漢字の高さが揃う 15pt にする。
-#   brew install delphinus/sfmono-square/sfmono-square
-mono_font=Menlo mono_size=12
+# メニューの等幅の行に使うフォント。日本語を英数字のちょうど 2 倍の幅で描くものを
+# 使い、空白で列を揃える (Menlo は日本語を別のフォントで代わりに描き、その幅が
+# 英数字 2 文字分にならないので列がずれる)。入っているものを次の順に選ぶ。
+# - M PLUS 1 Code (Google Fonts): 12pt でメニューの標準 (13pt のシステムフォント) と
+#   漢字の高さが揃う。ブロック文字を持たず、代わりに描かれるブロック文字は幅 2。
+# - SF Mono Square (brew install delphinus/sfmono-square/sfmono-square): 同じポイント数
+#   だとシステムフォントより小さく描かれるので 15pt にする。ブロック文字は幅 1。
+# - Menlo: 日本語を含む列はずれる。
+# block_width はブロック文字 1 個の幅 (英数字を 1 とする)。sysmon のメーターとグラフで使う。
+mono_font=Menlo mono_size=12 block_width=1
 for d in ~/Library/Fonts /Library/Fonts; do
 	[[ -f $d/SFMonoSquare-Regular.otf ]] && mono_font=SFMonoSquare-Regular mono_size=15 && break
+done
+for d in ~/Library/Fonts /Library/Fonts; do
+	[[ -f $d/MPLUS1Code-Regular.ttf ]] && mono_font=MPLUS1Code-Regular mono_size=12 block_width=2 && break
 done
 
 cache=~/Library/Caches/swiftbar-weather

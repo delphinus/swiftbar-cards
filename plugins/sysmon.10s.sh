@@ -18,15 +18,21 @@
 
 export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 
-# メニューの等幅の行に使うフォント。日本語を英数字のちょうど 2 倍の幅で描くので、
-# 空白で列を揃えられる (Menlo は日本語を別のフォントで代わりに描き、その幅が
-# 英数字 2 文字分にならないので列がずれる)。入っていなければ Menlo にする。
-# SF Mono Square は同じポイント数だとシステムフォントより小さく描かれるので、
-# メニューの標準 (13pt のシステムフォント) と漢字の高さが揃う 15pt にする。
-#   brew install delphinus/sfmono-square/sfmono-square
-mono_font=Menlo mono_size=12
+# メニューの等幅の行に使うフォント。日本語を英数字のちょうど 2 倍の幅で描くものを
+# 使い、空白で列を揃える (Menlo は日本語を別のフォントで代わりに描き、その幅が
+# 英数字 2 文字分にならないので列がずれる)。入っているものを次の順に選ぶ。
+# - M PLUS 1 Code (Google Fonts): 12pt でメニューの標準 (13pt のシステムフォント) と
+#   漢字の高さが揃う。ブロック文字を持たず、代わりに描かれるブロック文字は幅 2。
+# - SF Mono Square (brew install delphinus/sfmono-square/sfmono-square): 同じポイント数
+#   だとシステムフォントより小さく描かれるので 15pt にする。ブロック文字は幅 1。
+# - Menlo: 日本語を含む列はずれる。
+# block_width はブロック文字 1 個の幅 (英数字を 1 とする)。sysmon のメーターとグラフで使う。
+mono_font=Menlo mono_size=12 block_width=1
 for d in ~/Library/Fonts /Library/Fonts; do
 	[[ -f $d/SFMonoSquare-Regular.otf ]] && mono_font=SFMonoSquare-Regular mono_size=15 && break
+done
+for d in ~/Library/Fonts /Library/Fonts; do
+	[[ -f $d/MPLUS1Code-Regular.ttf ]] && mono_font=MPLUS1Code-Regular mono_size=12 block_width=2 && break
 done
 
 tmp=$(mktemp -d) || exit 1
@@ -91,7 +97,7 @@ menu_fix() {
 # メモリプレッシャーは 1 = 正常、2 = 警告、4 = 危険。
 # SwiftBar は " | " 以降を表示のパラメータとして読むので、名前の中の | を逃がす。
 # 色は ANSI のエスケープで付ける (SwiftBar の ansi=true)。
-awk -v mono_font="$mono_font" -v mono_size="$mono_size" -v tmp="$tmp" -v names="$bt_names" -v temps="$temps" -v hist="$hist" '
+awk -v mono_font="$mono_font" -v mono_size="$mono_size" -v bw="$block_width" -v tmp="$tmp" -v names="$bt_names" -v temps="$temps" -v hist="$hist" '
 function gb(b) { return sprintf("%.1f GB", b / 1073741824) }
 function size(k) { return k >= 1048576 ? sprintf("%.1f GB", k / 1048576) : sprintf("%d MB", k / 1024) }
 function esc(s) { gsub(/\|/, "｜", s); return s }
@@ -101,13 +107,16 @@ function color(v, warn, crit) { return v >= crit ? RED : v >= warn ? YELLOW : GR
 function paint(s, v, warn, crit) { return color(v, warn, crit) s RESET }
 # 0〜100 の値を 1 文字の高さで表す
 function level(v,  i) { i = int(v / 100 * 8) + 1; if (i < 1) i = 1; if (i > 8) i = 8; return BLOCK[i] }
-# 横棒のメーター。width 文字ぶんを 1/8 刻みで塗り、col の色を付ける。
-function meter(v, width, col,  cells, full, part, s, i) {
+# 横棒のメーター。英数字 width 個ぶんの幅を 1/8 刻みで塗り、col の色を付ける。
+# ブロック文字の幅が 2 のフォントでは、ブロックの数を半分にして同じ幅に収める。
+# 空きはブロック文字と同じ幅の空白 (EMPTY) で埋め、メーターの長さを一定にする。
+function meter(v, width, col,  n, cells, full, part, s, i) {
 	if (v < 0) v = 0; if (v > 100) v = 100
-	cells = v / 100 * width; full = int(cells); part = int((cells - full) * 8)
+	n = int(width / bw)
+	cells = v / 100 * n; full = int(cells); part = int((cells - full) * 8)
 	s = ""
 	for (i = 0; i < full; i++) s = s "█"
-	if (full < width) { s = s (part ? PART[part] : " "); for (i = full + 1; i < width; i++) s = s " " }
+	if (full < n) { s = s (part ? PART[part] : EMPTY); for (i = full + 1; i < n; i++) s = s EMPTY }
 	return col s RESET DIM "▏" RESET
 }
 # 履歴の末尾 n 個で折れ線グラフ風の文字列を作る。足りない分は最低の高さで埋める。
@@ -120,6 +129,7 @@ BEGIN {
 	GREEN = "\033[32m"; YELLOW = "\033[33m"; RED = "\033[31m"; DIM = "\033[2m"; RESET = "\033[0m"
 	split("▁ ▂ ▃ ▄ ▅ ▆ ▇ █", BLOCK, " ")
 	split("▏ ▎ ▍ ▌ ▋ ▊ ▉", PART, " ")
+	EMPTY = bw == 2 ? "　" : " "
 	mono = "font=" mono_font " size=" mono_size " ansi=true"
 	nh = split(hist, H, " ")
 
@@ -169,7 +179,9 @@ BEGIN {
 		printf "E コア    %s %3d%% | %s\n", meter(ecpu, 16, color(ecpu, 70, 90)), ecpu, mono
 		printf "P コア    %s %3d%% | %s\n", meter(pcpu, 16, color(pcpu, 50, 80)), pcpu, mono
 	}
-	printf "推移      %s  (6 分) | %s\n", spark(36, 50, 80), mono
+	# 履歴は 36 回分 (6 分) あるが、ブロック文字の幅が 2 のフォントでは 18 回分にする
+	ns = int(36 / bw)
+	printf "推移      %s  (%d 分) | %s\n", spark(ns, 50, 80), ns * 10 / 60, mono
 	printf "負荷      %s | %s\n", la, mono
 	if (ctemp != "") {
 		# 温度のメーターは 30〜100°C を 0〜100% として描く
