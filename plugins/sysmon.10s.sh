@@ -18,6 +18,15 @@
 
 export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 
+# メニューの等幅の行に使うフォント。日本語を英数字のちょうど 2 倍の幅で描くので、
+# 空白で列を揃えられる (Menlo は日本語を別のフォントで代わりに描き、その幅が
+# 英数字 2 文字分にならないので列がずれる)。入っていなければ Menlo にする。
+#   brew install delphinus/sfmono-square/sfmono-square
+mono_font=Menlo
+for d in ~/Library/Fonts /Library/Fonts; do
+	[[ -f $d/SFMonoSquare-Regular.otf ]] && mono_font=SFMonoSquare-Regular && break
+done
+
 tmp=$(mktemp -d) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 
@@ -80,7 +89,7 @@ menu_fix() {
 # メモリプレッシャーは 1 = 正常、2 = 警告、4 = 危険。
 # SwiftBar は " | " 以降を表示のパラメータとして読むので、名前の中の | を逃がす。
 # 色は ANSI のエスケープで付ける (SwiftBar の ansi=true)。
-awk -v tmp="$tmp" -v names="$bt_names" -v temps="$temps" -v hist="$hist" '
+awk -v mono_font="$mono_font" -v tmp="$tmp" -v names="$bt_names" -v temps="$temps" -v hist="$hist" '
 function gb(b) { return sprintf("%.1f GB", b / 1073741824) }
 function size(k) { return k >= 1048576 ? sprintf("%.1f GB", k / 1048576) : sprintf("%d MB", k / 1024) }
 function esc(s) { gsub(/\|/, "｜", s); return s }
@@ -109,7 +118,7 @@ BEGIN {
 	GREEN = "\033[32m"; YELLOW = "\033[33m"; RED = "\033[31m"; DIM = "\033[2m"; RESET = "\033[0m"
 	split("▁ ▂ ▃ ▄ ▅ ▆ ▇ █", BLOCK, " ")
 	split("▏ ▎ ▍ ▌ ▋ ▊ ▉", PART, " ")
-	mono = "font=Menlo size=12 ansi=true"
+	mono = "font=" mono_font " size=12 ansi=true"
 	nh = split(hist, H, " ")
 
 	while ((getline < (tmp "/iostat")) > 0) { us = $1; sy = $2; la = $4 " / " $5 " / " $6 }
