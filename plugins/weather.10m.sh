@@ -208,11 +208,12 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" \
 
 head -1 "$cache/menu.txt"
 echo "---"
-# 画像の行はクリックでプラグインを更新する (refresh=true)。クリックしても何も
-# 起きない項目は、macOS が無効の項目として薄く描く。
+# カードの行には動作を付けない (無効な項目にする)。動作を付けると、マウスを
+# 載せたときにカード全体が選択の色で塗られる。無効な項目でも、文字と違って
+# 画像は薄くならずに描かれる (2026-11-05 に確かめた)。
 if [[ -x $bin ]] && card=$(tail -n +2 "$cache/menu.txt" | "$bin" 2>/dev/null) && [[ -n $card ]]; then
 	{ read -r cw ch; read -r b64; } <<<"$card"
-	echo " | image=$b64 width=$cw height=$ch refresh=true"
+	echo " | image=$b64 width=$cw height=$ch"
 else
 	echo "天気のカードを描けなかった | refresh=true"
 fi
