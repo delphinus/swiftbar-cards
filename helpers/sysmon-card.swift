@@ -1,7 +1,8 @@
 // sysmon.10s.sh が使う、システムの状態のカードを描くプログラム。
 //
-// 標準入力に JSON を受け取り、1 行目に画像の大きさ (pt) を「幅 高さ」で、
-// 2 行目に PNG の Base64 を書く。
+// 標準入力に JSON を受け取り、次の 5 行を書く。
+//   1. カードの大きさ (pt) を「幅 高さ」で   2. カードの PNG の Base64
+//   3. メニューバーの画像の大きさ             4・5. 明るい / 暗いメニューバー用の PNG の Base64
 //
 // カードは上から次の 4 つ。
 // 1. CPU: 使用率を大きく、その横に推移の折れ線グラフ。下に E / P コアの稼働率と温度
@@ -302,3 +303,122 @@ NSGraphicsContext.restoreGraphicsState()
 let png = rep.representation(using: .png, properties: [:])!
 print("\(Int(width)) \(Int(ceil(height)))")
 print(png.base64EncodedString())
+
+// メニューバーの画像
+// CPU [直近 3 分の折れ線グラフ] 28%  MEM [横棒] 58%  48°C
+// 明るいメニューバー用と暗いメニューバー用の 2 枚を描く。SwiftBar は
+// image=明るい用,暗い用 の 2 枚から、メニューバーの見た目に合うほうを選ぶ。
+// 数字は等幅の数字で描くので、値が変わっても項目の幅が変わらない。
+func menuBarImage(dark d: Bool) -> (Data, CGSize) {
+    func c(_ light: UInt32, _ darkv: UInt32) -> NSColor {
+        let v = d ? darkv : light
+        return NSColor(red: CGFloat((v >> 16) & 0xff) / 255, green: CGFloat((v >> 8) & 0xff) / 255,
+                       blue: CGFloat(v & 0xff) / 255, alpha: 1)
+    }
+    let bfg = d ? NSColor(white: 1, alpha: 0.92) : NSColor(white: 0, alpha: 0.85)
+    let btrack = d ? NSColor(white: 1, alpha: 0.22) : NSColor(white: 0, alpha: 0.18)
+    let bgreen = c(0x248A3D, 0x30D158), byellow = c(0xB07800, 0xFFD60A), bred = c(0xD70015, 0xFF453A)
+    func lv(_ v: Double, _ w: Double, _ cr: Double) -> NSColor { v >= cr ? bred : v >= w ? byellow : bgreen }
+
+    let h: CGFloat = 22
+    let font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
+    func attr(_ s: String, _ col: NSColor) -> NSAttributedString {
+        NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: col])
+    }
+    let cpu = input.cpu.total
+    let pct = input.mem.used / input.mem.total * 100
+    let chartW: CGFloat = 40, chartH: CGFloat = 14, barW: CGFloat = 26, barH: CGFloat = 6
+    let cpuLabel = attr("CPU", bfg), memLabel = attr("MEM", bfg)
+    // 桁が少ないときは、数字 1 文字分の空白 (U+2007 figure space) で前を埋めて幅を揃える
+    func pad3(_ v: Double) -> String { String(format: "%3.0f", v).replacingOccurrences(of: " ", with: "\u{2007}") }
+    let cpuVal = attr(pad3(cpu) + "%", bfg)
+    let memVal = attr(pad3(pct) + "%", lv(pct, 70, 85))
+    let tempVal = input.cpu.temp.map { attr(String(format: "%.0f°C", $0), lv($0, 70, 85)) }
+    let low = input.battery.contains { $0.percent < 20 }
+    let sp: CGFloat = 4, gapW: CGFloat = 10
+    var w = cpuLabel.size().width + sp + chartW + sp + cpuVal.size().width + gapW
+        + memLabel.size().width + sp + barW + sp + memVal.size().width
+    if let t = tempVal { w += gapW + t.size().width }
+    if low { w += sp + 16 }
+    w = ceil(w) + 1
+
+    let r = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(w * scale), pixelsHigh: Int(h * scale),
+                             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                             colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    r.size = NSSize(width: w, height: h)
+    let g = NSGraphicsContext(bitmapImageRep: r)!
+    let cg = g.cgContext
+    cg.translateBy(x: 0, y: h)
+    cg.scaleBy(x: 1, y: -1)
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(cgContext: cg, flipped: true)
+
+    var x: CGFloat = 0
+    func put(_ a: NSAttributedString) {
+        let sz = a.size()
+        a.draw(at: CGPoint(x: x, y: (h - sz.height) / 2))
+        x += sz.width
+    }
+    put(cpuLabel); x += sp
+    // 折れ線グラフ: 直近 18 回分 (3 分)。縦軸は 0〜100%、色は今の使用率の色。
+    let hist = Array(input.cpu.hist.suffix(18))
+    let box = CGRect(x: x, y: (h - chartH) / 2, width: chartW, height: chartH)
+    cg.setFillColor(btrack.withAlphaComponent(d ? 0.12 : 0.08).cgColor)
+    cg.addPath(CGPath(roundedRect: box, cornerWidth: 2, cornerHeight: 2, transform: nil))
+    cg.fillPath()
+    if hist.count > 1 {
+        let col = lv(cpu, 50, 80)
+        func pt(_ i: Int) -> CGPoint {
+            CGPoint(x: box.maxX - chartW * CGFloat(hist.count - 1 - i) / 17,
+                    y: box.maxY - (chartH - 1) * CGFloat(min(hist[i], 100) / 100) - 0.5)
+        }
+        let line = CGMutablePath()
+        line.move(to: pt(0))
+        for i in 1..<hist.count { line.addLine(to: pt(i)) }
+        let area = CGMutablePath()
+        area.addPath(line)
+        area.addLine(to: CGPoint(x: box.maxX, y: box.maxY))
+        area.addLine(to: CGPoint(x: pt(0).x, y: box.maxY))
+        area.closeSubpath()
+        cg.addPath(area)
+        cg.setFillColor(col.withAlphaComponent(0.35).cgColor)
+        cg.fillPath()
+        cg.addPath(line)
+        cg.setStrokeColor(col.cgColor)
+        cg.setLineWidth(1.25)
+        cg.setLineJoin(.round)
+        cg.strokePath()
+    }
+    x += chartW + sp
+    put(cpuVal); x += gapW
+    put(memLabel); x += sp
+    // メモリの横棒
+    let mb = CGRect(x: x, y: (h - barH) / 2, width: barW, height: barH)
+    cg.setFillColor(btrack.cgColor)
+    cg.addPath(CGPath(roundedRect: mb, cornerWidth: barH / 2, cornerHeight: barH / 2, transform: nil))
+    cg.fillPath()
+    cg.setFillColor(lv(pct, 70, 85).cgColor)
+    cg.addPath(CGPath(roundedRect: CGRect(x: mb.minX, y: mb.minY, width: max(barH, barW * CGFloat(pct / 100)), height: barH),
+                      cornerWidth: barH / 2, cornerHeight: barH / 2, transform: nil))
+    cg.fillPath()
+    x += barW + sp
+    put(memVal)
+    if let t = tempVal { x += gapW; put(t) }
+    if low {
+        x += sp
+        let cfg = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [bred]))
+        if let img = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)?.withSymbolConfiguration(cfg) {
+            let s = img.size
+            img.draw(in: CGRect(x: x, y: (h - s.height) / 2, width: s.width, height: s.height),
+                     from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+        }
+    }
+    NSGraphicsContext.restoreGraphicsState()
+    return (r.representation(using: .png, properties: [:])!, CGSize(width: w, height: h))
+}
+let (lightBar, barSize) = menuBarImage(dark: false)
+let (darkBar, _) = menuBarImage(dark: true)
+print("\(Int(barSize.width)) \(Int(barSize.height))")
+print(lightBar.base64EncodedString())
+print(darkBar.base64EncodedString())

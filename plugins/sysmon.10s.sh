@@ -75,7 +75,7 @@ if [[ -f $src && (! -x $bin || $src -nt $bin) ]]; then
 	swiftc -O -o "$bin.tmp" "$src" 2>/dev/null && mv "$bin.tmp" "$bin"
 fi
 
-# 1 行目にメニューバーの行、2 行目にカードの JSON を出す。
+# 1 行目にメニューバーの文字の行 (画像を描けなかったとき用)、2 行目にカードの JSON を出す。
 # メモリは Activity Monitor の「使用済みメモリ」と同じく、アプリ (anonymous から
 # purgeable を除く) + wired + 圧縮で数える。
 # メモリプレッシャーは 1 = 正常、2 = 警告、4 = 危険。
@@ -162,14 +162,22 @@ BEGIN {
 	print j
 }' >"$tmp/out"
 
-head -1 "$tmp/out"
-echo "---"
+# メニューバーも画像にする (CPU の推移を小さな折れ線グラフで描く)。描けなかった
+# ときは awk が作った文字の行 (1 行目) を出す。
 # カードの行には動作を付けない (無効な項目にする)。動作を付けると、マウスを
 # 載せたときにカード全体が選択の色で塗られる。画像は無効な項目でも薄くならない。
-if [[ -x $bin ]] && card=$(tail -n +2 "$tmp/out" | "$bin" 2>/dev/null) && [[ -n $card ]]; then
-	{ read -r cw ch; read -r b64; } <<<"$card"
-	echo " | image=$b64 width=$cw height=$ch"
+if [[ -x $bin ]] && out=$(tail -n +2 "$tmp/out" | "$bin" 2>/dev/null) && [[ -n $out ]]; then
+	{ read -r cw ch; read -r card; read -r bw bh; read -r bar_light; read -r bar_dark; } <<<"$out"
+	if [[ -n $bar_dark ]]; then
+		echo " | image=$bar_light,$bar_dark width=$bw height=$bh"
+	else
+		head -1 "$tmp/out"
+	fi
+	echo "---"
+	echo " | image=$card width=$cw height=$ch"
 else
+	head -1 "$tmp/out"
+	echo "---"
 	echo "カードを描けなかった | refresh=true"
 fi
 echo "---"
