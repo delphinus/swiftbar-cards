@@ -256,12 +256,8 @@ jq -r -n \
 		# 日付の欄は今日・明日・11/06(金) で幅が違うので、等幅のフォントで
 		# 11/06(金) の幅 (9) に揃える
 		"\(.value as $tv | day($tv) | if test("^[0-9]") then mdw($tv) else . end | padr(9))  \($wa.weathers[.key] | squash) | sfimage=\($wa.weatherCodes[.key] | icon) \($wa.weatherCodes[.key] | icon_size) sfcolor=\($wa.weatherCodes[.key] | icon_color) font=\($mono_font) size=\($mono_size)"),
-	  # 降水確率は気温のグラフの中 (天気のアイコンの下) に出す
-	  (if $ta then
-		"気温 (\($point)) | sfimage=thermometer.sun sfcolor=#D70015,#FF6961",
-		($t.timeDefines | to_entries[] |
-			"  \(day(.value)) \(if .value[11:13] == "00" then "最低" else "最高" end)  \($ta.temps[.key] | temp_ansi)\($ta.temps[.key])°C\(reset)" + mono)
-	  else empty end),
+	  # 降水確率は気温のグラフの中 (天気のアイコンの下) に出す。短期予報の最高・
+	  # 最低気温は、週間予報の初日 (明日) の欄に入れてあるのでここには出さない。
 	  "---",
 
 	  # 週間予報
