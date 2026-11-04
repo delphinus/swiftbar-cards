@@ -7,6 +7,7 @@
 //     "past": [[1793710000, 12.3], …], // 過去の観測値 [時刻, 気温]
 //     "forecast": [[1793810800, 11], …], // 予報 [時刻, 気温]
 //     "weather": [[1793810800, "cloud.rain", "#64B5FF"], …], // 3 時間ごとの天気のアイコンと色
+//     "pops": [[1793804400, "90", "#64B5FF"], …], // 6 時間ごとの降水確率と色
 //     "dark": true                    // ダークモードか
 //   }
 //
@@ -25,6 +26,7 @@ struct Input: Decodable {
     let past: [[Double]]
     let forecast: [[Double]]
     let weather: [[String]]
+    let pops: [[String]]?
     let dark: Bool
 }
 
@@ -35,11 +37,12 @@ guard let input = try? JSONDecoder().decode(Input.self, from: data) else {
 }
 
 // 大きさ (pt)。PNG はこの 2 倍の画素で描く。
-let width: CGFloat = 320, height: CGFloat = 150
+let width: CGFloat = 320, height: CGFloat = 166
 let scale: CGFloat = 2
-let plot = CGRect(x: 14, y: 54, width: width - 14 - 30, height: 82) // 下からの座標
-let hourY: CGFloat = 38   // 時刻の行
-let iconY: CGFloat = 4    // 天気のアイコンの行 (下端)
+let plot = CGRect(x: 14, y: 70, width: width - 14 - 30, height: 82) // 下からの座標
+let hourY: CGFloat = 54   // 時刻の行
+let iconY: CGFloat = 20   // 天気のアイコンの行 (下端)
+let popY: CGFloat = 4     // 降水確率の行
 
 let fg = input.dark ? NSColor(white: 0.92, alpha: 1) : NSColor(white: 0.1, alpha: 1)
 let sub = input.dark ? NSColor(white: 0.62, alpha: 1) : NSColor(white: 0.4, alpha: 1)
@@ -168,6 +171,14 @@ for w in input.weather where w.count == 3 {
     guard let img = NSImage(systemSymbolName: w[1], accessibilityDescription: nil)?.withSymbolConfiguration(cfg) else { continue }
     let s = img.size
     img.draw(in: CGRect(x: x(mid) - s.width / 2, y: iconY + (26 - s.height) / 2, width: s.width, height: s.height))
+}
+
+// 降水確率: 6 時間ごとの値を、その時間帯 (アイコン 2 つ分) の真ん中に置く
+for p in input.pops ?? [] where p.count == 3 {
+    guard let ts = Double(p[0]), !p[1].isEmpty else { continue }
+    let mid = ts + 3 * 3600
+    guard mid > t0, mid < t1 else { continue }
+    text("\(p[1])%", at: CGPoint(x: x(mid), y: popY), size: 10, color: hex(p[2]), bold: true)
 }
 
 NSGraphicsContext.restoreGraphicsState()

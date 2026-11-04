@@ -98,7 +98,7 @@ dark=false
 [[ ${OS_APPEARANCE:-$(defaults read -g AppleInterfaceStyle 2>/dev/null)} == Dark ]] && dark=true
 if [[ -x $bin && -s $cache/vpfd.json && ${#point_files[@]} -gt 0 ]]; then
 	jq -n --argjson now "$now" --argjson dark "$dark" --arg point "$JMA_TEMP_POINT" \
-		--slurpfile v "$cache/vpfd.json" '
+		--slurpfile v "$cache/vpfd.json" --slurpfile f "$cache/forecast.json" --arg area "$JMA_AREA" '
 		# 2026-11-05T03:00:00+09:00 → UNIX 時刻
 		def epoch: .[0:19] + "Z" | fromdate - 32400;
 		def icon: if test("雪") then "cloud.snow" elif test("雨") then "cloud.rain"
@@ -121,6 +121,12 @@ if [[ -x $bin && -s $cache/vpfd.json && ${#point_files[@]} -gt 0 ]]; then
 			forecast: [range($pt.temperature | length) as $i
 				| select($pt.temperature[$i] != "" and $pt.temperature[$i] != null)
 				| [(($pt.timeDefines // ($vp.pointTimeSeries | if type == "object" then .timeDefines else null end))[$i].dateTime | epoch), ($pt.temperature[$i] | tonumber)]],
+			# 降水確率は府県予報の 6 時間ごとの値 (一次細分区域ごと)
+			pops: ($f[0][0].timeSeries[1] as $ps | ($ps.areas | map(select(.area.name == $area))[0]) as $pa
+				| [range($ps.timeDefines | length) as $i | ($pa.pops[$i] // "") as $p | select($p != "")
+				| [($ps.timeDefines[$i] | epoch | tostring), $p,
+				   ((if ($p | tonumber) >= 60 then ["#0A6FD8", "#64B5FF"] elif ($p | tonumber) >= 30 then ["#B07800", "#FFD60A"]
+				     else ["#6E6E73", "#AEAEB2"] end)[if $dark then 1 else 0 end])]]),
 			weather: [range($at.weather | length) as $i
 				| ($at.weather[$i] | icon) as $ic
 				| [($at.timeDefines[$i].dateTime | epoch | tostring), $ic, ($ic | color)]] }
@@ -236,8 +242,8 @@ jq -r -n \
 
 	  # 気温のグラフ (weather-graph.swift が描いた PNG)
 	  (if ($graph | length) > 0 then
-		"今後 24 時間の気温 (実線: 予報 / 破線: 前日の観測) | sfimage=chart.xyaxis.line",
-		" | image=\($graph | rtrimstr("\n")) width=320 height=150",
+		"今後 24 時間の気温と降水確率 (実線: 予報 / 破線: 前日の観測) | sfimage=chart.xyaxis.line",
+		" | image=\($graph | rtrimstr("\n")) width=320 height=166",
 		"---"
 	  else empty end),
 
@@ -245,9 +251,7 @@ jq -r -n \
 	  ("\($area)の予報 (\($short.reportDatetime[11:16]) 発表) | sfimage=calendar"),
 	  ($w.timeDefines | to_entries[] |
 		"\(day(.value))  \($wa.weathers[.key] | squash) | sfimage=\($wa.weatherCodes[.key] | icon) \($wa.weatherCodes[.key] | icon_size) sfcolor=\($wa.weatherCodes[.key] | icon_color)"),
-	  "降水確率 | sfimage=umbrella.fill sfcolor=#0A6FD8,#64B5FF",
-	  ($p.timeDefines | to_entries[] |
-		"  \(day(.value)) \(.value[11:13])時〜  \($pa.pops[.key] | pop_txt)" + mono),
+	  # 降水確率は気温のグラフの中 (天気のアイコンの下) に出す
 	  (if $ta then
 		"気温 (\($point)) | sfimage=thermometer.sun sfcolor=#D70015,#FF6961",
 		($t.timeDefines | to_entries[] |
