@@ -103,6 +103,8 @@ menu_fix() {
 awk -v mono_font="$mono_font" -v mono_size="$mono_size" -v bw="$block_width" -v tmp="$tmp" -v names="$bt_names" -v temps="$temps" -v hist="$hist" '
 function gb(b) { return sprintf("%.1f GB", b / 1073741824) }
 function size(k) { return k >= 1048576 ? sprintf("%.1f GB", k / 1048576) : sprintf("%d MB", k / 1024) }
+# 2 桁に満たない数は、前を数字 1 文字分の空白 (U+2007 figure space) で埋める
+function pad2(n) { n = int(n); return (n < 10 ? "\342\200\207" : "") n }
 function esc(s) { gsub(/\|/, "｜", s); return s }
 function rest(  s, i) { s = $3; for (i = 4; i <= NF; i++) s = s " " $i; return s }
 # 値に応じた色。warn 以上で黄、crit 以上で赤。
@@ -172,12 +174,14 @@ BEGIN {
 	FS = " "
 
 	# メニューバー。CPU は直近 80 秒の推移、メモリは 1 文字の高さ、温度は色で示す。
-	# 数字の幅が変わっても位置がずれないよう等幅のフォントにする。
-	bar = "CPU " spark(8, 50, 80) sprintf(" %2d%%", cpu)
-	bar = bar "  MEM " paint(level(mem) sprintf(" %2d%%", mem), mem, 70, 85)
+	# フォントは指定せず、隣の項目 (天気など) と同じシステムフォントで描かせる。
+	# システムフォントは数字ごとに幅が違い、値が変わると項目の幅が少し伸び縮みする。
+	# 1 桁のときは数字 1 文字分の空白 (figure space) で埋めて、伸び縮みを小さくする。
+	bar = "CPU " spark(8, 50, 80) " " pad2(cpu) "%"
+	bar = bar "  MEM " paint(level(mem) " " pad2(mem) "%", mem, 70, 85)
 	if (ctemp != "") bar = bar "  " paint(ctemp "°C", ctemp, 70, 85)
 	if (low) bar = bar " " RED "⚠︎" RESET
-	print bar " | font=Menlo size=11 ansi=true"
+	print bar " | ansi=true"
 	print "---"
 
 	print "CPU | sfimage=cpu"
