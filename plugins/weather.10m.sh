@@ -44,14 +44,22 @@ if [[ ! -s $cache/forecast.json ]]; then
 	exit 0
 fi
 
-# ansi=true の行では、色を指定していない部分が SwiftBar の既定の色 (暗い灰) で
-# 描かれ、ダークモードのメニューでは読めない。システムの外観に合わせた文字色を、
-# 行頭と色のリセットの後ろに入れる。メニューバーの行 (最初の --- より前) は
-# メニューバーの外観で描かれるので触らない。
-fg_fix() {
+# メニューの見た目を整える。メニューバーの行 (最初の --- より前) は触らない。
+# - クリックしても何も起きない項目は、macOS が無効の項目として文字も色も薄く描く。
+#   どの項目もクリックでプラグインを更新する (refresh=true) ようにして、有効な
+#   項目として描かせる。
+# - ansi=true の行で色を指定していない部分は、文字色が付かずに描かれる。
+#   システムの外観に合わせた文字色を、行頭と色のリセットの後ろに入れる。
+menu_fix() {
 	local fg=$'\e[30m'
 	[[ $(defaults read -g AppleInterfaceStyle 2>/dev/null) == Dark ]] && fg=$'\e[97m'
-	FG=$fg perl -pe 'BEGIN { $fg = $ENV{FG} } if ($menu && / ansi=true/) { s/\e\[0m/\e[0m$fg/g; $_ = $fg . $_ } $menu = 1 if /^---$/'
+	FG=$fg perl -pe '
+		BEGIN { $fg = $ENV{FG} }
+		if ($menu && !/^---$/) {
+			if (/ ansi=true/) { s/\e\[0m/\e[0m$fg/g; $_ = $fg . $_ }
+			unless (/ (bash|href|refresh)=/) { chomp; $_ .= (/ \| / ? " refresh=true" : " | refresh=true") . "\n" }
+		}
+		$menu = 1 if /^---$/'
 }
 
 jq -r -n \
@@ -165,4 +173,4 @@ jq -r -n \
 		  "---"
 	   else empty end),
 	  "気象庁の天気予報を開く | sfimage=arrow.up.forward.circle href=https://www.jma.go.jp/bosai/forecast/#area_type=offices&area_code=\($office)"
-' | fg_fix
+' | menu_fix
