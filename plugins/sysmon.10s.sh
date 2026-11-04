@@ -61,6 +61,16 @@ printf "%s\n" "$hist" >"$history"
 # awk の -v には改行を含められないので空白区切りで渡す
 hist=${hist//$'\n'/ }
 
+# ansi=true の行では、色を指定していない部分が SwiftBar の既定の色 (暗い灰) で
+# 描かれ、ダークモードのメニューでは読めない。システムの外観に合わせた文字色を、
+# 行頭と色のリセットの後ろに入れる。メニューバーの行 (最初の --- より前) は
+# メニューバーの外観で描かれるので触らない。
+fg_fix() {
+	local fg=$'\e[30m'
+	[[ $(defaults read -g AppleInterfaceStyle 2>/dev/null) == Dark ]] && fg=$'\e[97m'
+	FG=$fg perl -pe 'BEGIN { $fg = $ENV{FG} } if ($menu && / ansi=true/) { s/\e\[0m/\e[0m$fg/g; $_ = $fg . $_ } $menu = 1 if /^---$/'
+}
+
 # メモリは Activity Monitor の「使用済みメモリ」と同じく、アプリ (anonymous から
 # purgeable を除く) + wired + 圧縮で数える。
 # メモリプレッシャーは 1 = 正常、2 = 警告、4 = 危険。
@@ -176,4 +186,4 @@ BEGIN {
 		print "---"
 	}
 	print "アクティビティモニタを開く | sfimage=arrow.up.forward.circle bash=/usr/bin/open param1=-a param2=\"Activity Monitor\" terminal=false"
-}'
+}' | fg_fix

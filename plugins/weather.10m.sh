@@ -44,6 +44,16 @@ if [[ ! -s $cache/forecast.json ]]; then
 	exit 0
 fi
 
+# ansi=true の行では、色を指定していない部分が SwiftBar の既定の色 (暗い灰) で
+# 描かれ、ダークモードのメニューでは読めない。システムの外観に合わせた文字色を、
+# 行頭と色のリセットの後ろに入れる。メニューバーの行 (最初の --- より前) は
+# メニューバーの外観で描かれるので触らない。
+fg_fix() {
+	local fg=$'\e[30m'
+	[[ $(defaults read -g AppleInterfaceStyle 2>/dev/null) == Dark ]] && fg=$'\e[97m'
+	FG=$fg perl -pe 'BEGIN { $fg = $ENV{FG} } if ($menu && / ansi=true/) { s/\e\[0m/\e[0m$fg/g; $_ = $fg . $_ } $menu = 1 if /^---$/'
+}
+
 jq -r -n \
 	--slurpfile f "$cache/forecast.json" \
 	--slurpfile a "$cache/amedas.json" \
@@ -155,4 +165,4 @@ jq -r -n \
 		  "---"
 	   else empty end),
 	  "気象庁の天気予報を開く | sfimage=arrow.up.forward.circle href=https://www.jma.go.jp/bosai/forecast/#area_type=offices&area_code=\($office)"
-'
+' | fg_fix
