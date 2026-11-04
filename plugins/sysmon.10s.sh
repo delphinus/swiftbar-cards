@@ -18,26 +18,6 @@
 
 export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 
-# メニューの等幅の行に使うフォント。日本語を英数字のちょうど 2 倍の幅で描くものを
-# 使い、空白で列を揃える (Menlo は日本語を別のフォントで代わりに描き、その幅が
-# 英数字 2 文字分にならないので列がずれる)。入っているものを次の順に選ぶ。
-# 大きさと太さは、メニューの見出し (13pt のシステムフォント) と英字の高さ・
-# 行の高さ (16pt)・線の濃さが揃うように選んである。
-# - SF Mono Square (brew install delphinus/sfmono-square/sfmono-square): Bold の 16pt。
-#   Regular は見出しより線が細く、同じポイント数だと小さく描かれる。
-#   ブロック文字は幅 1 で、メーターを 1/8 刻みで描ける。
-# - M PLUS 1 Code (Google Fonts): Medium の 13pt。英字が小さく細めなので一段太くする。
-#   ブロック文字を持たず、代わりに描かれるブロック文字は幅 2。
-# - Menlo: 日本語を含む列はずれる。
-# block_width はブロック文字 1 個の幅 (英数字を 1 とする)。sysmon のメーターとグラフで使う。
-mono_font=Menlo mono_size=12 block_width=1
-for d in ~/Library/Fonts /Library/Fonts; do
-	[[ -f $d/MPLUS1Code-Medium.ttf ]] && mono_font=MPLUS1Code-Medium mono_size=13 block_width=2 && break
-done
-for d in ~/Library/Fonts /Library/Fonts; do
-	[[ -f $d/SFMonoSquare-Bold.otf ]] && mono_font=SFMonoSquare-Bold mono_size=16 block_width=1 && break
-done
-
 tmp=$(mktemp -d) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 
@@ -72,41 +52,40 @@ sort -k1,1nr "$tmp/ps" | head -5 >"$tmp/ps_cpu"
 sort -k2,2nr "$tmp/ps" | head -5 >"$tmp/ps_mem"
 wait
 
-# CPU 使用率の履歴。メニューバーには直近 8 回分 (80 秒)、メニューには 36 回分
-# (6 分) を折れ線グラフ風に出す。
+# CPU 使用率の履歴。メニューバーには直近 8 回分 (80 秒) をブロック文字で、
+# カードには 60 回分 (10 分) を折れ線グラフで出す。
 read -r cpu_us cpu_sy _ < <(tail -1 "$tmp/iostat")
 history=~/Library/Caches/swiftbar-sysmon-cpu-history.txt
-hist=$( { cat "$history" 2>/dev/null; echo $((cpu_us + cpu_sy)); } | tail -36)
+hist=$( { cat "$history" 2>/dev/null; echo $((cpu_us + cpu_sy)); } | tail -60)
 printf "%s\n" "$hist" >"$history"
 # awk の -v には改行を含められないので空白区切りで渡す
 hist=${hist//$'\n'/ }
 
-# メニューの見た目を整える。メニューバーの行 (最初の --- より前) は触らない。
-# クリックしても何も起きない項目は、macOS が無効の項目として文字も色も薄く描く。
-# どの項目もクリックでプラグインを更新する (refresh=true) ようにして、有効な
-# 項目として描かせる。
-#
-# ansi=true の行で色を付けない部分には、何も指定しない。SwiftBar のメニューでは
-# 白 (\e[97m や \e[37m) を指定するとかえって灰色に描かれ、指定しなければ
-# メニューの標準の文字色で描かれる (2026-11-04 に並べて描かせて確かめた)。
-menu_fix() {
-	perl -pe '
-		if ($menu && !/^---$/ && !/ (bash|href|refresh)=/) { chomp; $_ .= (/ \| / ? " refresh=true" : " | refresh=true") . "\n" }
-		$menu = 1 if /^---$/'
-}
+dark=false
+[[ ${OS_APPEARANCE:-$(defaults read -g AppleInterfaceStyle 2>/dev/null)} == Dark ]] && dark=true
 
+# メニューの中身は 1 枚のカードの画像にする (../helpers/sysmon-card.swift が描く)。
+# 初回 (とソースを変えたとき) にコンパイルする。1 回の描画は 0.05 秒ほど。
+cache=~/Library/Caches/swiftbar-sysmon
+mkdir -p "$cache"
+src=$(cd "$(dirname "$0")/../helpers" 2>/dev/null && pwd)/sysmon-card.swift
+bin=$cache/sysmon-card
+if [[ -f $src && (! -x $bin || $src -nt $bin) ]]; then
+	swiftc -O -o "$bin.tmp" "$src" 2>/dev/null && mv "$bin.tmp" "$bin"
+fi
+
+# 1 行目にメニューバーの行、2 行目にカードの JSON を出す。
 # メモリは Activity Monitor の「使用済みメモリ」と同じく、アプリ (anonymous から
 # purgeable を除く) + wired + 圧縮で数える。
 # メモリプレッシャーは 1 = 正常、2 = 警告、4 = 危険。
-# SwiftBar は " | " 以降を表示のパラメータとして読むので、名前の中の | を逃がす。
-# 色は ANSI のエスケープで付ける (SwiftBar の ansi=true)。
-awk -v mono_font="$mono_font" -v mono_size="$mono_size" -v bw="$block_width" -v tmp="$tmp" -v names="$bt_names" -v temps="$temps" -v hist="$hist" '
-function gb(b) { return sprintf("%.1f GB", b / 1073741824) }
-function size(k) { return k >= 1048576 ? sprintf("%.1f GB", k / 1048576) : sprintf("%d MB", k / 1024) }
+# メニューバーの色は ANSI のエスケープで付ける (SwiftBar の ansi=true)。
+awk -v tmp="$tmp" -v names="$bt_names" -v temps="$temps" -v hist="$hist" -v dark="$dark" '
 # 2 桁に満たない数は、前を数字 1 文字分の空白 (U+2007 figure space) で埋める
 function pad2(n) { n = int(n); return (n < 10 ? "\342\200\207" : "") n }
-function esc(s) { gsub(/\|/, "｜", s); return s }
 function rest(  s, i) { s = $3; for (i = 4; i <= NF; i++) s = s " " $i; return s }
+# JSON の文字列にする
+function js(s) { gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); gsub(/\t/, " ", s); return "\"" s "\"" }
+function num(v) { return v == "" ? "null" : v + 0 }
 # 値に応じた色。warn 以上で黄、crit 以上で赤。
 function color(v, warn, crit) { return v >= crit ? RED : v >= warn ? YELLOW : GREEN }
 function paint(s, v, warn, crit) { return color(v, warn, crit) s RESET }
@@ -114,22 +93,6 @@ function paint(s, v, warn, crit) { return color(v, warn, crit) s RESET }
 # 文字の基準線から上に伸びるが、█ は下にはみ出る部分まで塗るので、並べると
 # 上下に一回り大きく見える。
 function level(v,  i) { i = int(v / 100 * 7) + 1; if (i < 1) i = 1; if (i > 7) i = 7; return BLOCK[i] }
-# 横棒のメーター。英数字 width 個ぶんの幅を 1/8 刻みで塗り、col の色を付ける。
-# ブロック文字の幅が 2 のフォントでは、ブロックの数を半分にして同じ幅に収める。
-# 空きはブロック文字と同じ幅の空白 (EMPTY) で埋め、メーターの長さを一定にする。
-function meter(v, width, col,  n, cells, full, part, s, i) {
-	if (v < 0) v = 0; if (v > 100) v = 100
-	n = int(width / bw)
-	cells = v / 100 * n; full = int(cells); part = int((cells - full) * 8)
-	# 代わりに描かれるブロック文字では、1/8 刻みの半端なブロック (▍ など) が █ より
-	# 細く描かれ、バーの先端だけ太さが変わる。ブロックの幅が 2 のときは半端なブロックを
-	# 使わず、いちばん近い個数に丸める。
-	if (bw == 2) { full = int(cells + 0.5); part = 0 }
-	s = ""
-	for (i = 0; i < full; i++) s = s "█"
-	if (full < n) { s = s (part ? PART[part] : EMPTY); for (i = full + 1; i < n; i++) s = s EMPTY }
-	return col s RESET DIM "▏" RESET
-}
 # 履歴の末尾 n 個で折れ線グラフ風の文字列を作る。足りない分は最低の高さで埋める。
 function spark(n, warn, crit,  s, i, v) {
 	s = ""
@@ -138,13 +101,7 @@ function spark(n, warn, crit,  s, i, v) {
 }
 BEGIN {
 	GREEN = "\033[32m"; YELLOW = "\033[33m"; RED = "\033[31m"; RESET = "\033[0m"
-	# メーターの右端の区切り線の色。\e[2m (薄く) は SwiftBar が無視して標準の
-	# 文字色で描くので、灰色 (256 色の 244) をはっきり指定する。
-	DIM = "\033[38;5;244m"
 	split("▁ ▂ ▃ ▄ ▅ ▆ ▇", BLOCK, " ")
-	split("▏ ▎ ▍ ▌ ▋ ▊ ▉", PART, " ")
-	EMPTY = bw == 2 ? "　" : " "
-	mono = "font=" mono_font " size=" mono_size " ansi=true"
 	nh = split(hist, H, " ")
 
 	while ((getline < (tmp "/iostat")) > 0) { us = $1; sy = $2; la = $4 " / " $5 " / " $6 }
@@ -157,7 +114,6 @@ BEGIN {
 	total = s[1]; pagesize = s[2]
 	split(s[3], sw, " "); for (i in sw) if (sw[i] == "used") swap = sw[i + 2]
 	pl = s[4] + 0
-	pressure = pl == 1 ? GREEN "正常" : pl == 2 ? YELLOW "警告" : pl == 4 ? RED "危険" : "不明"
 
 	FS = ":"
 	while ((getline < (tmp "/vm_stat")) > 0) { v = $2; gsub(/[ .]/, "", v); vm[$1] = v }
@@ -187,49 +143,33 @@ BEGIN {
 	if (ctemp != "") bar = bar "  " paint(ctemp "°C", ctemp, 70, 85)
 	if (low) bar = bar " " RED "⚠︎" RESET
 	print bar " | ansi=true"
-	print "---"
 
-	print "CPU | sfimage=cpu"
-	printf "使用率    %s %3d%%  (ユーザ %d%% / システム %d%%) | %s\n", meter(cpu, 16, color(cpu, 50, 80)), cpu, us, sy, mono
-	if (ecpu != "") {
-		printf "E コア    %s %3d%% | %s\n", meter(ecpu, 16, color(ecpu, 70, 90)), ecpu, mono
-		printf "P コア    %s %3d%% | %s\n", meter(pcpu, 16, color(pcpu, 50, 80)), pcpu, mono
-	}
-	# 履歴は 36 回分 (6 分) あるが、ブロック文字の幅が 2 のフォントでは 18 回分にする
-	ns = int(36 / bw)
-	printf "推移      %s  (%d 分) | %s\n", spark(ns, 50, 80), ns * 10 / 60, mono
-	printf "負荷      %s | %s\n", la, mono
-	if (ctemp != "") {
-		# 温度のメーターは 30〜100°C を 0〜100% として描く
-		printf "CPU 温度  %s %3d°C | %s\n", meter((ctemp - 30) / 70 * 100, 16, color(ctemp, 70, 85)), ctemp, mono
-		# GPU がほとんど動いていないとき、macmon は室温より低い値 (8°C など) を返す
-		# ことがある。20°C 未満は読めなかったものとして扱う。
-		if (gtemp >= 20) printf "GPU 温度  %s %3d°C | %s\n", meter((gtemp - 30) / 70 * 100, 16, color(gtemp, 70, 85)), gtemp, mono
-		else printf "GPU 温度  %s    - | %s\n", meter(0, 16, color(0, 70, 85)), mono
-	} else printf "温度      macmon が見つからない | %s\n", mono
-	print "---"
+	# カードの JSON
+	h = ""; for (i = 1; i <= nh; i++) h = h (i > 1 ? "," : "") (H[i] + 0)
+	j = "{\"dark\":" dark ",\"interval\":10"
+	j = j ",\"cpu\":{\"total\":" cpu ",\"user\":" us ",\"sys\":" sy ",\"e\":" num(ecpu) ",\"p\":" num(pcpu)
+	j = j ",\"load\":" js(la) ",\"temp\":" num(ctemp) ",\"gpu\":" num(gtemp) ",\"hist\":[" h "]}"
+	j = j ",\"mem\":{\"used\":" used ",\"total\":" total ",\"compressed\":" compressed ",\"swap\":" js(swap == "" ? "0" : swap) ",\"pressure\":" pl "}"
+	# ps の %CPU は直近の平均なので、iostat の値と合計は一致しない
+	j = j ",\"procCpu\":["; k = 0
+	while ((getline < (tmp "/ps_cpu")) > 0) j = j (k++ ? "," : "") "{\"name\":" js(rest()) ",\"value\":" ($1 + 0) "}"
+	j = j "],\"procMem\":["; k = 0
+	while ((getline < (tmp "/ps_mem")) > 0) j = j (k++ ? "," : "") "{\"name\":" js(rest()) ",\"value\":" ($2 + 0) "}"
+	j = j "],\"battery\":["
+	for (i = 1; i <= nb; i++) j = j (i > 1 ? "," : "") "{\"name\":" js(bn[i]) ",\"percent\":" bp[i] "}"
+	j = j "]}"
+	print j
+}' >"$tmp/out"
 
-	print "メモリ | sfimage=memorychip"
-	printf "使用済み  %s %3d%%  (%s / %s) | %s\n", meter(mem, 16, color(mem, 70, 85)), mem, gb(used), gb(total), mono
-	printf "圧縮      %s | %s\n", gb(compressed), mono
-	printf "スワップ  %s | %s\n", (swap == "" ? "0" : swap), mono
-	printf "メモリプレッシャー  %s%s | %s\n", pressure, RESET, mono
-	print "---"
-
-	# ps の %CPU は直近の平均で、1 コアを使い切ると 100%。メーターは 100% で頭打ちにする。
-	print "CPU を使っているプロセス | sfimage=flame"
-	while ((getline < (tmp "/ps_cpu")) > 0) printf "%s %6.1f%%  %s | %s\n", meter($1, 8, color($1, 50, 90)), $1, esc(rest()), mono
-	# メモリのメーターは 4 GB を 100% として描く
-	print "メモリを使っているプロセス | sfimage=square.stack.3d.up"
-	while ((getline < (tmp "/ps_mem")) > 0) printf "%s %8s  %s | %s\n", meter($2 / 4194304 * 100, 8, color($2 / 4194304 * 100, 50, 90)), size($2), esc(rest()), mono
-	print "---"
-
-	if (nb) {
-		print "バッテリー | sfimage=battery.75percent"
-		# 残量は少ないほど危ないので、少ないときに黄・赤にする
-		for (i = 1; i <= nb; i++)
-			printf "%s %3d%%  %s | %s\n", meter(bp[i], 10, (bp[i] < 20 ? RED : bp[i] < 40 ? YELLOW : GREEN)), bp[i], esc(bn[i]), mono
-		print "---"
-	}
-	print "アクティビティモニタを開く | sfimage=arrow.up.forward.circle bash=/usr/bin/open param1=-a param2=\"Activity Monitor\" terminal=false"
-}' | menu_fix
+head -1 "$tmp/out"
+echo "---"
+# カードの行には動作を付けない (無効な項目にする)。動作を付けると、マウスを
+# 載せたときにカード全体が選択の色で塗られる。画像は無効な項目でも薄くならない。
+if [[ -x $bin ]] && card=$(tail -n +2 "$tmp/out" | "$bin" 2>/dev/null) && [[ -n $card ]]; then
+	{ read -r cw ch; read -r b64; } <<<"$card"
+	echo " | image=$b64 width=$cw height=$ch"
+else
+	echo "カードを描けなかった | refresh=true"
+fi
+echo "---"
+echo "アクティビティモニタを開く | sfimage=arrow.up.forward.circle bash=/usr/bin/open param1=-a param2=\"Activity Monitor\" terminal=false"
