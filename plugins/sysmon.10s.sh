@@ -67,9 +67,12 @@ hist=${hist//$'\n'/ }
 #   項目として描かせる。
 # - ansi=true の行で色を指定していない部分は、文字色が付かずに描かれる。
 #   システムの外観に合わせた文字色を、行頭と色のリセットの後ろに入れる。
+#   外観は SwiftBar が渡す OS_APPEARANCE で見る。SwiftBar から実行されたときは
+#   defaults read -g AppleInterfaceStyle が Dark を返さず、黒が選ばれていた。
 menu_fix() {
 	local fg=$'\e[30m'
-	[[ $(defaults read -g AppleInterfaceStyle 2>/dev/null) == Dark ]] && fg=$'\e[97m'
+	local appearance=${OS_APPEARANCE:-$(defaults read -g AppleInterfaceStyle 2>/dev/null)}
+	[[ $appearance == Dark ]] && fg=$'\e[97m'
 	FG=$fg perl -pe '
 		BEGIN { $fg = $ENV{FG} }
 		if ($menu && !/^---$/) {
