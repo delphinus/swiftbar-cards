@@ -137,7 +137,10 @@ function spark(n, warn, crit,  s, i, v) {
 	return s RESET
 }
 BEGIN {
-	GREEN = "\033[32m"; YELLOW = "\033[33m"; RED = "\033[31m"; DIM = "\033[2m"; RESET = "\033[0m"
+	GREEN = "\033[32m"; YELLOW = "\033[33m"; RED = "\033[31m"; RESET = "\033[0m"
+	# メーターの右端の区切り線の色。\e[2m (薄く) は SwiftBar が無視して標準の
+	# 文字色で描くので、灰色 (256 色の 244) をはっきり指定する。
+	DIM = "\033[38;5;244m"
 	split("▁ ▂ ▃ ▄ ▅ ▆ ▇", BLOCK, " ")
 	split("▏ ▎ ▍ ▌ ▋ ▊ ▉", PART, " ")
 	EMPTY = bw == 2 ? "　" : " "

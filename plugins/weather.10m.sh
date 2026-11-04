@@ -186,10 +186,12 @@ jq -r -n --argjson dark "$dark" \
 	def esc($c): "\u001b[\($c)m";
 	def reset: esc("0");
 	# 降水確率は pop_color と同じ段階を ANSI の 256 色で付ける (75 = 鮮やかな青、
-	# 67 = くすんだ青。明るいメニューでは 26 = 濃い青)。
+	# 67 = くすんだ青、244 = 灰。明るいメニューでは 26 = 濃い青)。
+	# 低い値を薄く描こうと \e[2m を使うと、SwiftBar はこれを無視して標準の
+	# 文字色で描き、かえって目立つ。灰色をはっきり指定する。
 	def pop_ansi: (tonumber? // -1) as $p
 		| if $p >= 60 then esc(if $dark then "38;5;75" else "38;5;26" end) elif $p >= 30 then esc("38;5;67")
-		  elif $p >= 0 then esc("2") else "" end;
+		  elif $p >= 0 then esc("38;5;244") else "" end;
 	# 気温の色。暑いほど赤、寒いほど青。
 	def temp_ansi: (tonumber? // null) as $t
 		| if $t == null then "" elif $t >= 30 then esc("31") elif $t >= 25 then esc("33")
