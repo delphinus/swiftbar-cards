@@ -23,8 +23,10 @@ export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
 # メニューの等幅の行に使うフォント。日本語を英数字のちょうど 2 倍の幅で描くものを
 # 使い、空白で列を揃える (Menlo は日本語を別のフォントで代わりに描き、その幅が
 # 英数字 2 文字分にならないので列がずれる)。入っているものを次の順に選ぶ。
-# - M PLUS 1 Code (Google Fonts): 12pt でメニューの標準 (13pt のシステムフォント) と
-#   漢字の高さが揃う。ブロック文字を持たず、代わりに描かれるブロック文字は幅 2。
+# - M PLUS 1 Code (Google Fonts): 英字が小さく細めなので、一段太い Medium を 13pt で
+#   使う。英小文字の高さと行の高さ (16pt) がメニューの標準 (13pt のシステムフォント) と
+#   揃い、漢字は 1 割ほど大きくなる。ブロック文字を持たず、代わりに描かれるブロック
+#   文字は幅 2。
 # - SF Mono Square (brew install delphinus/sfmono-square/sfmono-square): 同じポイント数
 #   だとシステムフォントより小さく描かれるので 15pt にする。ブロック文字は幅 1。
 # - Menlo: 日本語を含む列はずれる。
@@ -34,7 +36,7 @@ for d in ~/Library/Fonts /Library/Fonts; do
 	[[ -f $d/SFMonoSquare-Regular.otf ]] && mono_font=SFMonoSquare-Regular mono_size=15 && break
 done
 for d in ~/Library/Fonts /Library/Fonts; do
-	[[ -f $d/MPLUS1Code-Regular.ttf ]] && mono_font=MPLUS1Code-Regular mono_size=12 block_width=2 && break
+	[[ -f $d/MPLUS1Code-Medium.ttf ]] && mono_font=MPLUS1Code-Medium mono_size=13 block_width=2 && break
 done
 
 cache=~/Library/Caches/swiftbar-weather
