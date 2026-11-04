@@ -23,10 +23,12 @@ export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
 # メニューの等幅の行に使うフォント。日本語を英数字のちょうど 2 倍の幅で描くので、
 # 空白で列を揃えられる (Menlo は日本語を別のフォントで代わりに描き、その幅が
 # 英数字 2 文字分にならないので列がずれる)。入っていなければ Menlo にする。
+# SF Mono Square は同じポイント数だとシステムフォントより小さく描かれるので、
+# メニューの標準 (13pt のシステムフォント) と漢字の高さが揃う 15pt にする。
 #   brew install delphinus/sfmono-square/sfmono-square
-mono_font=Menlo
+mono_font=Menlo mono_size=12
 for d in ~/Library/Fonts /Library/Fonts; do
-	[[ -f $d/SFMonoSquare-Regular.otf ]] && mono_font=SFMonoSquare-Regular && break
+	[[ -f $d/SFMonoSquare-Regular.otf ]] && mono_font=SFMonoSquare-Regular mono_size=15 && break
 done
 
 cache=~/Library/Caches/swiftbar-weather
@@ -72,8 +74,8 @@ jq -r -n \
 	--slurpfile a "$cache/amedas.json" \
 	--arg area "$JMA_AREA" --arg point "$JMA_TEMP_POINT" --arg amedas "$JMA_AMEDAS" \
 	--arg latest "${latest:-}" --arg stale "$stale" --arg office "$JMA_OFFICE" \
-	--arg today "$(date +%F)" --arg mono_font "$mono_font" '
-	def mono: " | font=\($mono_font) size=12 ansi=true";
+	--arg today "$(date +%F)" --arg mono_font "$mono_font" --arg mono_size "$mono_size" '
+	def mono: " | font=\($mono_font) size=\($mono_size) ansi=true";
 	# 天気コードの百の位で大まかに分ける (1 晴れ・2 くもり・3 雨・4 雪)。
 	# 十の位以下は「時々」「のち」などの組み合わせ。
 	def icon:
@@ -181,7 +183,7 @@ jq -r -n \
 		| ($week.timeSeries[1].areas | map(select(.area.name == $point))[0]) as $wt
 		| "週間予報 | sfimage=calendar.badge.clock",
 		  ($ww.timeDefines | to_entries[] |
-			"\(mdw(.value))  \($wt.tempsMax[.key] | pad2)/\($wt.tempsMin[.key] | pad2)°C  降水 \($wwa.pops[.key] | pop_txt) | sfimage=\($wwa.weatherCodes[.key] | icon) \($wwa.weatherCodes[.key] | icon_size) sfcolor=\($wwa.weatherCodes[.key] | icon_color) font=\($mono_font) size=12 ansi=true"),
+			"\(mdw(.value))  \($wt.tempsMax[.key] | pad2)/\($wt.tempsMin[.key] | pad2)°C  降水 \($wwa.pops[.key] | pop_txt) | sfimage=\($wwa.weatherCodes[.key] | icon) \($wwa.weatherCodes[.key] | icon_size) sfcolor=\($wwa.weatherCodes[.key] | icon_color) font=\($mono_font) size=\($mono_size) ansi=true"),
 		  "---"
 	   else empty end),
 	  "気象庁の天気予報を開く | sfimage=arrow.up.forward.circle href=https://www.jma.go.jp/bosai/forecast/#area_type=offices&area_code=\($office)"
