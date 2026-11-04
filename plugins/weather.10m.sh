@@ -197,6 +197,9 @@ jq -r -n \
 	def wday($t): ["日","月","火","水","木","金","土"][$t[0:10] + "T00:00:00Z" | fromdate | strftime("%w") | tonumber];
 	# 週間予報で桁が揃うよう、月日は 0 で埋める (11/06(金))
 	def mdw($t): "\($t[5:7])/\($t[8:10])(\(wday($t)))";
+	# 表示の幅 (英数字を 1、日本語を 2 とする) が $n になるまで後ろに空白を足す
+	def padr($n): (explode | map(if . >= 11904 then 2 else 1 end) | add // 0) as $w
+		| if $w < $n then . + (" " * ($n - $w)) else . end;
 	def day($t): $t[0:10] as $d
 		| if $d == $today then "今日"
 		  elif $d == (($today + "T00:00:00Z" | fromdate) + 86400 | strftime("%Y-%m-%d")) then "明日"
@@ -250,7 +253,9 @@ jq -r -n \
 	  # 今日・明日・明後日の予報
 	  ("\($area)の予報 (\($short.reportDatetime[11:16]) 発表) | sfimage=calendar"),
 	  ($w.timeDefines | to_entries[] |
-		"\(day(.value))  \($wa.weathers[.key] | squash) | sfimage=\($wa.weatherCodes[.key] | icon) \($wa.weatherCodes[.key] | icon_size) sfcolor=\($wa.weatherCodes[.key] | icon_color)"),
+		# 日付の欄は今日・明日・11/06(金) で幅が違うので、等幅のフォントで
+		# 11/06(金) の幅 (9) に揃える
+		"\(.value as $tv | day($tv) | if test("^[0-9]") then mdw($tv) else . end | padr(9))  \($wa.weathers[.key] | squash) | sfimage=\($wa.weatherCodes[.key] | icon) \($wa.weatherCodes[.key] | icon_size) sfcolor=\($wa.weatherCodes[.key] | icon_color) font=\($mono_font) size=\($mono_size)"),
 	  # 降水確率は気温のグラフの中 (天気のアイコンの下) に出す
 	  (if $ta then
 		"気温 (\($point)) | sfimage=thermometer.sun sfcolor=#D70015,#FF6961",
