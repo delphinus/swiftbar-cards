@@ -172,7 +172,10 @@ BEGIN {
 	if (ctemp != "") {
 		# 温度のメーターは 30〜100°C を 0〜100% として描く
 		printf "CPU 温度  %s %3d°C | %s\n", meter((ctemp - 30) / 70 * 100, 16, color(ctemp, 70, 85)), ctemp, mono
-		printf "GPU 温度  %s %3d°C | %s\n", meter((gtemp - 30) / 70 * 100, 16, color(gtemp, 70, 85)), gtemp, mono
+		# GPU がほとんど動いていないとき、macmon は室温より低い値 (8°C など) を返す
+		# ことがある。20°C 未満は読めなかったものとして扱う。
+		if (gtemp >= 20) printf "GPU 温度  %s %3d°C | %s\n", meter((gtemp - 30) / 70 * 100, 16, color(gtemp, 70, 85)), gtemp, mono
+		else printf "GPU 温度  %s    - | %s\n", meter(0, 16, color(0, 70, 85)), mono
 	} else printf "温度      macmon が見つからない | %s\n", mono
 	print "---"
 
