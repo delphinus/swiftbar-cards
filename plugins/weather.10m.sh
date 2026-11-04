@@ -118,10 +118,6 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" \
 		  elif $t <= 12 then (["#0A8AA8", "#5AD8E6"] | pick) else null end;
 	def squash: gsub("　"; "");
 	def wday($t): ["日","月","火","水","木","金","土"][$t[0:10] + "T00:00:00Z" | fromdate | strftime("%w") | tonumber];
-	def day($t): $t[0:10] as $d
-		| if $d == $today then "今日"
-		  elif $d == (($today + "T00:00:00Z" | fromdate) + 86400 | strftime("%Y-%m-%d")) then "明日"
-		  else ($t[5:7] | tonumber | tostring) + "/" + ($t[8:10] | tonumber | tostring) + "(" + wday($t) + ")" end;
 	def dir: ["静穏","北北東","北東","東北東","東","東南東","南東","南南東","南","南南西","南西","西南西","西","西北西","北西","北北西","北"][.] // null;
 	def val($k): ($a[0][$amedas][$k] // [null])[0];
 
@@ -179,7 +175,9 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" \
 	   # 予報は 5・11・17 時に発表されるので、日付が変わってから次の発表までは
 	   # 先頭が昨日の分になる。今日より前の日は出さない。
 	   days: [$w.timeDefines | to_entries[] | select(.value[0:10] >= $today) | ($wa.weatherCodes[.key] | code_icon) as $ic
-		| { label: day(.value), text: ($wa.weathers[.key] | squash), icon: $ic, color: ($ic | icon_colors | pick) }],
+		# 「今日」「明日」は日付をまたぐと指す日が変わって分かりにくいので、日付で出す
+		| { label: "\(.value[5:7] | tonumber)/\(.value[8:10] | tonumber)(\(wday(.value)))",
+		    text: ($wa.weathers[.key] | squash), icon: $ic, color: ($ic | icon_colors | pick) }],
 	   # 週間予報の初日 (明日) は、気温と降水確率が空欄で配られる (短期予報で
 	   # 発表されるため)。空欄なら短期予報の値で埋める。気温は 0 時の値が最低、
 	   # 9 時の値が最高。降水確率は 6 時間ごとの値のうちいちばん高いもの。

@@ -180,11 +180,14 @@ func renderAll(_ input: Input) -> [String] {
         let y0 = top + 20
         let col = level(c.total, 50, 80)
         let big = text(fmt(c.total), x: pad, y: y0 - 4, size: 34, color: col, weight: .light)
-        text("%", x: pad + big.width + 1, y: y0 + 8, size: 16, color: col, weight: .light)
-        text("ユーザ \(fmt(c.user))%  システム \(fmt(c.sys))%", x: pad, y: y0 + 38, size: 10, color: sub)
+        let unit = text("%", x: pad + big.width + 1, y: y0 + 8, size: 16, color: col, weight: .light)
+        let breakdown = text("ユーザ \(fmt(c.user))%  システム \(fmt(c.sys))%", x: pad, y: y0 + 38, size: 10, color: sub)
 
         // 推移の折れ線グラフ (塗りつぶし付き)。縦軸は 0〜100%。
-        let g = CGRect(x: 118, y: y0 + 2, width: width - 118 - pad, height: 46)
+        // 推移の折れ線グラフは、大きな数字と内訳の文字の右から描く (左端を固定すると、
+        // 内訳の文字が長いときに重なる)
+        let gx = ceil(max(118, pad + big.width + 1 + unit.width, pad + breakdown.width) + 12)
+        let g = CGRect(x: gx, y: y0 + 2, width: width - gx - pad, height: 46)
         ctx.setStrokeColor(track.cgColor)
         ctx.setLineWidth(1)
         for f in [0.0, 0.5, 1.0] {

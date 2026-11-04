@@ -315,7 +315,7 @@ if !input.days.isEmpty {
     for d in input.days {
         symbol(d.icon, color: hex(d.color), cx: pad + 9, cy: ry + 8, size: 14)
         text(d.label, x: pad + 26, y: ry, size: 13, color: sub)
-        text(d.text, x: pad + 88, y: ry, size: 13)
+        text(d.text, x: pad + 104, y: ry, size: 13)
         ry += dayRowH
     }
     nextSection(daysH)
