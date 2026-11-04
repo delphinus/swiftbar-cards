@@ -110,8 +110,10 @@ function rest(  s, i) { s = $3; for (i = 4; i <= NF; i++) s = s " " $i; return s
 # 値に応じた色。warn 以上で黄、crit 以上で赤。
 function color(v, warn, crit) { return v >= crit ? RED : v >= warn ? YELLOW : GREEN }
 function paint(s, v, warn, crit) { return color(v, warn, crit) s RESET }
-# 0〜100 の値を 1 文字の高さで表す
-function level(v,  i) { i = int(v / 100 * 8) + 1; if (i < 1) i = 1; if (i > 8) i = 8; return BLOCK[i] }
+# 0〜100 の値を 1 文字の高さ (▁〜▇ の 7 段階) で表す。█ は使わない。▁〜▇ は
+# 文字の基準線から上に伸びるが、█ は下にはみ出る部分まで塗るので、並べると
+# 上下に一回り大きく見える。
+function level(v,  i) { i = int(v / 100 * 7) + 1; if (i < 1) i = 1; if (i > 7) i = 7; return BLOCK[i] }
 # 横棒のメーター。英数字 width 個ぶんの幅を 1/8 刻みで塗り、col の色を付ける。
 # ブロック文字の幅が 2 のフォントでは、ブロックの数を半分にして同じ幅に収める。
 # 空きはブロック文字と同じ幅の空白 (EMPTY) で埋め、メーターの長さを一定にする。
@@ -136,7 +138,7 @@ function spark(n, warn, crit,  s, i, v) {
 }
 BEGIN {
 	GREEN = "\033[32m"; YELLOW = "\033[33m"; RED = "\033[31m"; DIM = "\033[2m"; RESET = "\033[0m"
-	split("▁ ▂ ▃ ▄ ▅ ▆ ▇ █", BLOCK, " ")
+	split("▁ ▂ ▃ ▄ ▅ ▆ ▇", BLOCK, " ")
 	split("▏ ▎ ▍ ▌ ▋ ▊ ▉", PART, " ")
 	EMPTY = bw == 2 ? "　" : " "
 	mono = "font=" mono_font " size=" mono_size " ansi=true"
