@@ -36,7 +36,8 @@ fi
 # 状態と曲の情報を US (0x1f) 区切りで返す。タブで区切ると、read が空の欄を
 # 詰めてしまい後ろの欄がずれる。停止中は current track が取れないので状態だけ。
 # 再生位置と曲の長さは秒に丸めて返す (小数のままだと、ロケールによって小数点が
-# 「,」になる)。
+# 「,」になる)。丸めは as integer で行う。round は AppleScript 自身の命令なので、
+# tell application "Music" の中では Music に送られて失敗する。
 info=$(
 	osascript <<'APPLESCRIPT' 2>/dev/null
 tell application "Music"
@@ -46,11 +47,11 @@ tell application "Music"
 		set t to current track
 		set p to ""
 		try
-			set p to (round (player position)) as text
+			set p to ((player position) as integer) as text
 		end try
 		set d to ""
 		try
-			set d to (round (duration of t)) as text
+			set d to ((duration of t) as integer) as text
 		end try
 		return s & us & (persistent ID of t) & us & (count of artworks of t) & us & p & us & d & us & (name of t) & us & (artist of t) & us & (album of t)
 	on error
