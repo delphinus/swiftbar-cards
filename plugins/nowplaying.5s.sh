@@ -73,13 +73,15 @@ if [[ -n $pid && ${nart:-0} -gt 0 ]]; then
 fi
 
 if [[ $state == playing ]]; then
+	# メニューバーには曲名だけを出す。アーティスト名も並べると、長い曲名のときに
+	# アーティスト名が切られて「—…」だけが残る。アーティスト名はメニューで見られる。
 	# 長い曲名はノッチの裏に隠れるので切る (切った分はツールチップで全文が出る)。
 	if [[ -n $art_small ]]; then
 		# アートワークと曲名の間に空白を 1 つ置く。SwiftBar は何も指定しないと
 		# 前後の空白を削るので trim=false を付け、後ろの空白が残らないよう | の直前で閉じる。
-		echo " $name — $artist| image=$art_small width=18 height=18 length=30 trim=false"
+		echo " $name| image=$art_small width=18 height=18 length=30 trim=false"
 	else
-		echo "$name — $artist | sfimage=music.note length=30"
+		echo "$name | sfimage=music.note length=30"
 	fi
 else
 	echo " | sfimage=music.note"
