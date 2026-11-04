@@ -1,8 +1,8 @@
 // sysmon.sh が起動する、システムの状態をメニューバーに出す常駐型のプログラム。
 //
 // SwiftBar の常駐型 (streamable) プラグインとして動き、10 秒ごとに値を集めて
-// 描き、メニューの中身を標準出力に書く。中身の区切りに「~~~」の行を書くと、
-// SwiftBar がメニューを差し替える。
+// 描き、メニューの中身を標準出力に書く。中身の後ろに「~~~」の行を書くと、
+// SwiftBar がメニューを差し替える (sysmon.sh の useTrailingStreamSeparator)。
 //
 // 以前は 10 秒ごとにシェルのスクリプトを起動し、iostat・ps・vm_stat・jq・描画の
 // プログラムなどを毎回起動していた。その起動の積み重ねで、平均して 1 コアの
@@ -566,7 +566,6 @@ var temps: (temp: Double?, gpu: Double?, e: Double?, p: Double?) = (nil, nil, ni
 var bats: [Battery] = []
 var btNames: [String: String] = [:]
 var lastPs = 0.0, lastMacmon = 0.0, lastBattery = 0.0, lastNames = 0.0
-var first = true
 Thread.sleep(forTimeInterval: 1) // 最初の使用率を出すため、ティックの差分を取る間を置く
 
 while true {
@@ -595,8 +594,6 @@ while true {
                       mem: memory(), procCpu: procCpu, procMem: procMem, battery: bats)
     let o = renderAll(input)
     var lines: [String] = []
-    if !first { lines.append("~~~") }
-    first = false
     if o.count == 5 {
         lines.append(" | image=\(o[3]),\(o[4]) width=\(o[2].replacingOccurrences(of: " ", with: " height="))")
         lines.append("---")
@@ -608,7 +605,8 @@ while true {
     }
     lines.append("---")
     lines.append("アクティビティモニタを開く | sfimage=arrow.up.forward.circle bash=/usr/bin/open param1=-a param2=\"Activity Monitor\" terminal=false")
-    print(lines.joined(separator: "\n"))
+    // 中身の後ろに区切りを出す (sysmon.sh の useTrailingStreamSeparator)
+    print(lines.joined(separator: "\n") + "\n~~~")
     fflush(stdout)
 
     // 次の 10 秒の区切りまで寝る

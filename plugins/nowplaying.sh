@@ -2,6 +2,7 @@
 # <xbar.title>Now Playing (Music.app)</xbar.title>
 # <xbar.desc>Music.app で再生中の曲をメニューバーに出す</xbar.desc>
 # <swiftbar.type>streamable</swiftbar.type>
+# <swiftbar.useTrailingStreamSeparator>true</swiftbar.useTrailingStreamSeparator>
 # <swiftbar.hideAbout>true</swiftbar.hideAbout>
 # <swiftbar.hideRunInTerminal>true</swiftbar.hideRunInTerminal>
 # <swiftbar.hideDisablePlugin>true</swiftbar.hideDisablePlugin>
@@ -13,6 +14,12 @@
 #
 # Music.app に AppleScript で問い合わせるだけなので、macOS 15.4 で塞がれた
 # MediaRemote には頼らない。初回は SwiftBar から Music を操作する許可を求められる。
+#
+# 中身の区切りの「~~~」は、中身の後ろに出す (useTrailingStreamSeparator)。既定の
+# 「前に出す」方式では、SwiftBar はパイプから届いたかたまりごとに中身を書き足して
+# メニューを作り直す。カードの画像は Base64 で 200 KB ほどあり、1 回の更新が
+# 複数のかたまりで届くので、SwiftBar 本体が 1 コアの 5% ほどを使っていた。
+# 後ろに出す方式なら、「~~~」が届いたときに 1 回だけ差し替える。
 
 export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
 

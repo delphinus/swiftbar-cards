@@ -1,7 +1,8 @@
 // nowplaying.sh が起動する、Music.app で再生中の曲をメニューバーに出す常駐型のプログラム。
 //
 // SwiftBar の常駐型 (streamable) プラグインとして動き、メニューの中身を標準出力に
-// 書く。中身の区切りに「~~~」の行を書くと、SwiftBar がメニューを差し替える。
+// 書く。中身の後ろに「~~~」の行を書くと、SwiftBar がメニューを差し替える
+// (nowplaying.sh の useTrailingStreamSeparator)。
 //
 // 更新のきっかけ:
 // - Music.app が再生・一時停止・曲の切り替えのたびに出す通知
@@ -226,7 +227,6 @@ func card(dark: Bool) -> (Data, CGSize) {
 // ---- 出力 ----
 
 setvbuf(stdout, nil, _IOLBF, 0)
-var first = true
 var lastOutput = ""
 
 // メニューのアイコンは幅 15pt のもの (円で囲んだ系統など) で揃える。SF Symbols は
@@ -270,9 +270,9 @@ func emit() {
     let out = lines.joined(separator: "\n")
     guard out != lastOutput else { return } // 前回と同じなら出さない
     lastOutput = out
-    print((first ? "" : "~~~\n") + out)
+    // 中身の後ろに区切りを出す (nowplaying.sh の useTrailingStreamSeparator)
+    print(out + "\n~~~")
     fflush(stdout)
-    first = false
 }
 
 func update() {
