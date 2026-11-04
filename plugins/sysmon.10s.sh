@@ -6,10 +6,11 @@
 # <swiftbar.hideRunInTerminal>true</swiftbar.hideRunInTerminal>
 # <swiftbar.hideDisablePlugin>true</swiftbar.hideDisablePlugin>
 # <swiftbar.hideSwiftBar>true</swiftbar.hideSwiftBar>
-# <swiftbar.refreshOnOpen>true</swiftbar.refreshOnOpen>
 #
 # 常駐の監視アプリより軽くするため、CPU を使う処理を減らしてある。
-# - 更新は 10 秒ごと。メニューを開いたときにも更新するので、メニューには最新の値が出る。
+# - 更新は 10 秒ごと。メニューを開いたときには更新しない (refreshOnOpen を付けない)。
+#   付けると、開くたびにこのスクリプトの完了 (iostat の計測で 1 秒以上) を待ってから
+#   メニューが開くので、クリックしてから開くまでに間が空く。
 # - awk や jq を 1 行ごとに呼ばない (それだけで 1 回 0.3 秒ほど CPU を使う)。
 #   値の整形は最後に awk 1 回でまとめて行う。
 # - ps は 1 回で 0.05 秒ほど使うので 1 回にまとめ、並べ替えは sort に任せる。
