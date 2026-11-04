@@ -266,8 +266,21 @@ jq -r -n \
 		| ($ww.areas[0]) as $wwa
 		| ($week.timeSeries[1].areas | map(select(.area.name == $point))[0]) as $wt
 		| "週間予報 | sfimage=calendar.badge.clock",
-		  ($ww.timeDefines | to_entries[] |
-			"\(mdw(.value))  \($wt.tempsMax[.key] | pad2)/\($wt.tempsMin[.key] | pad2)°C  降水 \($wwa.pops[.key] | pop_txt) | sfimage=\($wwa.weatherCodes[.key] | icon) \($wwa.weatherCodes[.key] | icon_size) sfcolor=\($wwa.weatherCodes[.key] | icon_color) font=\($mono_font) size=\($mono_size) ansi=true"),
+		  # 週間予報の初日 (明日) は、気温と降水確率が空欄で配られる (短期予報で
+		  # 発表されるため)。空欄なら短期予報の値で埋める。気温は 0 時の値が最低、
+		  # 9 時の値が最高。降水確率は 6 時間ごとの値のうちいちばん高いもの。
+		  ($ww.timeDefines | to_entries[] | .value[0:10] as $d
+			| (($wt.tempsMax[.key] // "") | if . == "" and $ta then
+				[$t.timeDefines | to_entries[] | select(.value[0:10] == $d and .value[11:13] != "00") | $ta.temps[.key]][0] // ""
+				else . end) as $tmax
+			| (($wt.tempsMin[.key] // "") | if . == "" and $ta then
+				[$t.timeDefines | to_entries[] | select(.value[0:10] == $d and .value[11:13] == "00") | $ta.temps[.key]][0] // ""
+				else . end) as $tmin
+			| (($wwa.pops[.key] // "") | if . == "" then
+				[$p.timeDefines | to_entries[] | select(.value[0:10] == $d) | $pa.pops[.key] // "" | select(. != "") | tonumber]
+				| (max // null) | if . == null then "" else tostring end
+				else . end) as $pop
+			| "\(mdw(.value))  \($tmax | pad2)/\($tmin | pad2)°C  降水 \($pop | pop_txt) | sfimage=\($wwa.weatherCodes[.key] | icon) \($wwa.weatherCodes[.key] | icon_size) sfcolor=\($wwa.weatherCodes[.key] | icon_color) font=\($mono_font) size=\($mono_size) ansi=true"),
 		  "---"
 	   else empty end),
 	  "気象庁の天気予報を開く | sfimage=arrow.up.forward.circle href=https://www.jma.go.jp/bosai/forecast/#area_type=offices&area_code=\($office)"
