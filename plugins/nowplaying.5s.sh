@@ -63,7 +63,9 @@ APPLESCRIPT
 
 IFS=$'\x1f' read -r state pid nart pos dur name artist album <<<"$info"
 
-ctl() { echo "$1 | sfimage=$2 bash=/usr/bin/osascript param1=-e param2='tell application \"Music\" to $3' terminal=false refresh=true"; }
+ctl() { echo "$1 | sfimage=$2 bash=/usr/bin/osascript param1=-e param2='tell application \"Music\" to $3' terminal=false refresh=true$4"; }
+# 操作は 3 行にまとめる。前の曲に戻る操作は頻度が低いので、⌥ を押している間だけ
+# 「次の曲」と差し替える (SwiftBar の alternate)。
 controls() {
 	if [[ $state == playing ]]; then
 		ctl "一時停止" pause.circle playpause
@@ -71,7 +73,7 @@ controls() {
 		ctl "再生" play.circle play
 	fi
 	ctl "次の曲" forward.end.circle "next track"
-	ctl "前の曲" backward.end.circle "previous track"
+	ctl "前の曲" backward.end.circle "previous track" " alternate=true"
 	echo "$open_music"
 }
 
