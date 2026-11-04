@@ -85,6 +85,13 @@ jq -r -n \
 		  else "questionmark" end;
 
 	# アイコンの色 (SwiftBar の sfcolor)。「明るいメニューバー用,暗いメニューバー用」。
+	# メニューの天気のアイコンは幅を 15pt に揃える。アイコンは天気ごとに縦横比が違い
+	# (くもりは横長、雪は縦長)、そのままだと幅の差だけ後ろの文字がずれる。
+	# SwiftBar は width と height の両方を指定するとその大きさに描き直すので、
+	# 高さは元の縦横比 (SF Symbols の large の大きさ) から決める。
+	def icon_size:
+		{ "sun.max": "width=15 height=15", "cloud.sun": "width=15 height=12", "cloud": "width=15 height=11",
+		  "cloud.rain": "width=15 height=16", "cloud.snow": "width=15 height=16" }[icon] // "";
 	def icon_color:
 		{ "sun.max": "#F08A00,#FFB340", "cloud.sun": "#E09A00,#FFC75A", "cloud": "#6E6E73,#AEAEB2",
 		  "cloud.rain": "#0A6FD8,#64B5FF", "cloud.snow": "#3A9BC1,#9EDCF5" }[icon] // "#6E6E73,#AEAEB2";
@@ -155,7 +162,7 @@ jq -r -n \
 	  # 今日・明日・明後日の予報
 	  ("\($area)の予報 (\($short.reportDatetime[11:16]) 発表) | sfimage=calendar"),
 	  ($w.timeDefines | to_entries[] |
-		"\(day(.value))  \($wa.weathers[.key] | squash) | sfimage=\($wa.weatherCodes[.key] | icon) sfcolor=\($wa.weatherCodes[.key] | icon_color)"),
+		"\(day(.value))  \($wa.weathers[.key] | squash) | sfimage=\($wa.weatherCodes[.key] | icon) \($wa.weatherCodes[.key] | icon_size) sfcolor=\($wa.weatherCodes[.key] | icon_color)"),
 	  "降水確率 | sfimage=umbrella.fill sfcolor=#0A6FD8,#64B5FF",
 	  ($p.timeDefines | to_entries[] |
 		"  \(day(.value)) \(.value[11:13])時〜  \($pa.pops[.key] | pop_txt)" + mono),
@@ -174,7 +181,7 @@ jq -r -n \
 		| ($week.timeSeries[1].areas | map(select(.area.name == $point))[0]) as $wt
 		| "週間予報 | sfimage=calendar.badge.clock",
 		  ($ww.timeDefines | to_entries[] |
-			"\(mdw(.value))  \($wt.tempsMax[.key] | pad2)/\($wt.tempsMin[.key] | pad2)°C  降水 \($wwa.pops[.key] | pop_txt) | sfimage=\($wwa.weatherCodes[.key] | icon) sfcolor=\($wwa.weatherCodes[.key] | icon_color) font=\($mono_font) size=12 ansi=true"),
+			"\(mdw(.value))  \($wt.tempsMax[.key] | pad2)/\($wt.tempsMin[.key] | pad2)°C  降水 \($wwa.pops[.key] | pop_txt) | sfimage=\($wwa.weatherCodes[.key] | icon) \($wwa.weatherCodes[.key] | icon_size) sfcolor=\($wwa.weatherCodes[.key] | icon_color) font=\($mono_font) size=12 ansi=true"),
 		  "---"
 	   else empty end),
 	  "気象庁の天気予報を開く | sfimage=arrow.up.forward.circle href=https://www.jma.go.jp/bosai/forecast/#area_type=offices&area_code=\($office)"
