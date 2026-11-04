@@ -45,23 +45,16 @@ if [[ ! -s $cache/forecast.json ]]; then
 fi
 
 # メニューの見た目を整える。メニューバーの行 (最初の --- より前) は触らない。
-# - クリックしても何も起きない項目は、macOS が無効の項目として文字も色も薄く描く。
-#   どの項目もクリックでプラグインを更新する (refresh=true) ようにして、有効な
-#   項目として描かせる。
-# - ansi=true の行で色を指定していない部分は、文字色が付かずに描かれる。
-#   システムの外観に合わせた文字色を、行頭と色のリセットの後ろに入れる。
-#   外観は SwiftBar が渡す OS_APPEARANCE で見る。SwiftBar から実行されたときは
-#   defaults read -g AppleInterfaceStyle が Dark を返さず、黒が選ばれていた。
+# クリックしても何も起きない項目は、macOS が無効の項目として文字も色も薄く描く。
+# どの項目もクリックでプラグインを更新する (refresh=true) ようにして、有効な
+# 項目として描かせる。
+#
+# ansi=true の行で色を付けない部分には、何も指定しない。SwiftBar のメニューでは
+# 白 (\e[97m や \e[37m) を指定するとかえって灰色に描かれ、指定しなければ
+# メニューの標準の文字色で描かれる (2026-11-04 に並べて描かせて確かめた)。
 menu_fix() {
-	local fg=$'\e[30m'
-	local appearance=${OS_APPEARANCE:-$(defaults read -g AppleInterfaceStyle 2>/dev/null)}
-	[[ $appearance == Dark ]] && fg=$'\e[97m'
-	FG=$fg perl -pe '
-		BEGIN { $fg = $ENV{FG} }
-		if ($menu && !/^---$/) {
-			if (/ ansi=true/) { s/\e\[0m/\e[0m$fg/g; $_ = $fg . $_ }
-			unless (/ (bash|href|refresh)=/) { chomp; $_ .= (/ \| / ? " refresh=true" : " | refresh=true") . "\n" }
-		}
+	perl -pe '
+		if ($menu && !/^---$/ && !/ (bash|href|refresh)=/) { chomp; $_ .= (/ \| / ? " refresh=true" : " | refresh=true") . "\n" }
 		$menu = 1 if /^---$/'
 }
 
