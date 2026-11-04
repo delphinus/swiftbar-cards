@@ -299,8 +299,8 @@ if !input.week.isEmpty {
         symbol(d.icon, color: hex(d.color), cx: cx, cy: y0 + 41, size: 17)
         text(d.max.isEmpty ? "-" : "\(d.max)°", x: cx, y: y0 + 56, size: 13, color: hex(d.maxColor),
              weight: .semibold, align: .center)
-        text(d.min.isEmpty ? "-" : "\(d.min)°", x: cx, y: y0 + 71, size: 13,
-             color: d.minColor == nil ? sub : hex(d.minColor), align: .center)
+        // 色が無い (13〜24°C) ときは、最高気温と同じく標準の文字色にする
+        text(d.min.isEmpty ? "-" : "\(d.min)°", x: cx, y: y0 + 71, size: 13, color: hex(d.minColor), align: .center)
         text(d.pop.isEmpty ? "-" : "\(d.pop)%", x: cx, y: y0 + 86, size: 11,
              color: d.popColor == nil ? sub : hex(d.popColor), weight: .semibold, align: .center)
     }
