@@ -50,7 +50,7 @@ jq -r -n \
 	--arg area "$JMA_AREA" --arg point "$JMA_TEMP_POINT" --arg amedas "$JMA_AMEDAS" \
 	--arg latest "${latest:-}" --arg stale "$stale" --arg office "$JMA_OFFICE" \
 	--arg today "$(date +%F)" '
-	def mono: " | font=Menlo size=12";
+	def mono: " | font=Menlo size=12 ansi=true";
 	# 天気コードの百の位で大まかに分ける (1 晴れ・2 くもり・3 雨・4 雪)。
 	# 十の位以下は「時々」「のち」などの組み合わせ。
 	def icon:
@@ -60,9 +60,29 @@ jq -r -n \
 		  elif $c >= 200 then (if ($c % 100) >= 2 and ($c % 100) < 10 then "cloud.sun" else "cloud" end)
 		  elif $c >= 100 then (if $c == 100 then "sun.max" else "cloud.sun" end)
 		  else "questionmark" end;
+
+	# アイコンの色 (SwiftBar の sfcolor)。「明るいメニューバー用,暗いメニューバー用」。
+	def icon_color:
+		{ "sun.max": "#F08A00,#FFB340", "cloud.sun": "#E09A00,#FFC75A", "cloud": "#6E6E73,#AEAEB2",
+		  "cloud.rain": "#0A6FD8,#64B5FF", "cloud.snow": "#3A9BC1,#9EDCF5" }[icon] // "#6E6E73,#AEAEB2";
+	# 降水確率の色。0〜20% は灰、30〜50% は黄、60% 以上は青。
+	def pop_color: (tonumber? // 0) as $p
+		| if $p >= 60 then "#0A6FD8,#64B5FF" elif $p >= 30 then "#B07800,#FFD60A" else "#6E6E73,#AEAEB2" end;
+
+	# メニューの中は ANSI のエスケープで色を付ける (sfcolor で色が変わるのは文中のアイコンだけ)
+	def esc($c): "\u001b[\($c)m";
+	def reset: esc("0");
+	def pop_ansi: (tonumber? // -1) as $p
+		| if $p >= 60 then esc("34") elif $p >= 30 then esc("33") elif $p >= 0 then esc("2") else "" end;
+	# 気温の色。暑いほど赤、寒いほど青。
+	def temp_ansi: (tonumber? // null) as $t
+		| if $t == null then "" elif $t >= 30 then esc("31") elif $t >= 25 then esc("33")
+		  elif $t <= 5 then esc("34") elif $t <= 12 then esc("36") else "" end;
+	def pop_txt: (. // "") | if . == "" then "-" else pop_ansi + . + "%" + reset end;
+
 	def squash: gsub("　"; "");
-	# 気温を 2 桁の幅に揃える。値が無い日 (週間予報の初日) は "-" にする。
-	def pad2: (. // "") | if . == "" then "-" else . end | if length < 2 then " " + . else . end;
+	# 気温を 2 桁の幅に揃え、色を付ける。値が無い日 (週間予報の初日) は "-" にする。
+	def pad2: (. // "") | if . == "" then " -" else (if length < 2 then " " + . else . end) as $s | temp_ansi + $s + reset end;
 	def wday($t): ["日","月","火","水","木","金","土"][$t[0:10] + "T00:00:00Z" | fromdate | strftime("%w") | tonumber];
 	# 週間予報で桁が揃うよう、月日は 0 で埋める (11/06(金))
 	def mdw($t): "\($t[5:7])/\($t[8:10])(\(wday($t)))";
@@ -82,19 +102,29 @@ jq -r -n \
 	| ($t.areas | map(select(.area.name == $point))[0]) as $ta
 	| val("temp") as $now
 
-	# メニューバー: 今日の天気のアイコン、現在の気温、いまの時間帯の降水確率
+	# メニューバー: 今日の天気のアイコン、現在の気温、いまの時間帯の降水確率。
+	# アイコンは :name: の形で文中に書く (SwiftBar の symbolize)。sfimage と違って
+	# 1 行に複数置けて、どれも同じ大きさで描かれる。sfcolor と sfcolor2 が
+	# 1 個目と 2 個目のアイコンの色になる。symbolize と ansi は同時に使えない。
 	| ([$p.timeDefines | to_entries[] | select(.value <= (now + 32400 | strftime("%Y-%m-%dT%H:%M:%S+09:00")) or .key == 0) | .key] | last) as $pi
-	| (if $now != null then "\($now | round)°" else "" end) as $nowtxt
+	| ($wa.weatherCodes[0]) as $code
 	| ($pa.pops[$pi] // "") as $pop
-	| "\($nowtxt)\(if $pop != "" then " ☂\($pop)%" else "" end)\(if $stale != "" then " ⚠︎" else "" end) | sfimage=\($wa.weatherCodes[0] | icon)",
+	| ":\($code | icon): \(if $now != null then "\($now | round)°" else "" end)"
+	  + (if $pop != "" then " :umbrella.fill: \($pop)%" else "" end)
+	  + (if $stale != "" then " :exclamationmark.triangle:" else "" end)
+	  + " | sfcolor=\($code | icon_color)"
+	  + (if $pop != "" then " sfcolor2=\($pop | pop_color)" else "" end)
+	  + (if $stale != "" then " sfcolor\(if $pop != "" then 3 else 2 end)=#D70015,#FF6961" else "" end),
 	  "---",
 
 	  # 現在の観測値
 	  (if $now != null then
 		"アメダス (\($point)) \($latest[11:16]) の観測 | sfimage=thermometer.medium",
-		"気温      \($now)°C" + mono,
+		"気温      \($now | tostring | temp_ansi)\($now)°C\(reset)" + mono,
 		(if val("humidity") != null then "湿度      \(val("humidity"))%" + mono else empty end),
-		(if val("precipitation1h") != null then "降水量    \(val("precipitation1h")) mm (1 時間)" + mono else empty end),
+		(if val("precipitation1h") != null then
+			"降水量    \(if val("precipitation1h") > 0 then esc("34") else "" end)\(val("precipitation1h")) mm\(reset) (1 時間)" + mono
+		 else empty end),
 		(if val("wind") != null then "風        \(val("windDirection") | dir) \(val("wind")) m/s" + mono else empty end),
 		"---"
 	  else empty end),
@@ -102,14 +132,14 @@ jq -r -n \
 	  # 今日・明日・明後日の予報
 	  ("\($area)の予報 (\($short.reportDatetime[11:16]) 発表) | sfimage=calendar"),
 	  ($w.timeDefines | to_entries[] |
-		"\(day(.value))  \($wa.weathers[.key] | squash) | sfimage=\($wa.weatherCodes[.key] | icon)"),
-	  "降水確率 | sfimage=umbrella",
+		"\(day(.value))  \($wa.weathers[.key] | squash) | sfimage=\($wa.weatherCodes[.key] | icon) sfcolor=\($wa.weatherCodes[.key] | icon_color)"),
+	  "降水確率 | sfimage=umbrella.fill sfcolor=#0A6FD8,#64B5FF",
 	  ($p.timeDefines | to_entries[] |
-		"  \(day(.value)) \(.value[11:13])時〜  \($pa.pops[.key] // "-" | if . == "" then "-" else . + "%" end)" + mono),
+		"  \(day(.value)) \(.value[11:13])時〜  \($pa.pops[.key] | pop_txt)" + mono),
 	  (if $ta then
-		"気温 (\($point)) | sfimage=thermometer.sun",
+		"気温 (\($point)) | sfimage=thermometer.sun sfcolor=#D70015,#FF6961",
 		($t.timeDefines | to_entries[] |
-			"  \(day(.value)) \(if .value[11:13] == "00" then "最低" else "最高" end)  \($ta.temps[.key])°C" + mono)
+			"  \(day(.value)) \(if .value[11:13] == "00" then "最低" else "最高" end)  \($ta.temps[.key] | temp_ansi)\($ta.temps[.key])°C\(reset)" + mono)
 	  else empty end),
 	  "---",
 
@@ -121,7 +151,7 @@ jq -r -n \
 		| ($week.timeSeries[1].areas | map(select(.area.name == $point))[0]) as $wt
 		| "週間予報 | sfimage=calendar.badge.clock",
 		  ($ww.timeDefines | to_entries[] |
-			"\(mdw(.value))  \($wt.tempsMax[.key] | pad2)/\($wt.tempsMin[.key] | pad2)°C  ☂\(($wwa.pops[.key] // "") | if . == "" then "-" else . + "%" end) | sfimage=\($wwa.weatherCodes[.key] | icon) font=Menlo size=12"),
+			"\(mdw(.value))  \($wt.tempsMax[.key] | pad2)/\($wt.tempsMin[.key] | pad2)°C  降水 \($wwa.pops[.key] | pop_txt) | sfimage=\($wwa.weatherCodes[.key] | icon) sfcolor=\($wwa.weatherCodes[.key] | icon_color) font=Menlo size=12 ansi=true"),
 		  "---"
 	   else empty end),
 	  "気象庁の天気予報を開く | sfimage=arrow.up.forward.circle href=https://www.jma.go.jp/bosai/forecast/#area_type=offices&area_code=\($office)"
