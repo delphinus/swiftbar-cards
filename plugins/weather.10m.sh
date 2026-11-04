@@ -125,8 +125,8 @@ if [[ -x $bin && -s $cache/vpfd.json && ${#point_files[@]} -gt 0 ]]; then
 			pops: ($f[0][0].timeSeries[1] as $ps | ($ps.areas | map(select(.area.name == $area))[0]) as $pa
 				| [range($ps.timeDefines | length) as $i | ($pa.pops[$i] // "") as $p | select($p != "")
 				| [($ps.timeDefines[$i] | epoch | tostring), $p,
-				   ((if ($p | tonumber) >= 60 then ["#0A6FD8", "#64B5FF"] elif ($p | tonumber) >= 30 then ["#B07800", "#FFD60A"]
-				     else ["#6E6E73", "#AEAEB2"] end)[if $dark then 1 else 0 end])]]),
+				   ((if ($p | tonumber) >= 60 then ["#0A6FD8", "#64B5FF"] elif ($p | tonumber) >= 30 then ["#5B7FA6", "#7895B8"]
+				     else ["#8E8E93", "#7C7C80"] end)[if $dark then 1 else 0 end])]]),
 			weather: [range($at.weather | length) as $i
 				| ($at.weather[$i] | icon) as $ic
 				| [($at.timeDefines[$i].dateTime | epoch | tostring), $ic, ($ic | color)]] }
@@ -147,7 +147,7 @@ menu_fix() {
 		$menu = 1 if /^---$/'
 }
 
-jq -r -n \
+jq -r -n --argjson dark "$dark" \
 	--slurpfile f "$cache/forecast.json" \
 	--slurpfile a "$cache/amedas.json" \
 	--arg area "$JMA_AREA" --arg point "$JMA_TEMP_POINT" --arg amedas "$JMA_AMEDAS" \
@@ -176,15 +176,20 @@ jq -r -n \
 	def icon_color:
 		{ "sun.max": "#F08A00,#FFB340", "cloud.sun": "#E09A00,#FFC75A", "cloud": "#6E6E73,#AEAEB2",
 		  "cloud.rain": "#0A6FD8,#64B5FF", "cloud.snow": "#3A9BC1,#9EDCF5" }[icon] // "#6E6E73,#AEAEB2";
-	# 降水確率の色。0〜20% は灰、30〜50% は黄、60% 以上は青。
+	# 降水確率の色。青の鮮やかさだけで段階を付け、高いほど目立たせる
+	# (黄を使うと、暗い背景では 90% の青より 50% の黄のほうが目立った)。
+	# 0〜20% は灰、30〜50% はくすんだ青、60% 以上は鮮やかな青。
 	def pop_color: (tonumber? // 0) as $p
-		| if $p >= 60 then "#0A6FD8,#64B5FF" elif $p >= 30 then "#B07800,#FFD60A" else "#6E6E73,#AEAEB2" end;
+		| if $p >= 60 then "#0A6FD8,#64B5FF" elif $p >= 30 then "#5B7FA6,#7895B8" else "#8E8E93,#7C7C80" end;
 
 	# メニューの中は ANSI のエスケープで色を付ける (sfcolor で色が変わるのは文中のアイコンだけ)
 	def esc($c): "\u001b[\($c)m";
 	def reset: esc("0");
+	# 降水確率は pop_color と同じ段階を ANSI の 256 色で付ける (75 = 鮮やかな青、
+	# 67 = くすんだ青。明るいメニューでは 26 = 濃い青)。
 	def pop_ansi: (tonumber? // -1) as $p
-		| if $p >= 60 then esc("34") elif $p >= 30 then esc("33") elif $p >= 0 then esc("2") else "" end;
+		| if $p >= 60 then esc(if $dark then "38;5;75" else "38;5;26" end) elif $p >= 30 then esc("38;5;67")
+		  elif $p >= 0 then esc("2") else "" end;
 	# 気温の色。暑いほど赤、寒いほど青。
 	def temp_ansi: (tonumber? // null) as $t
 		| if $t == null then "" elif $t >= 30 then esc("31") elif $t >= 25 then esc("33")
