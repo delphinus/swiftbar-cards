@@ -12,9 +12,11 @@
 #
 # 地域は環境変数で変えられる。コードは次で調べる。
 #   予報区 (府県): https://www.jma.go.jp/bosai/common/const/area.json の offices
+#   一次細分区域: 同じファイルの class10s (地域時系列予報に使う)
 #   アメダスの観測点: https://www.jma.go.jp/bosai/amedas/const/amedastable.json
 : "${JMA_OFFICE:=130000}"         # 府県予報区 (東京都)
 : "${JMA_AREA:=東京地方}"         # 一次細分区域の名前 (予報文と降水確率)
+: "${JMA_CLASS10:=130010}"        # 一次細分区域のコード (東京地方。気温のグラフ)
 : "${JMA_TEMP_POINT:=東京}"       # 予報の気温の地点名
 : "${JMA_AMEDAS:=44132}"          # アメダスの観測点 (東京)
 
@@ -64,6 +66,67 @@ if [[ ! -s $cache/forecast.json ]]; then
 	exit 0
 fi
 
+# 気温のグラフ (今後 24 時間を実線、前日の同じ時刻を破線)。
+# - 予報: 地域時系列予報 (3 時間ごとの気温と天気)
+# - 観測: アメダスの観測点の時系列。3 時間ごとのファイルに 10 分ごとの値が入っている。
+#   過去 24 時間ぶん (9 ファイル) を、確定したものはキャッシュして使い回す。
+#   最新の 2 つは書き足されている途中のことがあるので毎回取り直す。
+# 描画は ../helpers/weather-graph.swift。初回 (と、ソースを変えたとき) にコンパイルする。
+graph_png=$cache/graph.b64
+rm -f "$graph_png"
+fetch "$base/jmatile/data/wdist/VPFD/$JMA_CLASS10.json" "$cache/vpfd.json"
+mkdir -p "$cache/amedas"
+find "$cache/amedas" -name '*.json' -mtime +2 -delete
+now=$(date +%s)
+point_files=()
+for k in 0 1 2 3 4 5 6 7 8 9; do
+	e=$((now - k * 3 * 3600))
+	h=$(TZ=Asia/Tokyo date -r "$e" +%H)
+	block=$(TZ=Asia/Tokyo date -r "$e" +%Y%m%d)_$(printf '%02d' $((10#$h / 3 * 3)))
+	f=$cache/amedas/${JMA_AMEDAS}_$block.json
+	if [[ $k -lt 2 || ! -s $f ]]; then
+		fetch "$base/amedas/data/point/$JMA_AMEDAS/$block.json" "$f"
+	fi
+	[[ -s $f ]] && point_files+=("$f")
+done
+src=$(cd "$(dirname "$0")/../helpers" 2>/dev/null && pwd)/weather-graph.swift
+bin=$cache/weather-graph
+if [[ -f $src && (! -x $bin || $src -nt $bin) ]]; then
+	swiftc -O -o "$bin.tmp" "$src" 2>/dev/null && mv "$bin.tmp" "$bin"
+fi
+dark=false
+[[ ${OS_APPEARANCE:-$(defaults read -g AppleInterfaceStyle 2>/dev/null)} == Dark ]] && dark=true
+if [[ -x $bin && -s $cache/vpfd.json && ${#point_files[@]} -gt 0 ]]; then
+	jq -n --argjson now "$now" --argjson dark "$dark" --arg point "$JMA_TEMP_POINT" \
+		--slurpfile v "$cache/vpfd.json" '
+		# 2026-11-05T03:00:00+09:00 → UNIX 時刻
+		def epoch: .[0:19] + "Z" | fromdate - 32400;
+		def icon: if test("雪") then "cloud.snow" elif test("雨") then "cloud.rain"
+			elif test("くもり") then (if test("晴") then "cloud.sun" else "cloud" end)
+			elif test("晴") then "sun.max" else "questionmark" end;
+		# weather.10m.sh のメニューと同じ色。明るいメニュー用と暗いメニュー用を選ぶ。
+		def color: ({ "sun.max": ["#F08A00", "#FFB340"], "cloud.sun": ["#E09A00", "#FFC75A"],
+			"cloud.rain": ["#0A6FD8", "#64B5FF"], "cloud.snow": ["#3A9BC1", "#9EDCF5"] }[.]
+			// ["#6E6E73", "#AEAEB2"])[if $dark then 1 else 0 end];
+		# 観測値は正時のものだけを使う (20261104210000 の形のキー)
+		[inputs | to_entries[] | select(.key | endswith("0000")) | select(.value.temp[0] != null)
+		 | [(.key | strptime("%Y%m%d%H%M%S") | mktime - 32400), .value.temp[0]]]
+		| sort_by(.[0]) as $past
+		| $v[0] as $vp
+		| ($vp.pointTimeSeries | if type == "array" then (map(select(.pointNameJP == $point))[0] // .[0]) else . end) as $pt
+		| ($vp.areaTimeSeries | if type == "array" then .[0] else . end) as $at
+		| { now: $now, dark: $dark,
+			current: ($past | last | .[1]),
+			past: ($past | map(select(.[0] >= $now - 25 * 3600))),
+			forecast: [range($pt.temperature | length) as $i
+				| select($pt.temperature[$i] != "" and $pt.temperature[$i] != null)
+				| [(($pt.timeDefines // ($vp.pointTimeSeries | if type == "object" then .timeDefines else null end))[$i].dateTime | epoch), ($pt.temperature[$i] | tonumber)]],
+			weather: [range($at.weather | length) as $i
+				| ($at.weather[$i] | icon) as $ic
+				| [($at.timeDefines[$i].dateTime | epoch | tostring), $ic, ($ic | color)]] }
+		' "${point_files[@]}" 2>/dev/null | "$bin" >"$graph_png" 2>/dev/null || rm -f "$graph_png"
+fi
+
 # メニューの見た目を整える。メニューバーの行 (最初の --- より前) は触らない。
 # クリックしても何も起きない項目は、macOS が無効の項目として文字も色も薄く描く。
 # どの項目もクリックでプラグインを更新する (refresh=true) ようにして、有効な
@@ -83,7 +146,8 @@ jq -r -n \
 	--slurpfile a "$cache/amedas.json" \
 	--arg area "$JMA_AREA" --arg point "$JMA_TEMP_POINT" --arg amedas "$JMA_AMEDAS" \
 	--arg latest "${latest:-}" --arg stale "$stale" --arg office "$JMA_OFFICE" \
-	--arg today "$(date +%F)" --arg mono_font "$mono_font" --arg mono_size "$mono_size" '
+	--arg today "$(date +%F)" --arg mono_font "$mono_font" --arg mono_size "$mono_size" \
+	--rawfile graph <(cat "$graph_png" 2>/dev/null) '
 	def mono: " | font=\($mono_font) size=\($mono_size) ansi=true";
 	# 天気コードの百の位で大まかに分ける (1 晴れ・2 くもり・3 雨・4 雪)。
 	# 十の位以下は「時々」「のち」などの組み合わせ。
@@ -167,6 +231,13 @@ jq -r -n \
 			"降水量    \(if val("precipitation1h") > 0 then esc("34") else "" end)\(val("precipitation1h")) mm\(reset) (1 時間)" + mono
 		 else empty end),
 		(if val("wind") != null then "風        \(val("windDirection") | dir) \(val("wind")) m/s" + mono else empty end),
+		"---"
+	  else empty end),
+
+	  # 気温のグラフ (weather-graph.swift が描いた PNG)
+	  (if ($graph | length) > 0 then
+		"今後 24 時間の気温 (実線: 予報 / 破線: 前日の観測) | sfimage=chart.xyaxis.line",
+		" | image=\($graph | rtrimstr("\n")) width=320 height=150",
 		"---"
 	  else empty end),
 
