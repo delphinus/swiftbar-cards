@@ -12,7 +12,10 @@
 # 再生していないときも何かを出す。空にすると項目が隠れ、見えるプラグインが
 # 無くなった SwiftBar が代わりに「SwiftBar」という項目を出してしまうため。
 
-open_music="Music を開く | sfimage=music.note.list bash=/usr/bin/open param1=-a param2=Music terminal=false"
+# メニューのアイコンは幅 15pt のもの (円で囲んだ系統など) で揃える。SF Symbols は
+# アイコンごとに幅が違い (music.note は 11、forward.fill は 20)、その差だけ文字の
+# 書き出し位置がずれる。
+open_music="Music を開く | sfimage=arrow.up.forward.circle bash=/usr/bin/open param1=-a param2=Music terminal=false"
 
 # `tell application "Music"` は Music が起動していなければ起動してしまうので先に見る。
 if ! pgrep -xq Music; then
@@ -89,16 +92,16 @@ fi
 echo "---"
 if [[ -n $name ]]; then
 	[[ -n $art_large ]] && echo " | image=$art_large width=200 height=200"
-	echo "$name | sfimage=music.note"
-	echo "$artist | sfimage=person"
-	[[ -n $album ]] && echo "$album | sfimage=square.stack"
+	echo "$name | sfimage=waveform.circle"
+	echo "$artist | sfimage=person.circle"
+	[[ -n $album ]] && echo "$album | sfimage=opticaldisc"
 	echo "---"
 fi
 if [[ $state == playing ]]; then
-	ctl "一時停止" pause.fill playpause
+	ctl "一時停止" pause.circle playpause
 else
-	ctl "再生" play.fill play
+	ctl "再生" play.circle play
 fi
-ctl "次の曲" forward.fill "next track"
-ctl "前の曲" backward.fill "previous track"
+ctl "次の曲" forward.end.circle "next track"
+ctl "前の曲" backward.end.circle "previous track"
 echo "$open_music"
