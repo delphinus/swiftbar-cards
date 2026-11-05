@@ -92,30 +92,6 @@ func hex(_ s: String?) -> NSColor {
                    blue: CGFloat(v & 0xff) / 255, alpha: 1)
 }
 
-// 大きさ (pt)。上から順に積む。PNG はこの 2 倍の画素で描く。
-let width: CGFloat = 340
-let pad: CGFloat = 2
-let obsH: CGFloat = input.obs != nil ? 52 : 0
-let graphH: CGFloat = input.graph != nil ? 178 : 0
-let dayRowH: CGFloat = 21
-let daysH: CGFloat = input.days.isEmpty ? 0 : 20 + dayRowH * CGFloat(input.days.count)
-let weekH: CGFloat = input.week.isEmpty ? 0 : 20 + 98
-let gap: CGFloat = 13 // 節の間 (区切り線を含む)
-let sections = [obsH, graphH, daysH, weekH].filter { $0 > 0 }
-let height = sections.reduce(0, +) + gap * CGFloat(max(sections.count - 1, 0))
-let scale: CGFloat = 2
-
-let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(width * scale), pixelsHigh: Int(height * scale),
-                           bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-                           colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
-rep.size = NSSize(width: width, height: height)
-let base = NSGraphicsContext(bitmapImageRep: rep)!
-let ctx = base.cgContext
-// 上から下へ座標を取る (y は上端からの距離)
-ctx.translateBy(x: 0, y: height)
-ctx.scaleBy(x: 1, y: -1)
-NSGraphicsContext.saveGraphicsState()
-NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: true)
 
 // 和文の中の括弧は、全角の括弧にしてヒラギノ角ゴシックの palt (プロポーショナル
 // メトリクス) で描く。半角の括弧は欧文の字形で、基準線の下まで伸びる位置にある
@@ -153,6 +129,69 @@ func styled(_ s: String, font: NSFont, color: NSColor, size: CGFloat, weight: NS
     }
     return out
 }
+
+// 気象庁の予報の文は「晴れ　明け方　まで　くもり」のように全角の空白で語を
+// 区切って配られる。空白は詰めて描き、折り返しは語の間でだけ起きるようにする
+// (語の中の字の間に U+2060 WORD JOINER、語の間に U+200B ZERO WIDTH SPACE を
+// 置く)。字の間のどこでも折り返すと、「雷を伴」と「う」に分かれたりする。
+// 助詞で始まる語 (まで・で・から・を など) は前の語につなげ、手前で折らない。
+func phrased(_ s: String) -> String {
+    let particles = ["まで", "では", "で", "から", "を", "に", "の", "より"]
+    var words: [String] = []
+    for w in s.split(separator: "　").map(String.init) {
+        if let last = words.last, particles.contains(where: { w.hasPrefix($0) }) {
+            words[words.count - 1] = last + w
+        } else {
+            words.append(w)
+        }
+    }
+    return words.map { $0.map(String.init).joined(separator: "\u{2060}") }.joined(separator: "\u{200B}")
+}
+
+// 幅を決めて折り返して描く文。高さを測る関数と描く関数を対にする。
+func boxString(_ s: String, size: CGFloat, color: NSColor = fg, weight: NSFont.Weight = .regular) -> NSAttributedString {
+    let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: weight)
+    let str = NSMutableAttributedString(attributedString: styled(s, font: font, color: color, size: size, weight: weight))
+    let style = NSMutableParagraphStyle()
+    style.lineBreakMode = .byWordWrapping
+    str.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: str.length))
+    return str
+}
+func boxHeight(_ s: String, width w: CGFloat, size: CGFloat) -> CGFloat {
+    boxString(s, size: size).boundingRect(with: CGSize(width: w, height: .greatestFiniteMagnitude),
+                                          options: [.usesLineFragmentOrigin]).height
+}
+func textBox(_ s: String, x: CGFloat, y: CGFloat, width w: CGFloat, size: CGFloat, color: NSColor = fg) {
+    boxString(s, size: size, color: color).draw(with: CGRect(x: x, y: y, width: w, height: .greatestFiniteMagnitude),
+                                                options: [.usesLineFragmentOrigin])
+}
+
+// 大きさ (pt)。上から順に積む。PNG はこの 2 倍の画素で描く。
+let width: CGFloat = 340
+let pad: CGFloat = 2
+let obsH: CGFloat = input.obs != nil ? 52 : 0
+let graphH: CGFloat = input.graph != nil ? 178 : 0
+// 予報の文は、幅に収まらなければ折り返し、その行だけ高くする
+let dayTextX = pad + 104, dayTextW = width - pad - dayTextX
+let dayRowHs: [CGFloat] = input.days.map { max(21, ceil(boxHeight(phrased($0.text), width: dayTextW, size: 13)) + 5) }
+let daysH: CGFloat = input.days.isEmpty ? 0 : 20 + dayRowHs.reduce(0, +)
+let weekH: CGFloat = input.week.isEmpty ? 0 : 20 + 98
+let gap: CGFloat = 13 // 節の間 (区切り線を含む)
+let sections = [obsH, graphH, daysH, weekH].filter { $0 > 0 }
+let height = sections.reduce(0, +) + gap * CGFloat(max(sections.count - 1, 0))
+let scale: CGFloat = 2
+
+let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(width * scale), pixelsHigh: Int(height * scale),
+                           bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                           colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+rep.size = NSSize(width: width, height: height)
+let base = NSGraphicsContext(bitmapImageRep: rep)!
+let ctx = base.cgContext
+// 上から下へ座標を取る (y は上端からの距離)
+ctx.translateBy(x: 0, y: height)
+ctx.scaleBy(x: 1, y: -1)
+NSGraphicsContext.saveGraphicsState()
+NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: true)
 
 // 文字は y を上端として描く。数字は等幅の数字 (tabular figures) にする。
 @discardableResult
@@ -277,9 +316,16 @@ if let g = input.graph {
         text(fmt(p.1.rounded()), x: min(max(q.x, plot.minX + 8), plot.maxX - 8), y: q.y - 19, size: 11,
              weight: .semibold, align: .center)
     }
-    if g.current != nil, let first = solid.first { mark(first) }
-    let future = solid.filter { $0.0 >= t0 && $0.0 <= t1 }.dropFirst(g.current != nil ? 1 : 0)
-    if let mx = future.max(by: { $0.1 < $1.1 }) { mark(mx) }
+    let now = g.current != nil ? solid.first : nil
+    if let now { mark(now) }
+    let future = solid.filter { $0.0 >= t0 && $0.0 <= t1 }.dropFirst(now != nil ? 1 : 0)
+    // 予報の最高気温は、今より高いときだけ出す (この先は下がるだけなら、出しても
+    // 意味が無い)。今の点のすぐ近くにあると値が重なるので、そのときも省く。
+    if let mx = future.max(by: { $0.1 < $1.1 }),
+       now.map({ mx.1.rounded() > $0.1.rounded()
+                 && (abs(x(mx.0) - x($0.0)) >= 26 || abs(y(mx.1) - y($0.1)) >= 16) }) ?? true {
+        mark(mx)
+    }
 
     // 時刻: 3 時間ごとに数字、その間は点
     var t = t0
@@ -314,11 +360,11 @@ if let g = input.graph {
 if !input.days.isEmpty {
     text(input.daysTitle, x: pad, y: top, size: 11, color: sub)
     var ry = top + 20
-    for d in input.days {
+    for (d, h) in zip(input.days, dayRowHs) {
         symbol(d.icon, color: hex(d.color), cx: pad + 9, cy: ry + 8, size: 14)
         text(d.label, x: pad + 26, y: ry, size: 13, color: sub)
-        text(d.text, x: pad + 104, y: ry, size: 13)
-        ry += dayRowH
+        textBox(phrased(d.text), x: dayTextX, y: ry, width: dayTextW, size: 13)
+        ry += h
     }
     nextSection(daysH)
 }
