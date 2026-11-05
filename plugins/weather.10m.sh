@@ -35,7 +35,15 @@ lang=$(cards_lang)
 # 日本語と英語の文言から、表示の言語のほうを選ぶ
 T() { if [[ $lang == ja ]]; then printf '%s' "$1"; else printf '%s' "$2"; fi; }
 
-fetch() { curl -sf --max-time 10 "$1" -o "$2.tmp" && mv "$2.tmp" "$2"; }
+# 一時ファイルの名前にプロセスの番号を入れる (裏で他の地点を描く処理と重なっても壊れない)
+fetch() {
+	if curl -sf --max-time 10 "$1" -o "$2.tmp.$$"; then
+		mv "$2.tmp.$$" "$2"
+	else
+		rm -f "$2.tmp.$$"
+		return 1
+	fi
+}
 
 case ${1:-} in
 # メニューの「設定ファイルを開く」から呼ばれる。無ければひな形を作る。
@@ -65,11 +73,15 @@ open-config)
 	open -t "$conf"
 	exit 0
 	;;
-# メニューの「地点」から呼ばれる。選んだ地点を覚える。
+# メニューの地点の項目から呼ばれる。選んだ地点を覚え、続く実行 (refresh=true) で
+# 取得を待たずにキャッシュのカードを出すよう印を付ける。
 select)
 	printf '%s\n' "${2:-}" >"$cache/selected"
+	touch "$cache/switched"
 	exit 0
 	;;
+# 普段の実行の後に裏で呼ばれる。選んでいない地点のカードを描いてキャッシュに置く。
+prefetch) prefetch=${2:-} ;;
 esac
 
 # 設定ファイルを読む。シェルとして読み込まず、key=value の行だけを拾う。
@@ -138,6 +150,7 @@ selected=$(cat "$cache/selected" 2>/dev/null || true)
 sel=$(jq -r --arg s "$selected" '
 	[to_entries[] | select(.value.query == $s or ([.value.found[] | .name, .amedas] | index($s) != null)) | .key]
 	| first // 0' <<<"$resolved")
+[[ -n ${prefetch:-} ]] && sel=$prefetch
 place=${places[$sel]}
 # 地点の表示名 (切り替えのメニュー用)。解決できなかった地点は書かれたまま出す。
 place_label() { # <番号>
@@ -169,7 +182,9 @@ config_error() {
 }
 
 field() { jq -r --argjson i "$sel" ".[\$i].found[0].$1 // \"\"" <<<"$resolved"; }
-case $(jq -r --argjson i "$sel" '.[$i].status' <<<"$resolved") in
+status=$(jq -r --argjson i "$sel" '.[$i].status' <<<"$resolved")
+[[ -n ${prefetch:-} && $status != ok ]] && exit 0
+case $status in
 ok)
 	office=$(field office) class10=$(field class10) amedas=$(field amedas)
 	temp_code=$(field temp) temp_name=$(field tempName)
@@ -189,6 +204,37 @@ notfound)
 			| if $lang == "ja" then "\(.name) (\(.officeName)): place=\(.amedas)" else "\(.enName) (\(.officeEn)): place=\(.amedas)" end' <<<"$resolved")"
 	;;
 esac
+dark=false
+[[ ${OS_APPEARANCE:-$(defaults read -g AppleInterfaceStyle 2>/dev/null)} == Dark ]] && dark=true
+
+# 地点ごとのキャッシュ。1 行目がメニューバーの行、2 行目がカードの行。
+body=$cache/body-$amedas-$lang-$dark.txt
+# メニューを出す。カードの行には動作を付けない (無効な項目にする)。動作を付けると、
+# マウスを載せたときにカード全体が選択の色で塗られる。無効な項目でも、文字と違って
+# 画像は薄くならずに描かれる (2026-11-05 に確かめた)。
+print_menu() {
+	sed -n 1p "$body"
+	echo "---"
+	sed -n 2p "$body"
+	echo "---"
+	location_menu
+	echo "$(T "設定ファイルを開く" "Open Configuration File") | sfimage=gearshape.circle bash=$0 param1=open-config terminal=false"
+	refresh_item
+	echo "$(T "気象庁の天気予報を開く" "Open JMA Forecast") | sfimage=arrow.up.forward.circle href=https://www.jma.go.jp/bosai/forecast/#area_type=offices&area_code=$office"
+}
+# 地点を選んだ直後は、取得を待たずにキャッシュのカードを出す。取り直すと数秒
+# かかり、その間にメニューを開き直すと、開いている最中に中身が差し替わる。
+# SwiftBar はそのとき高さの変わったカードに合わせてメニューを描き直さず、
+# 上がはみ出す。最新のデータは次の実行 (10 分ごと) か「今すぐ更新」で取り直す。
+if [[ -z ${prefetch:-} && -f $cache/switched ]]; then
+	rm -f "$cache/switched"
+	if [[ -s $body && -z $(find "$body" -mmin +15) ]]; then
+		print_menu
+		exit 0
+	fi
+fi
+rm -f "$cache/switched"
+
 # 予報のファイルが別の府県予報区のものに入っている区域がある (2026-11 に全
 # 58 区域を取って確かめた)
 case $office in
@@ -215,6 +261,7 @@ else
 fi
 
 if [[ ! -s $forecast ]]; then
+	[[ -n ${prefetch:-} ]] && exit 0
 	echo " | sfimage=exclamationmark.icloud"
 	echo "---"
 	T "気象庁のデータを取得できない" "Could not get data from JMA"
@@ -253,10 +300,8 @@ done
 
 bin=$cache/weather-card
 build_helper weather-card "$bin"
-rm -f "$cache/weather-graph" "$cache/graph.b64" # 以前の名前の残り
-
-dark=false
-[[ ${OS_APPEARANCE:-$(defaults read -g AppleInterfaceStyle 2>/dev/null)} == Dark ]] && dark=true
+rm -f "$cache/weather-graph" "$cache/graph.b64" "$cache/menu.txt" # 以前の名前の残り
+find "$cache" -maxdepth 1 -name 'body-*.txt' -mtime +2 -delete
 
 # 1 行目にメニューバーの行、2 行目以降にカードの JSON を出す
 jq -n -r --argjson now "$now" --argjson dark "$dark" \
@@ -393,21 +438,27 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" \
 				max: $tmax, maxColor: ($tmax | temp_color), min: $tmin, minColor: ($tmin | temp_color),
 				pop: $wpop, popColor: (if $wpop == "" then null else ($wpop | pop_colors | pick) end) }]
 		  else [] end) } | tojson)
-' "${point_files[@]}" >"$cache/menu.txt" 2>/dev/null
+' "${point_files[@]}" >"$cache/menu-$$.txt" 2>/dev/null
 
-head -1 "$cache/menu.txt"
-echo "---"
-# カードの行には動作を付けない (無効な項目にする)。動作を付けると、マウスを
-# 載せたときにカード全体が選択の色で塗られる。無効な項目でも、文字と違って
-# 画像は薄くならずに描かれる (2026-11-05 に確かめた)。
-if [[ -x $bin ]] && card=$(tail -n +2 "$cache/menu.txt" | "$bin" 2>/dev/null) && [[ -n $card ]]; then
-	{ read -r cw ch; read -r b64; } <<<"$card"
-	echo " | image=$b64 width=$cw height=$ch"
-else
-	echo "$(T "天気のカードを描けなかった" "Could not draw the weather card") | refresh=true"
+{
+	head -1 "$cache/menu-$$.txt"
+	if [[ -x $bin ]] && card=$(tail -n +2 "$cache/menu-$$.txt" | "$bin" 2>/dev/null) && [[ -n $card ]]; then
+		{ read -r cw ch; read -r b64; } <<<"$card"
+		echo " | image=$b64 width=$cw height=$ch"
+	else
+		echo "$(T "天気のカードを描けなかった" "Could not draw the weather card") | refresh=true"
+	fi
+} >"$body.$$" && mv "$body.$$" "$body"
+rm -f "$cache/menu-$$.txt"
+[[ -n ${prefetch:-} ]] && exit 0
+print_menu
+
+# 選んでいない地点のカードを裏で描いておく (地点を選んだときにすぐ出せるように)。
+# 1 つずつ順に描き、出力は捨てる (SwiftBar はプラグインの出力が閉じるまで待つ)。
+if [[ ${#places[@]} -gt 1 ]]; then
+	(
+		for i in "${!places[@]}"; do
+			[[ $i == "$sel" ]] || "$0" prefetch "$i"
+		done
+	) </dev/null >/dev/null 2>&1 &
 fi
-echo "---"
-location_menu
-echo "$(T "設定ファイルを開く" "Open Configuration File") | sfimage=gearshape.circle bash=$0 param1=open-config terminal=false"
-refresh_item
-echo "$(T "気象庁の天気予報を開く" "Open JMA Forecast") | sfimage=arrow.up.forward.circle href=https://www.jma.go.jp/bosai/forecast/#area_type=offices&area_code=$office"

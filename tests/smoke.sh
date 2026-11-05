@@ -111,6 +111,14 @@ else
 	grep -v image= "$work/weather-multi.txt"
 	ng "weather 複数の地点は切り替えのメニューを出す"
 fi
+# 選んでいない地点 (横浜) のカードを裏で描いてキャッシュに置く
+for ((i = 0; i < 60; i++)); do
+	compgen -G "$HOME/Library/Caches/swiftbar-weather/body-46106-*" >/dev/null && break
+	sleep 0.5
+done
+if compgen -G "$HOME/Library/Caches/swiftbar-weather/body-46106-*" >/dev/null; then
+	ok "weather 選んでいない地点のカードを裏で描く"
+else ng "weather 選んでいない地点のカードを裏で描く"; fi
 "$repo/plugins/weather.10m.sh" select 横浜
 run_weather multi-selected Light "$(printf 'place=東京\nplace=横浜')"
 if grep -q '^横浜 .*checked=true' "$work/weather-multi-selected.txt"; then ok "weather 選んだ地点を覚える"; else ng "weather 選んだ地点を覚える"; fi
