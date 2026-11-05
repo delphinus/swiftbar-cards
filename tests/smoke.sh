@@ -39,15 +39,15 @@ save_image() { # <出力のファイル> <行番号> <名前>
 
 echo "# shellcheck"
 if command -v shellcheck >/dev/null; then
-	if shellcheck "$repo"/plugins/*.sh "$repo"/tests/*.sh "$repo"/samples/*.sh; then ok shellcheck; else ng shellcheck; fi
+	if shellcheck -x "$repo"/plugins/*.sh "$repo"/tests/*.sh "$repo"/samples/*.sh "$repo"/scripts/*.sh; then ok shellcheck; else ng shellcheck; fi
 else
 	echo "skip - shellcheck が無い"
 fi
 
 echo "# ビルド"
-for src in "$repo"/helpers/*.swift; do
-	name=$(basename "$src" .swift)
-	if swiftc -O -o "$work/$name" "$src" 2>"$work/$name.log"; then ok "build $name"; else
+for dir in "$repo"/Sources/*/main.swift; do
+	name=$(basename "$(dirname "$dir")")
+	if swiftc -O -o "$work/$name" "$repo"/Sources/Shared/*.swift "$dir" 2>"$work/$name.log"; then ok "build $name"; else
 		cat "$work/$name.log"
 		ng "build $name"
 	fi

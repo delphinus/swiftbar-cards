@@ -8,7 +8,7 @@
 # <swiftbar.hideDisablePlugin>true</swiftbar.hideDisablePlugin>
 # <swiftbar.hideSwiftBar>true</swiftbar.hideSwiftBar>
 #
-# 常駐型 (streamable) のプラグイン。中身は ../helpers/nowplaying.swift で、ここでは
+# 常駐型 (streamable) のプラグイン。中身は ../Sources/nowplaying/main.swift で、ここでは
 # それをコンパイルして起動するだけ。Music.app の通知で更新し、再生中だけ 5 秒ごとに
 # 再生位置を問い合わせる。一時停止中・停止中は何もしない。
 #
@@ -25,11 +25,10 @@ export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
 
 cache=~/Library/Caches/swiftbar-nowplaying
 mkdir -p "$cache"
-src=$(cd "$(dirname "$0")/../helpers" 2>/dev/null && pwd)/nowplaying.swift
+# shellcheck source=SCRIPTDIR/../scripts/lib.sh
+. "$(dirname "$0")/../scripts/lib.sh"
 bin=$cache/nowplaying
-if [[ -f $src && (! -x $bin || $src -nt $bin) ]]; then
-	swiftc -O -o "$bin.tmp" "$src" 2>/dev/null && mv "$bin.tmp" "$bin"
-fi
+build_helper nowplaying "$bin"
 if [[ ! -x $bin ]]; then
 	echo " | sfimage=music.note"
 	echo "---"

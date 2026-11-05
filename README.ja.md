@@ -42,9 +42,9 @@
 git clone https://github.com/delphinus/swiftbar-cards.git
 ```
 
-SwiftBar の設定で、プラグインのフォルダをクローンした中の `plugins` ディレクトリにします。プラグインは隣の `helpers` ディレクトリから Swift のソースを探すので、プラグインのファイルを 1 つずつ別の場所へコピーしたりリンクしたりしないでください。
+SwiftBar の設定で、プラグインのフォルダをクローンした中の `plugins` ディレクトリにします。プラグインは隣の `Sources` と `scripts` ディレクトリから Swift のプログラムをビルドするので、プラグインのファイルを 1 つずつ別の場所へコピーしたりリンクしたりしないでください。
 
-各プラグインは、初回とソースを変えたときにヘルパーをコンパイルします。できたバイナリは `~/Library/Caches/` の下に置かれます。
+各プラグインは、初回とソースを変えたときに Swift のプログラムをコンパイルします。できたバイナリは `~/Library/Caches/` の下に置かれます。
 
 `nowplaying` は再生中の曲を AppleScript で Music.app に問い合わせます。初回は、SwiftBar から Music を操作してよいかを macOS が尋ねます。
 
@@ -66,7 +66,8 @@ amedas=44116
 
 ## 開発
 
-- `tests/smoke.sh` は、ヘルパーをビルドし、各プラグインを動かして、メニューバーの行とカードの画像が出るかを確かめます。CI が push のたびに流します。
+- Swift のプログラムは Swift のパッケージの形 (`Package.swift`) にしてあるので、`swift build` やエディタの補完がそのまま使えます。プラグイン自身は SwiftPM を通さず、`swiftc` で直接コンパイルします。
+- `tests/smoke.sh` は、Swift のプログラムをビルドし、各プラグインを動かして、メニューバーの行とカードの画像が出るかを確かめます。CI が push のたびに流します。
 - `samples/render.sh` は `docs/images/` の画像を描き直します。`nowplaying` と `sysmon` は `--render <JSON> <出力先>` で、与えた値から 1 回だけカードを描けます。値は `samples/` にあります。
 
 ## 謝辞

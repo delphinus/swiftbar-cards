@@ -42,9 +42,9 @@ The `nowplaying` and `sysmon` images use made-up values from `samples/`; the `we
 git clone https://github.com/delphinus/swiftbar-cards.git
 ```
 
-In SwiftBar's settings, set the plugin folder to the `plugins` directory of the clone. The plugins find their Swift sources in the sibling `helpers` directory, so do not copy or link individual plugin files elsewhere.
+In SwiftBar's settings, set the plugin folder to the `plugins` directory of the clone. The plugins build their Swift programs from the sibling `Sources` and `scripts` directories, so do not copy or link individual plugin files elsewhere.
 
-Each plugin compiles its helper on first run and again whenever the source changes. The binaries are kept under `~/Library/Caches/`.
+Each plugin compiles its Swift program on first run and again whenever the source changes. The binaries are kept under `~/Library/Caches/`.
 
 `nowplaying` asks Music.app for the current track through AppleScript. The first time it runs, macOS asks whether SwiftBar may control Music.
 
@@ -66,7 +66,8 @@ amedas=44116
 
 ## Development
 
-- `tests/smoke.sh` builds the helpers, runs each plugin, and checks that the menu bar line and the card image come out. CI runs it on every push.
+- The Swift programs are laid out as a Swift package (`Package.swift`), so `swift build` and editors work as usual. The plugins themselves compile them with `swiftc` directly, without SwiftPM.
+- `tests/smoke.sh` builds the Swift programs, runs each plugin, and checks that the menu bar line and the card image come out. CI runs it on every push.
 - `samples/render.sh` redraws the images in `docs/images/`. `nowplaying` and `sysmon` can draw a card once from given values with `--render <JSON> <output directory>`; the values are in `samples/`.
 
 ## Acknowledgements

@@ -18,6 +18,9 @@
 // プラグインとして読まれる)。weather.10m.sh が初回にコンパイルする。
 
 import AppKit
+#if canImport(Shared)
+import Shared
+#endif
 
 struct Obs: Decodable {
     let point: String

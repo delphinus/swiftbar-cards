@@ -14,7 +14,7 @@ export LANG=en_US.UTF-8
 
 mkdir -p "$work/bin"
 for h in nowplaying sysmon; do
-	swiftc -O -suppress-warnings -o "$work/bin/$h" "$repo/helpers/$h.swift"
+	swiftc -O -suppress-warnings -o "$work/bin/$h" "$repo"/Sources/Shared/*.swift "$repo/Sources/$h/main.swift"
 done
 swiftc -O -suppress-warnings -o "$work/bin/compose" "$repo/samples/compose.swift"
 

@@ -8,7 +8,7 @@
 # <swiftbar.hideDisablePlugin>true</swiftbar.hideDisablePlugin>
 # <swiftbar.hideSwiftBar>true</swiftbar.hideSwiftBar>
 #
-# 常駐型 (streamable) のプラグイン。中身は ../helpers/sysmon.swift で、ここでは
+# 常駐型 (streamable) のプラグイン。中身は ../Sources/sysmon/main.swift で、ここでは
 # それをコンパイルして起動するだけ。10 秒ごとに値を集めて描き、メニューを
 # 差し替える。以前の 10 秒ごとにスクリプトを起動する形より CPU を使わない
 # (平均して 1 コアの 2.5% ほどから 1% ほどへ)。
@@ -23,11 +23,10 @@ export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 
 cache=~/Library/Caches/swiftbar-sysmon
 mkdir -p "$cache"
-src=$(cd "$(dirname "$0")/../helpers" 2>/dev/null && pwd)/sysmon.swift
+# shellcheck source=SCRIPTDIR/../scripts/lib.sh
+. "$(dirname "$0")/../scripts/lib.sh"
 bin=$cache/sysmon
-if [[ -f $src && (! -x $bin || $src -nt $bin) ]]; then
-	swiftc -O -o "$bin.tmp" "$src" 2>/dev/null && mv "$bin.tmp" "$bin"
-fi
+build_helper sysmon "$bin"
 if [[ ! -x $bin ]]; then
 	echo "sysmon: コンパイルできない | sfimage=exclamationmark.triangle"
 	exit 0

@@ -27,6 +27,9 @@
 // プラグインとして読まれる)。sysmon.sh が初回 (とソースを変えたとき) にコンパイルする。
 
 import AppKit
+#if canImport(Shared)
+import Shared
+#endif
 import Darwin
 import IOKit
 

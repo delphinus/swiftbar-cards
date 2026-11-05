@@ -19,6 +19,8 @@
 # 観測点と同じ地域でいちばん近いものの区域を使う。
 
 export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
+# shellcheck source=SCRIPTDIR/../scripts/lib.sh
+. "$(dirname "$0")/../scripts/lib.sh"
 
 cache=~/Library/Caches/swiftbar-weather
 mkdir -p "$cache"
@@ -151,7 +153,7 @@ if [[ ! -s $forecast ]]; then
 	exit 0
 fi
 
-# メニューの中身は 1 枚のカードの画像にする (../helpers/weather-card.swift が描く)。
+# メニューの中身は 1 枚のカードの画像にする (../Sources/weather-card/main.swift が描く)。
 # メニューの文字では、フォントで列を揃える・ANSI の 256 色で色を選ぶ、といった
 # 制約が多く (ダークのメニューでは灰色の明るさが逆に描かれもした)、画像なら
 # 色も配置も自由になる。画像にできないときは最小限の文字だけを出す。
@@ -180,11 +182,8 @@ done
 [[ -s $vpfd ]] || echo '{}' >"$vpfd"
 [[ -s $cache/amedas.json ]] || echo '{}' >"$cache/amedas.json"
 
-src=$(cd "$(dirname "$0")/../helpers" 2>/dev/null && pwd)/weather-card.swift
 bin=$cache/weather-card
-if [[ -f $src && (! -x $bin || $src -nt $bin) ]]; then
-	swiftc -O -o "$bin.tmp" "$src" 2>/dev/null && mv "$bin.tmp" "$bin"
-fi
+build_helper weather-card "$bin"
 rm -f "$cache/weather-graph" "$cache/graph.b64" # 以前の名前の残り
 
 dark=false
