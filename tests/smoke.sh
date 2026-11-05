@@ -108,7 +108,7 @@ else
 	ng "weather place=府中 は候補を出す"
 fi
 run_weather multi Light "$(printf 'place=東京\nplace=横浜')"
-if [[ $(grep -c 'param1=select' "$work/weather-multi.txt") == 2 ]] && grep -q '^東京 .*checked=true' "$work/weather-multi.txt"; then
+if [[ $(grep -c 'param1=select' "$work/weather-multi.txt") == 2 ]] && grep -q '^東京 .*sfimage=mappin.circle.fill ' "$work/weather-multi.txt"; then
 	ok "weather 複数の地点は切り替えのメニューを出す"
 else
 	grep -v image= "$work/weather-multi.txt"
@@ -124,7 +124,7 @@ if compgen -G "$HOME/Library/Caches/swiftbar-weather/body-46106-*" >/dev/null; t
 else ng "weather 選んでいない地点のカードを裏で描く"; fi
 "$repo/plugins/weather.10m.sh" select 横浜
 run_weather multi-selected Light "$(printf 'place=東京\nplace=横浜')"
-if grep -q '^横浜 .*checked=true' "$work/weather-multi-selected.txt"; then ok "weather 選んだ地点を覚える"; else ng "weather 選んだ地点を覚える"; fi
+if grep -q '^横浜 .*sfimage=mappin.circle.fill ' "$work/weather-multi-selected.txt"; then ok "weather 選んだ地点を覚える"; else ng "weather 選んだ地点を覚える"; fi
 # 選んだ直後はキャッシュのカードと「更新中…」を出し、裏で取り直す。取り直し終わると
 # fresh の印が付き、続く実行は「更新中…」を出さない。
 if grep -q '^更新中…' "$work/weather-multi-selected.txt"; then ok "weather 選んだ直後は更新中と出す"; else ng "weather 選んだ直後は更新中と出す"; fi
@@ -134,13 +134,13 @@ for ((i = 0; i < 60; i++)); do
 done
 run_weather multi-fresh Light "$(printf 'place=東京\nplace=横浜')"
 if [[ ! -f $HOME/Library/Caches/swiftbar-weather/fresh ]] && ! grep -q '^更新中…' "$work/weather-multi-fresh.txt" &&
-	grep -q '^横浜 .*checked=true' "$work/weather-multi-fresh.txt"; then
+	grep -q '^横浜 .*sfimage=mappin.circle.fill ' "$work/weather-multi-fresh.txt"; then
 	ok "weather 取り直し終わったら更新中を消す"
 else ng "weather 取り直し終わったら更新中を消す"; fi
 # 同名の観測点がある地点を選んだあと、番号に書き換えても選んだままになる
 "$repo/plugins/weather.10m.sh" select 府中
 run_weather renumbered Light "$(printf 'place=東京\nplace=44116 # 府中')"
-if grep -q '^府中 .*checked=true' "$work/weather-renumbered.txt" && head -1 "$work/weather-renumbered.txt" | grep -q '°'; then
+if grep -q '^府中 .*sfimage=mappin.circle.fill ' "$work/weather-renumbered.txt" && head -1 "$work/weather-renumbered.txt" | grep -q '°'; then
 	ok "weather 番号に書き換えても選んだ地点のまま"
 else ng "weather 番号に書き換えても選んだ地点のまま"; fi
 "$repo/plugins/weather.10m.sh" select 東京

@@ -40,11 +40,11 @@ for l in ja en; do
 			"$repo/plugins/weather.10m.sh" >"$o"
 		sed -n 3p "$o" | sed -nE 's/.*image=([^ ]+).*/\1/p' | base64 -d >"$work/$l/weather/card-$appearance.png"
 	done
-	# 地点の項目 (選んでいる地点にチェック)。compose の項目の形にする。
+	# 地点の項目 (選んでいる地点は塗りつぶしたピン)。compose の項目の形にする。
 	locations=()
 	while IFS= read -r line; do
 		item="mappin.circle:${line%% |*}"
-		[[ $line == *checked=true* ]] && item+=":checked"
+		[[ $line == *sfimage=mappin.circle.fill* ]] && item="mappin.circle.fill:${line%% |*}"
 		locations+=("$item")
 	done < <(grep 'param1=select' "$work/$l/weather/out-light.txt")
 

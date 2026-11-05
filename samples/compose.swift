@@ -69,7 +69,11 @@ let border = dark ? NSColor(white: 1, alpha: 0.12) : NSColor(white: 0, alpha: 0.
 let rule = dark ? NSColor(white: 1, alpha: 0.14) : NSColor(white: 0, alpha: 0.1)
 
 let margin: CGFloat = 24, barH: CGFloat = 26, popPad: CGFloat = 14, rowH: CGFloat = 24
-let popW = cardSize.width + popPad * 2
+// SwiftBar (macOS 26) は画像の項目の後ろに空白を足すので、画像の右に約 10pt 空く
+// (カードの画像は、その分の透明な幅を左に持っている。PNGImage.cardLeadingSpace)
+let imageTrailing: CGFloat = 10
+let popW = cardSize.width + imageTrailing + popPad * 2
+let contentW = popW - popPad * 2
 let sepH: CGFloat = 11
 let itemsH = items.isEmpty ? 0 : 9 + items.reduce(0) { $0 + ($1.symbol == "-" ? sepH : rowH) } + 4
 let popH = popPad + cardSize.height + 12 + itemsH
@@ -86,6 +90,16 @@ let cg = NSGraphicsContext(bitmapImageRep: rep)!.cgContext
 cg.translateBy(x: 0, y: height)
 cg.scaleBy(x: 1, y: -1)
 NSGraphicsContext.current = NSGraphicsContext(cgContext: cg, flipped: true)
+
+// テンプレートの画像を 1 色で塗る (透けている部分は透けたまま)
+func tinted(_ image: NSImage, _ color: NSColor) -> NSImage {
+    NSImage(size: image.size, flipped: false) { rect in
+        image.draw(in: rect)
+        color.set()
+        rect.fill(using: .sourceAtop)
+        return true
+    }
+}
 
 func rounded(_ r: CGRect, _ radius: CGFloat) -> CGPath {
     CGPath(roundedRect: r, cornerWidth: radius, cornerHeight: radius, transform: nil)
@@ -125,12 +139,12 @@ card.draw(in: CGRect(x: popX + popPad, y: popY + popPad, width: cardSize.width, 
 if !items.isEmpty {
     var y = popY + popPad + cardSize.height + 12
     cg.setFillColor(rule.cgColor)
-    cg.fill(CGRect(x: popX + popPad, y: y, width: cardSize.width, height: 1))
+    cg.fill(CGRect(x: popX + popPad, y: y, width: contentW, height: 1))
     y += 9
     for (sym, label, checked) in items {
         if sym == "-" {
             cg.setFillColor(rule.cgColor)
-            cg.fill(CGRect(x: popX + popPad, y: y + sepH / 2, width: cardSize.width, height: 1))
+            cg.fill(CGRect(x: popX + popPad, y: y + sepH / 2, width: contentW, height: 1))
             y += sepH
             continue
         }
@@ -143,9 +157,10 @@ if !items.isEmpty {
                          from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             }
         }
+        // メニューの sfimage と同じく 1 色の型 (テンプレート) として描く。パレットの色で描くと、
+        // mappin.circle.fill の中のピンまで同じ色になり、ただの丸に見える。
         let cfg = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [fg]))
-        if let img = NSImage(systemSymbolName: sym, accessibilityDescription: nil)?.withSymbolConfiguration(cfg) {
+        if let img = NSImage(systemSymbolName: sym, accessibilityDescription: nil)?.withSymbolConfiguration(cfg).map({ tinted($0, fg) }) {
             let s = img.size
             img.draw(in: CGRect(x: popX + popPad + 8 - s.width / 2 + 7, y: y + (rowH - s.height) / 2, width: s.width, height: s.height),
                      from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
