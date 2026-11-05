@@ -41,14 +41,17 @@ public struct PNGImage {
     /// も暗くも見える。メニューの文字は macOS がその場で色を変えるが、カードは開く前に
     /// 描いておく画像なので追従できない (ダークモードで背後が明るいと、白い文字が明るい
     /// 灰色の地に載って読めなかった)。地を敷いて、背後によらず文字が読めるようにする。
+    ///
+    /// 地の左には、透明な `cardLeadingSpace` を足す (地とメニューの縁の間を左右でそろえる)。
     public static func drawCard(width: CGFloat, height: CGFloat, dark: Bool,
                                 _ draw: (CGContext) -> Void) -> PNGImage {
         let inset = cardInset
-        return Self.draw(width: width + inset * 2, height: height + inset * 2) { context in
+        let leading = cardLeadingSpace
+        let panel = CGRect(x: leading, y: 0, width: width + inset * 2, height: height + inset * 2)
+        return Self.draw(width: leading + panel.width, height: panel.height) { context in
             let background = dark ? NSColor(white: 0.1, alpha: 0.72) : NSColor(white: 1, alpha: 0.72)
-            context.fillRoundedRect(CGRect(x: 0, y: 0, width: width + inset * 2, height: height + inset * 2),
-                                    radius: cardCornerRadius, color: background)
-            context.translateBy(x: inset, y: inset)
+            context.fillRoundedRect(panel, radius: cardCornerRadius, color: background)
+            context.translateBy(x: panel.minX + inset, y: inset)
             draw(context)
         }
     }
@@ -56,6 +59,16 @@ public struct PNGImage {
     /// カードの地の、文字から縁までの余白
     public static let cardInset: CGFloat = 8
     public static let cardCornerRadius: CGFloat = 8
+
+    /// カードの地の左に足す透明な幅。macOS 26 の SwiftBar は、画像の後ろに空白を 2 つ
+    /// 足してから項目の文字を並べる (SwiftBar の MenuBarItem.swift の menuTitle)。カードの
+    /// 行は文字が空なので空白だけが残り、地とメニューの縁の間が左 15pt・右 25pt になって
+    /// いた (メニューを開いて撮った画像で測った)。左に差の 10pt を足してそろえる。
+    /// macOS 15 までの SwiftBar は画像を NSMenuItem.image に入れるので、足さない。
+    public static var cardLeadingSpace: CGFloat {
+        if #available(macOS 26, *) { return 10 }
+        return 0
+    }
 
     /// `--render` で画像をファイルに書き出すときに使う
     public func write(to directory: URL, name: String) throws {

@@ -160,13 +160,18 @@ place_label() { # <番号>
 	jq -r --argjson i "$1" --arg lang "$lang" \
 		'.[$i] | if .status == "ok" then .found[0] | (if $lang == "ja" then .name else .enName end) else .query end' <<<"$resolved"
 }
-# 地点の切り替え。地点が 2 つ以上あるときだけ、選んでいる地点にチェックを付けて
+# 地点の切り替え。地点が 2 つ以上あるときだけ、選んでいる地点の印を付けて
 # 並べる。サブメニューにしないのは、SwiftBar 2.1.1 では、メニューを差し替えた
 # ときに動作の無いサブメニューの親が押せない状態のまま残ることがあるため。
 location_menu() {
 	[[ ${#places[@]} -gt 1 ]] || return 0
+	local i icon
 	for i in "${!places[@]}"; do
-		echo "$(place_label "$i") | sfimage=mappin.circle bash=$0 param1=select param2=${places[$i]} terminal=false refresh=true$([[ $i == "$sel" ]] && echo " checked=true")"
+		# 選んでいる地点は、チェックマークではなく塗りつぶしたピンで示す。チェックマークを
+		# 付けると、macOS がメニュー全体にその欄を取り、カードの左が 14pt 空く。
+		icon=mappin.circle
+		[[ $i == "$sel" ]] && icon=mappin.circle.fill
+		echo "$(place_label "$i") | sfimage=$icon bash=$0 param1=select param2=${places[$i]} terminal=false refresh=true"
 	done
 	echo "---"
 }
