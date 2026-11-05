@@ -4,13 +4,13 @@
 
 cards_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
-# Swift のプログラムをビルドする。Sources/Shared と Sources/<名前>/main.swift を
+# Swift のプログラムをビルドする。Sources/Shared と Sources/<名前> の *.swift を
 # まとめて swiftc に渡す (SwiftPM を通さないので、初回も数秒で済む)。ソースの
 # どれかがバイナリより新しいときだけビルドし直す。
 #   build_helper <名前> <バイナリのパス>
 build_helper() {
 	local name=$1 bin=$2 src newer=
-	local sources=("$cards_root"/Sources/Shared/*.swift "$cards_root/Sources/$name/main.swift")
+	local sources=("$cards_root"/Sources/Shared/*.swift "$cards_root/Sources/$name"/*.swift)
 	if [[ -x $bin ]]; then
 		for src in "${sources[@]}"; do [[ $src -nt $bin ]] && newer=1; done
 	else
