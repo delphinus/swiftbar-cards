@@ -64,7 +64,7 @@ place=横浜
 
 The plugin finds the forecast area from the station: it uses the forecast area whose representative temperature point is nearest to the station, within the same region. The **Open Configuration File** item in the menu creates this file with comments if it does not exist.
 
-List more than one station to switch between them from the **Location** submenu. The plugin remembers the one you chose.
+List more than one station to switch between them: the menu lists them, with a check mark on the one shown. The plugin remembers the one you chose. After editing the file, choose **Refresh Now** to apply it without waiting for the next update (every 10 minutes).
 
 ```ini
 place=東京

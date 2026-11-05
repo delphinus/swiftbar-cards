@@ -40,7 +40,13 @@ for l in ja en; do
 			"$repo/plugins/weather.10m.sh" >"$o"
 		sed -n 3p "$o" | sed -nE 's/.*image=([^ ]+).*/\1/p' | base64 -d >"$work/$l/weather/card-$appearance.png"
 	done
-	location=$(grep -m1 'sfimage=mappin.circle' "$work/$l/weather/out-light.txt" | sed 's/ |.*//')
+	# 地点の項目 (選んでいる地点にチェック)。compose の項目の形にする。
+	locations=()
+	while IFS= read -r line; do
+		item="mappin.circle:${line%% |*}"
+		[[ $line == *checked=true* ]] && item+=":checked"
+		locations+=("$item")
+	done < <(grep 'param1=select' "$work/$l/weather/out-light.txt")
 
 	T() { if [[ $l == ja ]]; then printf '%s' "$1"; else printf '%s' "$2"; fi; }
 	for appearance in light dark; do
@@ -50,7 +56,8 @@ for l in ja en; do
 		"$work/bin/compose" "$appearance" "$work/$l/sysmon/menubar-$appearance.png" "$work/$l/sysmon/card-$appearance.png" \
 			"$out/$l/sysmon-$appearance.png" "arrow.up.forward.circle:$(T アクティビティモニタを開く 'Open Activity Monitor')"
 		"$work/bin/compose" "$appearance" "text:$(head -1 "$work/$l/weather/out-$appearance.txt")" "$work/$l/weather/card-$appearance.png" \
-			"$out/$l/weather-$appearance.png" "mappin.circle:$location" "gearshape.circle:$(T 設定ファイルを開く 'Open Configuration File')" \
+			"$out/$l/weather-$appearance.png" "${locations[@]}" - "gearshape.circle:$(T 設定ファイルを開く 'Open Configuration File')" \
+			"arrow.clockwise.circle:$(T 今すぐ更新 'Refresh Now')" \
 			"arrow.up.forward.circle:$(T 気象庁の天気予報を開く 'Open JMA Forecast')"
 	done
 done

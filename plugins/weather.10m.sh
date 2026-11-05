@@ -45,7 +45,7 @@ open-config)
 		if [[ $lang == ja ]]; then
 			cat >"$conf" <<-'EOF'
 				# アメダスの観測点の名前 (https://www.jma.go.jp/bosai/amedas/ で探せる)。
-				# 複数書くと、メニューの「地点」から切り替えられる。
+				# 複数書くと、メニューから選んで切り替えられる。
 				place=東京
 				#place=横浜
 				# 同じ名前の観測点が複数あるときは、番号で書く
@@ -54,7 +54,7 @@ open-config)
 		else
 			cat >"$conf" <<-'EOF'
 				# Names of AMeDAS stations, in Japanese (see https://www.jma.go.jp/bosai/amedas/).
-				# List more than one to switch between them from the Location menu.
+				# List more than one to switch between them from the menu.
 				place=東京
 				#place=横浜
 				# When more than one station has the same name, use its number
@@ -144,13 +144,15 @@ place_label() { # <番号>
 	jq -r --argjson i "$1" --arg lang "$lang" \
 		'.[$i] | if .status == "ok" then .found[0] | (if $lang == "ja" then .name else .enName end) else .query end' <<<"$resolved"
 }
-# メニューの「地点」。地点が 2 つ以上あるときだけ出す。
+# 地点の切り替え。地点が 2 つ以上あるときだけ、選んでいる地点にチェックを付けて
+# 並べる。サブメニューにしないのは、SwiftBar 2.1.1 では、メニューを差し替えた
+# ときに動作の無いサブメニューの親が押せない状態のまま残ることがあるため。
 location_menu() {
 	[[ ${#places[@]} -gt 1 ]] || return 0
-	echo "$(T "地点" "Location"): $(place_label "$sel") | sfimage=mappin.circle"
 	for i in "${!places[@]}"; do
-		echo "--$(place_label "$i") | bash=$0 param1=select param2=${places[$i]} terminal=false refresh=true$([[ $i == "$sel" ]] && echo " checked=true")"
+		echo "$(place_label "$i") | sfimage=mappin.circle bash=$0 param1=select param2=${places[$i]} terminal=false refresh=true$([[ $i == "$sel" ]] && echo " checked=true")"
 	done
+	echo "---"
 }
 # 設定ファイルを書き換えたあと、次の実行 (10 分ごと) を待たずに反映する
 refresh_item() { echo "$(T "今すぐ更新" "Refresh Now") | sfimage=arrow.clockwise.circle refresh=true"; }

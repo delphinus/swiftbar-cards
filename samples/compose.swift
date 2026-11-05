@@ -2,7 +2,8 @@
 //   swift samples/compose.swift <light|dark> <メニューバー> <カードの PNG> <出力の PNG> [項目 ...]
 // メニューバーは PNG のパスか、「text:」に続けて SwiftBar の行 (weather のように
 // :symbol: を埋め込んだ文字と sfcolor=明るい用,暗い用) を渡す。
-// 項目は「SF Symbols の名前:文字」の形で、カードの下に並べる。
+// 項目は「SF Symbols の名前:文字」の形で、カードの下に並べる。末尾に「:checked」を
+// 付けるとチェックマークを付ける。「-」だけの項目は区切り線にする。
 // 実物の見た目を写し取るものではなく、カードがどう使われるかを伝えるための絵。
 import AppKit
 
@@ -14,9 +15,12 @@ func load(_ path: String) -> (NSImage, CGSize) {
     return (img, CGSize(width: CGFloat(px.pixelsWide) / 2, height: CGFloat(px.pixelsHigh) / 2))
 }
 let (card, cardSize) = load(a[3])
-let items: [(String, String)] = a.dropFirst(5).map {
-    let p = $0.split(separator: ":", maxSplits: 1).map(String.init)
-    return (p[0], p[1])
+let items: [(symbol: String, label: String, checked: Bool)] = a.dropFirst(5).map {
+    if $0 == "-" { return ("-", "", false) }
+    var p = $0.split(separator: ":").map(String.init)
+    let checked = p.count > 2 && p.last == "checked"
+    if checked { p.removeLast() }
+    return (p[0], p.dropFirst().joined(separator: ":"), checked)
 }
 
 let fg = dark ? NSColor(white: 0.93, alpha: 1) : NSColor(white: 0.1, alpha: 1)
@@ -66,7 +70,8 @@ let rule = dark ? NSColor(white: 1, alpha: 0.14) : NSColor(white: 0, alpha: 0.1)
 
 let margin: CGFloat = 24, barH: CGFloat = 26, popPad: CGFloat = 14, rowH: CGFloat = 24
 let popW = cardSize.width + popPad * 2
-let itemsH = items.isEmpty ? 0 : 9 + rowH * CGFloat(items.count) + 4
+let sepH: CGFloat = 11
+let itemsH = items.isEmpty ? 0 : 9 + items.reduce(0) { $0 + ($1.symbol == "-" ? sepH : rowH) } + 4
 let popH = popPad + cardSize.height + 12 + itemsH
 let popX = margin, popY = barH + 6
 let width = popW + margin * 2
@@ -122,7 +127,22 @@ if !items.isEmpty {
     cg.setFillColor(rule.cgColor)
     cg.fill(CGRect(x: popX + popPad, y: y, width: cardSize.width, height: 1))
     y += 9
-    for (sym, label) in items {
+    for (sym, label, checked) in items {
+        if sym == "-" {
+            cg.setFillColor(rule.cgColor)
+            cg.fill(CGRect(x: popX + popPad, y: y + sepH / 2, width: cardSize.width, height: 1))
+            y += sepH
+            continue
+        }
+        if checked {
+            let ccfg = NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+                .applying(NSImage.SymbolConfiguration(paletteColors: [fg]))
+            if let img = NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil)?.withSymbolConfiguration(ccfg) {
+                let s = img.size
+                img.draw(in: CGRect(x: popX + popPad - s.width / 2 - 2, y: y + (rowH - s.height) / 2, width: s.width, height: s.height),
+                         from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            }
+        }
         let cfg = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
             .applying(NSImage.SymbolConfiguration(paletteColors: [fg]))
         if let img = NSImage(systemSymbolName: sym, accessibilityDescription: nil)?.withSymbolConfiguration(cfg) {

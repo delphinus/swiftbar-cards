@@ -105,7 +105,7 @@ else
 	ng "weather place=府中 は候補を出す"
 fi
 run_weather multi Light "$(printf 'place=東京\nplace=横浜')"
-if [[ $(grep -c '^--[^-]' "$work/weather-multi.txt") == 2 ]] && grep -q '^--東京 .*checked=true' "$work/weather-multi.txt"; then
+if [[ $(grep -c 'param1=select' "$work/weather-multi.txt") == 2 ]] && grep -q '^東京 .*checked=true' "$work/weather-multi.txt"; then
 	ok "weather 複数の地点は切り替えのメニューを出す"
 else
 	grep -v image= "$work/weather-multi.txt"
@@ -113,11 +113,11 @@ else
 fi
 "$repo/plugins/weather.10m.sh" select 横浜
 run_weather multi-selected Light "$(printf 'place=東京\nplace=横浜')"
-if grep -q '^--横浜 .*checked=true' "$work/weather-multi-selected.txt"; then ok "weather 選んだ地点を覚える"; else ng "weather 選んだ地点を覚える"; fi
+if grep -q '^横浜 .*checked=true' "$work/weather-multi-selected.txt"; then ok "weather 選んだ地点を覚える"; else ng "weather 選んだ地点を覚える"; fi
 # 同名の観測点がある地点を選んだあと、番号に書き換えても選んだままになる
 "$repo/plugins/weather.10m.sh" select 府中
 run_weather renumbered Light "$(printf 'place=東京\nplace=44116 # 府中')"
-if grep -q '^--府中 .*checked=true' "$work/weather-renumbered.txt" && head -1 "$work/weather-renumbered.txt" | grep -q '°'; then
+if grep -q '^府中 .*checked=true' "$work/weather-renumbered.txt" && head -1 "$work/weather-renumbered.txt" | grep -q '°'; then
 	ok "weather 番号に書き換えても選んだ地点のまま"
 else ng "weather 番号に書き換えても選んだ地点のまま"; fi
 "$repo/plugins/weather.10m.sh" select 東京
