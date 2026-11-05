@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: command -v shellcheck || brew install shellcheck
+      - name: Show environment
+        run: |
+          sw_vers
+          swiftc --version
+          jq --version
+      - name: Smoke test
+        run: tests/smoke.sh smoke-out
+      # Cards rendered by the plugins, for checking by eye
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cards
+          path: smoke-out/
+          if-no-files-found: ignore
