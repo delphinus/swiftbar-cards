@@ -77,10 +77,12 @@ do {
     exit(1)
 }
 
-let fg = input.dark ? NSColor(white: 0.93, alpha: 1) : NSColor(white: 0.1, alpha: 1)
-let sub = input.dark ? NSColor(white: 0.6, alpha: 1) : NSColor(white: 0.42, alpha: 1)
-let grid = input.dark ? NSColor(white: 1, alpha: 0.13) : NSColor(white: 0, alpha: 0.12)
-let rule = input.dark ? NSColor(white: 1, alpha: 0.18) : NSColor(white: 0, alpha: 0.15)
+// 明るい外観の色は、背後が透けて灰色に見えるポップアップでも読めるように濃くする
+// (sysmon.swift の renderAll に経緯を書いた)
+let fg = input.dark ? NSColor(white: 0.93, alpha: 1) : NSColor(white: 0.05, alpha: 1)
+let sub = input.dark ? NSColor(white: 0.6, alpha: 1) : NSColor(white: 0.2, alpha: 1)
+let grid = input.dark ? NSColor(white: 1, alpha: 0.13) : NSColor(white: 0, alpha: 0.16)
+let rule = input.dark ? NSColor(white: 1, alpha: 0.18) : NSColor(white: 0, alpha: 0.22)
 
 func hex(_ s: String?) -> NSColor {
     guard let s, !s.isEmpty else { return fg }
@@ -208,7 +210,7 @@ if let o = input.obs {
         ry += 16
     }
     if let h = o.humidity { row("湿度", "\(fmt(h))%") }
-    if let p = o.precip { row("降水量", "\(fmt(p, 1)) mm/h", p > 0 ? hex(input.dark ? "#64B5FF" : "#0A6FD8") : fg) }
+    if let p = o.precip { row("降水量", "\(fmt(p, 1)) mm/h", p > 0 ? hex(input.dark ? "#64B5FF" : "#0047B3") : fg) }
     if let w = o.wind { row("風", "\(o.windDir ?? "") \(fmt(w, 1)) m/s") }
     nextSection(obsH)
 }
@@ -329,8 +331,8 @@ if !input.week.isEmpty {
     for (i, d) in input.week.enumerated() {
         let cx = pad + colW * (CGFloat(i) + 0.5)
         // 土曜は青、日曜は赤
-        let wcolor: NSColor = d.wday == "土" ? hex(input.dark ? "#64B5FF" : "#0A6FD8")
-            : d.wday == "日" ? hex(input.dark ? "#FF6961" : "#D70015") : sub
+        let wcolor: NSColor = d.wday == "土" ? hex(input.dark ? "#64B5FF" : "#0047B3")
+            : d.wday == "日" ? hex(input.dark ? "#FF6961" : "#A3000F") : sub
         text(d.date, x: cx, y: y0, size: 11, color: sub, align: .center)
         text("(\(d.wday))", x: cx, y: y0 + 13, size: 10, color: wcolor, align: .center)
         symbol(d.icon, color: hex(d.color), cx: cx, cy: y0 + 41, size: 17)

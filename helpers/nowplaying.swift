@@ -183,9 +183,11 @@ func card(dark: Bool) -> (Data, CGSize) {
     let hasProgress = (track.duration ?? 0) > 0
     let cardH: CGFloat = artSize + (hasProgress ? 34 : 4)
     let data = render(cardW, cardH) { cg in
-        let fg = dark ? NSColor(white: 0.93, alpha: 1) : NSColor(white: 0.1, alpha: 1)
-        let sub = dark ? NSColor(white: 0.62, alpha: 1) : NSColor(white: 0.42, alpha: 1)
-        let trackColor = dark ? NSColor(white: 1, alpha: 0.15) : NSColor(white: 0, alpha: 0.12)
+        // 明るい外観の色は、背後が透けて灰色に見えるポップアップでも読めるように濃くする
+        // (sysmon.swift の renderAll に経緯を書いた)
+        let fg = dark ? NSColor(white: 0.93, alpha: 1) : NSColor(white: 0.05, alpha: 1)
+        let sub = dark ? NSColor(white: 0.62, alpha: 1) : NSColor(white: 0.2, alpha: 1)
+        let trackColor = dark ? NSColor(white: 1, alpha: 0.15) : NSColor(white: 0, alpha: 0.18)
         drawArt(cg, CGRect(x: 2, y: 2, width: artSize, height: artSize), radius: 8, placeholder: sub, shadow: true)
         let tx: CGFloat = artSize + 16, tw = cardW - tx - 2
         let titleFont = NSFont.systemFont(ofSize: 15, weight: .semibold)

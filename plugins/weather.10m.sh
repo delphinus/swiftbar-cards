@@ -92,8 +92,12 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" \
 	--arg latest "${latest:-}" --arg stale "$stale" --arg today "$(date +%F)" '
 	# 2026-11-05T03:00:00+09:00 → UNIX 時刻
 	def epoch: .[0:19] + "Z" | fromdate - 32400;
-	# 「明るい外観用, 暗い外観用」の組から外観に合うほうを選ぶ
-	def pick: .[if $dark then 1 else 0 end];
+	# 色の組は「明るいメニューバー用, 暗い外観用, 明るいカード用」。メニューバーは
+	# 先頭の 2 つを sfcolor に渡し、カードは外観に合うほうを pick で選ぶ。明るい
+	# カード用を別に持つのは、ポップアップが背後の壁紙を透かして灰色に見えるため
+	# (白地を前提にした色では読めなかった)。
+	def pick: .[if $dark then 1 else 2 end];
+	def bar: .[0:2] | join(",");
 	# 天気コードの百の位で大まかに分ける (1 晴れ・2 くもり・3 雨・4 雪)。
 	# 十の位以下は「時々」「のち」などの組み合わせ。
 	def code_icon: (tonumber? // 0) as $c
@@ -105,17 +109,19 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" \
 	def text_icon: if test("雪") then "cloud.snow" elif test("雨") then "cloud.rain"
 		elif test("くもり") then (if test("晴") then "cloud.sun" else "cloud" end)
 		elif test("晴") then "sun.max" else "questionmark" end;
-	def icon_colors: { "sun.max": ["#F08A00", "#FFB340"], "cloud.sun": ["#E09A00", "#FFC75A"],
-		"cloud.rain": ["#0A6FD8", "#64B5FF"], "cloud.snow": ["#3A9BC1", "#9EDCF5"] }[.] // ["#6E6E73", "#AEAEB2"];
+	def icon_colors: { "sun.max": ["#F08A00", "#FFB340", "#A85400"], "cloud.sun": ["#E09A00", "#FFC75A", "#8A5C00"],
+		"cloud.rain": ["#0A6FD8", "#64B5FF", "#0050C0"], "cloud.snow": ["#3A9BC1", "#9EDCF5", "#14668A"] }[.]
+		// ["#6E6E73", "#AEAEB2", "#47474D"];
 	# 降水確率は青の鮮やかさだけで段階を付け、高いほど目立たせる。
 	# 0〜20% は灰、30〜50% はくすんだ青、60% 以上は鮮やかな青。
 	def pop_colors: (tonumber? // 0) as $p
-		| if $p >= 60 then ["#0A6FD8", "#64B5FF"] elif $p >= 30 then ["#5B7FA6", "#7895B8"] else ["#8E8E93", "#7C7C80"] end;
+		| if $p >= 60 then ["#0A6FD8", "#64B5FF", "#0047B3"] elif $p >= 30 then ["#5B7FA6", "#7895B8", "#2F5480"]
+		  else ["#8E8E93", "#7C7C80", "#5A5A60"] end;
 	# 気温の色。暑いほど赤、寒いほど青。どれにも当たらなければ null (標準の文字色)。
 	def temp_color: (tonumber? // null) as $t
-		| if $t == null then null elif $t >= 30 then (["#D70015", "#FF6961"] | pick)
-		  elif $t >= 25 then (["#B07800", "#FFD60A"] | pick) elif $t <= 5 then (["#0A6FD8", "#64B5FF"] | pick)
-		  elif $t <= 12 then (["#0A8AA8", "#5AD8E6"] | pick) else null end;
+		| if $t == null then null elif $t >= 30 then (["", "#FF6961", "#A3000F"] | pick)
+		  elif $t >= 25 then (["", "#FFD60A", "#7A5000"] | pick) elif $t <= 5 then (["", "#64B5FF", "#0047B3"] | pick)
+		  elif $t <= 12 then (["", "#5AD8E6", "#005E73"] | pick) else null end;
 	def squash: gsub("　"; "");
 	def wday($t): ["日","月","火","水","木","金","土"][$t[0:10] + "T00:00:00Z" | fromdate | strftime("%w") | tonumber];
 	def dir: ["静穏","北北東","北東","東北東","東","東南東","南東","南南東","南","南南西","南西","西南西","西","西北西","北西","北北西","北"][.] // null;
@@ -147,8 +153,8 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" \
 	| (":\($code | code_icon): \(if $nowtemp != null then "\($nowtemp | round)°" else "" end)"
 	   + (if $pop != "" then " :umbrella.fill: \($pop)%" else "" end)
 	   + (if $stale != "" then " :exclamationmark.triangle:" else "" end)
-	   + " | sfcolor=\($code | code_icon | icon_colors | join(","))"
-	   + (if $pop != "" then " sfcolor2=\($pop | pop_colors | join(","))" else "" end)
+	   + " | sfcolor=\($code | code_icon | icon_colors | bar)"
+	   + (if $pop != "" then " sfcolor2=\($pop | pop_colors | bar)" else "" end)
 	   + (if $stale != "" then " sfcolor\(if $pop != "" then 3 else 2 end)=#D70015,#FF6961" else "" end)),
 
 	# カード

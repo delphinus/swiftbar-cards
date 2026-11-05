@@ -73,17 +73,20 @@ struct Input {
 func renderAll(_ input: Input) -> [String] {
     var out: [String] = []
     let dark = input.dark
-    let fg = dark ? NSColor(white: 0.93, alpha: 1) : NSColor(white: 0.1, alpha: 1)
-    let sub = dark ? NSColor(white: 0.6, alpha: 1) : NSColor(white: 0.42, alpha: 1)
-    let track = dark ? NSColor(white: 1, alpha: 0.12) : NSColor(white: 0, alpha: 0.1)
-    let rule = dark ? NSColor(white: 1, alpha: 0.18) : NSColor(white: 0, alpha: 0.15)
+    // 明るい外観の色は、灰色に見えるポップアップでも読めるように濃くする。macOS 26 の
+    // ポップアップは背後 (壁紙) が透けるので、暗い壁紙だとライトモードでも #9096A6
+    // 前後の灰色になる。白地を前提にした薄い色では、地との差が 1.1〜1.8:1 しかなかった。
+    let fg = dark ? NSColor(white: 0.93, alpha: 1) : NSColor(white: 0.05, alpha: 1)
+    let sub = dark ? NSColor(white: 0.6, alpha: 1) : NSColor(white: 0.2, alpha: 1)
+    let track = dark ? NSColor(white: 1, alpha: 0.12) : NSColor(white: 0, alpha: 0.16)
+    let rule = dark ? NSColor(white: 1, alpha: 0.18) : NSColor(white: 0, alpha: 0.22)
     func rgb(_ light: UInt32, _ darkv: UInt32) -> NSColor {
         let v = dark ? darkv : light
         return NSColor(red: CGFloat((v >> 16) & 0xff) / 255, green: CGFloat((v >> 8) & 0xff) / 255,
                        blue: CGFloat(v & 0xff) / 255, alpha: 1)
     }
-    let green = rgb(0x248A3D, 0x30D158), yellow = rgb(0xB07800, 0xFFD60A), red = rgb(0xD70015, 0xFF453A)
-    let blue = rgb(0x0A6FD8, 0x64B5FF)
+    let green = rgb(0x146B2C, 0x30D158), yellow = rgb(0x7A5000, 0xFFD60A), red = rgb(0xA3000F, 0xFF453A)
+    let blue = rgb(0x0047B3, 0x64B5FF)
     // 値に応じた色。warn 以上で黄、crit 以上で赤。
     func level(_ v: Double, _ warn: Double, _ crit: Double) -> NSColor { v >= crit ? red : v >= warn ? yellow : green }
 
