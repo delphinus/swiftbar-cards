@@ -33,7 +33,19 @@ Each plugin compiles its helper on first run and again whenever the source chang
 
 ## Configuration
 
-`weather` shows Tokyo by default. The location is currently set by the defaults at the top of `plugins/weather.10m.sh` (`JMA_OFFICE`, `JMA_AREA`, `JMA_CLASS10`, `JMA_TEMP_POINT`, and `JMA_AMEDAS`); the comments there explain where to look up each code. A configuration file that takes a single place name is planned.
+`weather` shows Tokyo unless configured. To change the location, write the name of an AMeDAS station (in Japanese, as listed on the [JMA AMeDAS page](https://www.jma.go.jp/bosai/amedas/)) to `~/.config/swiftbar-cards/weather.conf`:
+
+```ini
+place=横浜
+```
+
+The plugin finds the forecast area from the station: it uses the forecast area whose representative temperature point is nearest to the station, within the same region. The **設定ファイルを開く** (Open configuration file) item in the menu creates this file with comments if it does not exist.
+
+When more than one station has the same name, the menu lists them with their station numbers. Pick one by number, which takes precedence over `place`:
+
+```ini
+amedas=44116
+```
 
 ## Acknowledgements
 
