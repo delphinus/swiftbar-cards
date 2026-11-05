@@ -186,12 +186,12 @@ func renderAll(_ input: Input) -> [String] {
     do {
         let c = input.cpu
         text("CPU", x: pad, y: top, size: 11, color: sub)
-        text("負荷 \(c.load)", x: width - pad, y: top, size: 11, color: sub, align: .right)
+        text(L("負荷 \(c.load)", "Load \(c.load)"), x: width - pad, y: top, size: 11, color: sub, align: .right)
         let y0 = top + 20
         let col = level(c.total, 50, 80)
         let big = text(fmt(c.total), x: pad, y: y0 - 4, size: 34, color: col, weight: .light)
         let unit = text("%", x: pad + big.width + 1, y: y0 + 8, size: 16, color: col, weight: .light)
-        let breakdown = text("ユーザ \(fmt(c.user))%  システム \(fmt(c.sys))%", x: pad, y: y0 + 38, size: 10, color: sub)
+        let breakdown = text(L("ユーザ \(fmt(c.user))%  システム \(fmt(c.sys))%", "User \(fmt(c.user))%  System \(fmt(c.sys))%"), x: pad, y: y0 + 38, size: 10, color: sub)
 
         // 推移の折れ線グラフ (塗りつぶし付き)。縦軸は 0〜100%。
         // 推移の折れ線グラフは、大きな数字と内訳の文字の右から描く (左端を固定すると、
@@ -231,22 +231,22 @@ func renderAll(_ input: Input) -> [String] {
             ctx.strokePath()
         }
         let minutes = Int((Double(max(59, h.count - 1)) * input.interval / 60).rounded())
-        text("\(minutes) 分前", x: g.minX, y: g.maxY + 2, size: 9, color: sub)
-        text("今", x: g.maxX, y: g.maxY + 2, size: 9, color: sub, align: .right)
+        text(L("\(minutes) 分前", "\(minutes) min ago"), x: g.minX, y: g.maxY + 2, size: 9, color: sub)
+        text(L("今", "now"), x: g.maxX, y: g.maxY + 2, size: 9, color: sub, align: .right)
 
         var ry = y0 + 52 + 14 // グラフの下の「10 分前」「今」の分を空ける
         if let e = c.e, let p = c.p {
-            meterRow("E コア", value: e, shown: "\(fmt(e))%", color: level(e, 70, 90), y: ry); ry += 18
-            meterRow("P コア", value: p, shown: "\(fmt(p))%", color: level(p, 50, 80), y: ry); ry += 18
+            meterRow(L("E コア", "E-cores"), value: e, shown: "\(fmt(e))%", color: level(e, 70, 90), y: ry); ry += 18
+            meterRow(L("P コア", "P-cores"), value: p, shown: "\(fmt(p))%", color: level(p, 50, 80), y: ry); ry += 18
         }
         if let t = c.temp {
             // 温度のメーターは 30〜100°C を 0〜100% として描く
-            meterRow("CPU 温度", value: (t - 30) / 70 * 100, shown: "\(fmt(t))°C", color: level(t, 70, 85), y: ry); ry += 18
+            meterRow(L("CPU 温度", "CPU temp"), value: (t - 30) / 70 * 100, shown: "\(fmt(t))°C", color: level(t, 70, 85), y: ry); ry += 18
             // GPU がほとんど動いていないとき、室温より低い値が出ることがある (macmon で温度を取っていたころに見た)
             if let gt = c.gpu, gt >= 20 {
-                meterRow("GPU 温度", value: (gt - 30) / 70 * 100, shown: "\(fmt(gt))°C", color: level(gt, 70, 85), y: ry)
+                meterRow(L("GPU 温度", "GPU temp"), value: (gt - 30) / 70 * 100, shown: "\(fmt(gt))°C", color: level(gt, 70, 85), y: ry)
             } else {
-                meterRow("GPU 温度", value: 0, shown: "-", color: green, y: ry)
+                meterRow(L("GPU 温度", "GPU temp"), value: 0, shown: "-", color: green, y: ry)
             }
         }
         nextSection(cpuH)
@@ -256,10 +256,11 @@ func renderAll(_ input: Input) -> [String] {
     do {
         let m = input.mem
         let pct = m.used / m.total * 100
-        text("メモリ", x: pad, y: top, size: 11, color: sub)
-        let pressure = m.pressure == 1 ? ("正常", green) : m.pressure == 2 ? ("警告", yellow) : m.pressure == 4 ? ("危険", red) : ("不明", sub)
+        text(L("メモリ", "Memory"), x: pad, y: top, size: 11, color: sub)
+        let pressure = m.pressure == 1 ? (L("正常", "Normal"), green) : m.pressure == 2 ? (L("警告", "Warning"), yellow)
+            : m.pressure == 4 ? (L("危険", "Critical"), red) : (L("不明", "Unknown"), sub)
         let ps = text(pressure.0, x: width - pad, y: top, size: 11, color: pressure.1, weight: .semibold, align: .right)
-        text("メモリプレッシャー", x: width - pad - ps.width - 4, y: top, size: 11, color: sub, align: .right)
+        text(L("メモリプレッシャー", "Memory Pressure"), x: width - pad - ps.width - 4, y: top, size: 11, color: sub, align: .right)
         let y0 = top + 20
         let col = level(pct, 70, 85)
         let big = text(fmt(pct), x: pad, y: y0 - 4, size: 34, color: col, weight: .light)
@@ -267,7 +268,7 @@ func renderAll(_ input: Input) -> [String] {
         let bx: CGFloat = 118
         bar(x: bx, y: y0 + 8, w: width - bx - pad, h: 10, value: pct, color: col)
         text("\(gb(m.used)) / \(gb(m.total))", x: bx, y: y0 + 24, size: 12, weight: .medium)
-        text("圧縮 \(gb(m.compressed))   スワップ \(m.swap)", x: bx, y: y0 + 40, size: 11, color: sub)
+        text(L("圧縮 \(gb(m.compressed))   スワップ \(m.swap)", "Compressed \(gb(m.compressed))   Swap \(m.swap)"), x: bx, y: y0 + 40, size: 11, color: sub)
         nextSection(memH)
     }
 
@@ -275,8 +276,8 @@ func renderAll(_ input: Input) -> [String] {
     if procRows > 0 {
         let colW = (width - pad * 2 - 12) / 2
         let lx = pad, rx = pad + colW + 12
-        text("CPU を使っているプロセス", x: lx, y: top, size: 11, color: sub)
-        text("メモリを使っているプロセス", x: rx, y: top, size: 11, color: sub)
+        text(L("CPU を使っているプロセス", "Top CPU"), x: lx, y: top, size: 11, color: sub)
+        text(L("メモリを使っているプロセス", "Top Memory"), x: rx, y: top, size: 11, color: sub)
         var ry = top + 20
         for i in 0..<procRows {
             if i < input.procCpu.count {
@@ -303,7 +304,7 @@ func renderAll(_ input: Input) -> [String] {
 
     // 4. バッテリー
     if !input.battery.isEmpty {
-        text("バッテリー", x: pad, y: top, size: 11, color: sub)
+        text(L("バッテリー", "Battery"), x: pad, y: top, size: 11, color: sub)
         var ry = top + 20
         for b in input.battery {
             // 残量は少ないほど危ないので、少ないときに黄・赤にする
@@ -767,7 +768,7 @@ while true {
             lines.append("CPU \(Int(user + sys))%")
         }
         lines.append("---")
-        lines.append("アクティビティモニタを開く | sfimage=arrow.up.forward.circle bash=/usr/bin/open param1=-a param2=\"Activity Monitor\" terminal=false")
+        lines.append(L("アクティビティモニタを開く", "Open Activity Monitor") + " | sfimage=arrow.up.forward.circle bash=/usr/bin/open param1=-a param2=\"Activity Monitor\" terminal=false")
         // 中身の後ろに区切りを出す (sysmon.sh の useTrailingStreamSeparator)
         print(lines.joined(separator: "\n") + "\n~~~")
         fflush(stdout)

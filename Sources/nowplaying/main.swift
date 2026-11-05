@@ -205,7 +205,7 @@ func card(dark: Bool) -> (Data, CGSize) {
             draw(track.album, in: CGRect(x: tx, y: y, width: tw, height: 18), font: .systemFont(ofSize: 12), color: sub)
         }
         if track.state != "playing" {
-            draw("一時停止中", in: CGRect(x: tx, y: artSize - 14, width: tw, height: 16), font: .systemFont(ofSize: 11), color: sub)
+            draw(L("一時停止中", "Paused"), in: CGRect(x: tx, y: artSize - 14, width: tw, height: 16), font: .systemFont(ofSize: 11), color: sub)
         }
         if hasProgress, let dur = track.duration {
             let pos = min(max(track.position ?? 0, 0), dur)
@@ -236,7 +236,7 @@ var lastOutput = ""
 
 // メニューのアイコンは幅 15pt のもの (円で囲んだ系統など) で揃える。SF Symbols は
 // アイコンごとに幅が違い、その差だけ文字の書き出し位置がずれる。
-let openMusic = "Music を開く | sfimage=arrow.up.forward.circle bash=/usr/bin/open param1=-a param2=Music terminal=false"
+let openMusic = L("Music を開く", "Open Music") + " | sfimage=arrow.up.forward.circle bash=/usr/bin/open param1=-a param2=Music terminal=false"
 func ctl(_ title: String, _ icon: String, _ cmd: String, _ extra: String = "") -> String {
     "\(title) | sfimage=\(icon) bash=/usr/bin/osascript param1=-e param2='tell application \"Music\" to \(cmd)' terminal=false\(extra)"
 }
@@ -267,9 +267,9 @@ func emit() {
     if musicRunning() {
         // 操作は 3 行にまとめる。前の曲に戻る操作は頻度が低いので、⌥ を押している
         // 間だけ「次の曲」と差し替える (SwiftBar の alternate)。
-        lines.append(track.state == "playing" ? ctl("一時停止", "pause.circle", "playpause") : ctl("再生", "play.circle", "play"))
-        lines.append(ctl("次の曲", "forward.end.circle", "next track"))
-        lines.append(ctl("前の曲", "backward.end.circle", "previous track", " alternate=true"))
+        lines.append(track.state == "playing" ? ctl(L("一時停止", "Pause"), "pause.circle", "playpause") : ctl(L("再生", "Play"), "play.circle", "play"))
+        lines.append(ctl(L("次の曲", "Next Track"), "forward.end.circle", "next track"))
+        lines.append(ctl(L("前の曲", "Previous Track"), "backward.end.circle", "previous track", " alternate=true"))
         lines.append(openMusic)
     }
     let out = lines.joined(separator: "\n")
