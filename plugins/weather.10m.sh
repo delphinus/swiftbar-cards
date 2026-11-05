@@ -87,11 +87,6 @@ if [[ -f $conf ]]; then
 	done <"$conf"
 fi
 [[ ${#places[@]} -gt 0 ]] || places=(東京)
-# 選んでいる地点。覚えている地点が設定から消えていたら先頭にする。
-selected=$(cat "$cache/selected" 2>/dev/null || true)
-sel=0
-for i in "${!places[@]}"; do [[ ${places[$i]} == "$selected" ]] && sel=$i; done
-place=${places[$sel]}
 
 # 観測点の表と、予報区と観測点の対応表。めったに変わらないので週に 1 回取り直す。
 mkdir -p "$cache/const"
@@ -136,6 +131,14 @@ resolved=$(printf '%s\n' "${places[@]}" | jq -R . | jq -s -c \
 		       officeName: $ar.offices[$best.office].name, officeEn: $ar.offices[$best.office].enName }] as $found
 		| { query: $q, found: $found,
 		    status: (if ($found | length) == 0 then "notfound" elif ($found | length) > 1 then "ambiguous" else "ok" end) })')
+# 選んでいる地点。覚えている文字列と、書かれた文字列・観測点の名前・番号のどれかが
+# 一致する地点を選ぶ。同名の観測点が複数あって「山口」を選んだあと、設定を
+# place=81286 に書き換えても、山口を選んだままにするため。無ければ先頭にする。
+selected=$(cat "$cache/selected" 2>/dev/null || true)
+sel=$(jq -r --arg s "$selected" '
+	[to_entries[] | select(.value.query == $s or ([.value.found[] | .name, .amedas] | index($s) != null)) | .key]
+	| first // 0' <<<"$resolved")
+place=${places[$sel]}
 # 地点の表示名 (切り替えのメニュー用)。解決できなかった地点は書かれたまま出す。
 place_label() { # <番号>
 	jq -r --argjson i "$1" --arg lang "$lang" \
@@ -149,6 +152,8 @@ location_menu() {
 		echo "--$(place_label "$i") | bash=$0 param1=select param2=${places[$i]} terminal=false refresh=true$([[ $i == "$sel" ]] && echo " checked=true")"
 	done
 }
+# 設定ファイルを書き換えたあと、次の実行 (10 分ごと) を待たずに反映する
+refresh_item() { echo "$(T "今すぐ更新" "Refresh Now") | sfimage=arrow.clockwise.circle refresh=true"; }
 # 設定の不備をメニューに出して終わる
 config_error() {
 	echo ":exclamationmark.triangle: $(T "天気" "Weather")"
@@ -157,6 +162,7 @@ config_error() {
 	echo "---"
 	location_menu
 	echo "$(T "設定ファイルを開く" "Open Configuration File") | sfimage=gearshape.circle bash=$0 param1=open-config terminal=false"
+	refresh_item
 	exit 0
 }
 
@@ -401,4 +407,5 @@ fi
 echo "---"
 location_menu
 echo "$(T "設定ファイルを開く" "Open Configuration File") | sfimage=gearshape.circle bash=$0 param1=open-config terminal=false"
+refresh_item
 echo "$(T "気象庁の天気予報を開く" "Open JMA Forecast") | sfimage=arrow.up.forward.circle href=https://www.jma.go.jp/bosai/forecast/#area_type=offices&area_code=$office"

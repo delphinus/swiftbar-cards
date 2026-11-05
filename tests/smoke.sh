@@ -114,6 +114,12 @@ fi
 "$repo/plugins/weather.10m.sh" select 横浜
 run_weather multi-selected Light "$(printf 'place=東京\nplace=横浜')"
 if grep -q '^--横浜 .*checked=true' "$work/weather-multi-selected.txt"; then ok "weather 選んだ地点を覚える"; else ng "weather 選んだ地点を覚える"; fi
+# 同名の観測点がある地点を選んだあと、番号に書き換えても選んだままになる
+"$repo/plugins/weather.10m.sh" select 府中
+run_weather renumbered Light "$(printf 'place=東京\nplace=44116 # 府中')"
+if grep -q '^--府中 .*checked=true' "$work/weather-renumbered.txt" && head -1 "$work/weather-renumbered.txt" | grep -q '°'; then
+	ok "weather 番号に書き換えても選んだ地点のまま"
+else ng "weather 番号に書き換えても選んだ地点のまま"; fi
 "$repo/plugins/weather.10m.sh" select 東京
 SWIFTBAR_CARDS_LANG=en run_weather english Light "place=横浜"
 if grep -q 'Open JMA Forecast' "$work/weather-english.txt" && save_image "$work/weather-english.txt" 3 weather-english; then
