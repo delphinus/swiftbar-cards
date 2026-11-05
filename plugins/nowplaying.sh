@@ -8,7 +8,7 @@
 # <swiftbar.hideDisablePlugin>true</swiftbar.hideDisablePlugin>
 # <swiftbar.hideSwiftBar>true</swiftbar.hideSwiftBar>
 #
-# 常駐型 (streamable) のプラグイン。中身は ../Sources/nowplaying/main.swift で、ここでは
+# 常駐型 (streamable) のプラグイン。中身は ../Sources/nowplaying/ の Swift のプログラムで、ここでは
 # それをコンパイルして起動するだけ。Music.app の通知で更新し、再生中だけ 5 秒ごとに
 # 再生位置を問い合わせる。一時停止中・停止中は何もしない。
 #
