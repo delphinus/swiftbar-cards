@@ -13,7 +13,10 @@
 // - 負荷: getloadavg
 // - プロセスごとの CPU とメモリ: ps (20 秒ごと)。root で動くプロセスは権限の無い
 //   プログラムからは libproc で読めないので、setuid root の ps に頼る。
-// - 温度と E / P コアの稼働率: macmon (30 秒ごと)
+// - E / P コアの使用率: コアごとのティックの差分。どのコアが E か P かは
+//   IODeviceTree の cpus の子にある cluster-type で見分ける。
+// - 温度: SMC (System Management Controller) のセンサーの平均。読み方は macmon
+//   (https://github.com/vladkens/macmon、MIT) の src/sources.rs と src/metrics.rs に倣った。
 // - Bluetooth 機器のバッテリー: ioreg (60 秒ごと)。名前は system_profiler (1 時間ごと)
 //
 // カード: 上から CPU (使用率・過去 10 分の推移・E / P コア・温度)、メモリ、
@@ -25,6 +28,7 @@
 
 import AppKit
 import Darwin
+import IOKit
 
 struct CPU {
     let total: Double
@@ -235,7 +239,7 @@ func renderAll(_ input: Input) -> [String] {
         if let t = c.temp {
             // 温度のメーターは 30〜100°C を 0〜100% として描く
             meterRow("CPU 温度", value: (t - 30) / 70 * 100, shown: "\(fmt(t))°C", color: level(t, 70, 85), y: ry); ry += 18
-            // GPU がほとんど動いていないとき、macmon は室温より低い値を返すことがある
+            // GPU がほとんど動いていないとき、室温より低い値が出ることがある (macmon で温度を取っていたころに見た)
             if let gt = c.gpu, gt >= 20 {
                 meterRow("GPU 温度", value: (gt - 30) / 70 * 100, shown: "\(fmt(gt))°C", color: level(gt, 70, 85), y: ry)
             } else {
@@ -457,24 +461,144 @@ func run(_ path: String, _ args: [String]) -> String? {
     return String(data: data, encoding: .utf8)
 }
 
-// CPU のティック (全コアの合計)。使用率は前回との差分で求める。
-struct Ticks { var user: UInt64 = 0, sys: UInt64 = 0, idle: UInt64 = 0, nice: UInt64 = 0 }
-func cpuTicks() -> Ticks {
+// CPU のティック (コアごと)。使用率は前回との差分で求める。
+struct Ticks {
+    var user: UInt64 = 0, sys: UInt64 = 0, idle: UInt64 = 0, nice: UInt64 = 0
+    static func + (a: Ticks, b: Ticks) -> Ticks {
+        Ticks(user: a.user &+ b.user, sys: a.sys &+ b.sys, idle: a.idle &+ b.idle, nice: a.nice &+ b.nice)
+    }
+    static func - (a: Ticks, b: Ticks) -> Ticks {
+        Ticks(user: a.user &- b.user, sys: a.sys &- b.sys, idle: a.idle &- b.idle, nice: a.nice &- b.nice)
+    }
+    var busy: Double { Double(user &+ sys &+ nice) }
+    var total: Double { Double(user &+ sys &+ nice &+ idle) }
+}
+func cpuTicks() -> [Ticks] {
     var count: natural_t = 0
     var info: processor_info_array_t?
     var infoCount: mach_msg_type_number_t = 0
-    var t = Ticks()
     guard host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO, &count, &info, &infoCount) == KERN_SUCCESS,
-          let info else { return t }
-    for c in 0..<Int(count) {
-        let b = Int(CPU_STATE_MAX) * c
-        t.user += UInt64(UInt32(bitPattern: info[b + Int(CPU_STATE_USER)]))
-        t.sys += UInt64(UInt32(bitPattern: info[b + Int(CPU_STATE_SYSTEM)]))
-        t.idle += UInt64(UInt32(bitPattern: info[b + Int(CPU_STATE_IDLE)]))
-        t.nice += UInt64(UInt32(bitPattern: info[b + Int(CPU_STATE_NICE)]))
+          let info else { return [] }
+    defer {
+        vm_deallocate(mach_task_self_, vm_address_t(bitPattern: info), vm_size_t(Int(infoCount) * MemoryLayout<integer_t>.stride))
     }
-    vm_deallocate(mach_task_self_, vm_address_t(bitPattern: info), vm_size_t(Int(infoCount) * MemoryLayout<integer_t>.stride))
-    return t
+    func v(_ c: Int, _ state: Int32) -> UInt64 { UInt64(UInt32(bitPattern: info[Int(CPU_STATE_MAX) * c + Int(state)])) }
+    return (0..<Int(count)).map { c in
+        Ticks(user: v(c, CPU_STATE_USER), sys: v(c, CPU_STATE_SYSTEM), idle: v(c, CPU_STATE_IDLE), nice: v(c, CPU_STATE_NICE))
+    }
+}
+
+// コアの種類 (論理 CPU の番号 → "E" / "P")。host_processor_info の並びは
+// logical-cpu-id の順。Intel の Mac には cluster-type が無いので空になる。
+func clusterTypes() -> [Int: String] {
+    var out: [Int: String] = [:]
+    let cpus = IORegistryEntryFromPath(kIOMainPortDefault, "IODeviceTree:/cpus")
+    guard cpus != 0 else { return out }
+    defer { IOObjectRelease(cpus) }
+    var it: io_iterator_t = 0
+    guard IORegistryEntryGetChildIterator(cpus, kIODeviceTreePlane, &it) == KERN_SUCCESS else { return out }
+    defer { IOObjectRelease(it) }
+    while case let e = IOIteratorNext(it), e != 0 {
+        defer { IOObjectRelease(e) }
+        func prop(_ k: String) -> Any? { IORegistryEntryCreateCFProperty(e, k as CFString, nil, 0)?.takeRetainedValue() }
+        guard let t = prop("cluster-type") as? Data, let id = prop("logical-cpu-id") as? NSNumber,
+              let kind = String(data: t.prefix { $0 != 0 }, encoding: .ascii) else { continue }
+        out[id.intValue] = kind
+    }
+    return out
+}
+
+// SMC の温度センサー。キーの意味は公開されていないので、macmon と同じく
+// 名前が Tp / Te / Ts で始まるものを CPU、Tg で始まるものを GPU とみなし、
+// 4 バイトの浮動小数点数 (flt ) として読めるものの平均を取る。チップごとの
+// 対応表を持たずに済む。仮想マシンなど SMC が無い環境では nil になる。
+final class SMC {
+    private let conn: io_connect_t
+    private var infos: [UInt32: (size: UInt32, type: UInt32)] = [:]
+    private(set) var cpuKeys: [UInt32] = [], gpuKeys: [UInt32] = []
+
+    init?() {
+        var it: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("AppleSMC"), &it) == KERN_SUCCESS else { return nil }
+        defer { IOObjectRelease(it) }
+        var c: io_connect_t = 0
+        while case let dev = IOIteratorNext(it), dev != 0 {
+            defer { IOObjectRelease(dev) }
+            var name = [CChar](repeating: 0, count: 128)
+            IORegistryEntryGetName(dev, &name)
+            if String(cString: name) == "AppleSMCKeysEndpoint" { IOServiceOpen(dev, mach_task_self_, 0, &c) }
+        }
+        guard c != 0 else { return nil }
+        conn = c
+        for name in allKeys() {
+            let k = SMC.key(name)
+            if name.hasPrefix("Tp") || name.hasPrefix("Te") || name.hasPrefix("Ts") {
+                if float(k) != nil { cpuKeys.append(k) }
+            } else if name.hasPrefix("Tg") {
+                if float(k) != nil { gpuKeys.append(k) }
+            }
+        }
+    }
+    deinit { IOServiceClose(conn) }
+
+    var cpuTemp: Double? { average(cpuKeys) }
+    var gpuTemp: Double? { average(gpuKeys) }
+
+    // 有効な値 (0〜150°C) の平均
+    private func average(_ keys: [UInt32]) -> Double? {
+        let v = keys.compactMap { float($0) }.filter { $0 > 0 && $0 <= 150 }
+        return v.isEmpty ? nil : Double(v.reduce(0, +)) / Double(v.count)
+    }
+
+    // AppleSMC とやり取りする構造体 (C で 80 バイト) を、C の配置どおりのバイト列で組む。
+    // key @0、keyInfo の dataSize @28 と dataType @32、result @40、data8 (命令) @42、
+    // data32 @44、bytes (値) @48。
+    private func call(_ fill: (UnsafeMutableRawPointer) -> Void) -> [UInt8]? {
+        var inp = [UInt8](repeating: 0, count: 80), out = [UInt8](repeating: 0, count: 80)
+        inp.withUnsafeMutableBytes { fill($0.baseAddress!) }
+        var olen = 80
+        let rs = inp.withUnsafeBytes { i in
+            out.withUnsafeMutableBytes { o in IOConnectCallStructMethod(conn, 2, i.baseAddress, 80, o.baseAddress, &olen) }
+        }
+        guard rs == KERN_SUCCESS, out[40] == 0 else { return nil }
+        return out
+    }
+    private static func key(_ s: String) -> UInt32 { s.utf8.reduce(0) { $0 << 8 | UInt32($1) } }
+    private func info(_ k: UInt32) -> (size: UInt32, type: UInt32)? {
+        if let i = infos[k] { return i }
+        guard let o = call({ p in
+            p.storeBytes(of: k, as: UInt32.self)
+            p.storeBytes(of: UInt8(9), toByteOffset: 42, as: UInt8.self) // キーの情報を読む
+        }) else { return nil }
+        let i = o.withUnsafeBytes { ($0.load(fromByteOffset: 28, as: UInt32.self), $0.load(fromByteOffset: 32, as: UInt32.self)) }
+        infos[k] = i
+        return i
+    }
+    private func bytes(_ k: UInt32) -> [UInt8]? {
+        guard let i = info(k), let o = call({ p in
+            p.storeBytes(of: k, as: UInt32.self)
+            p.storeBytes(of: i.size, toByteOffset: 28, as: UInt32.self)
+            p.storeBytes(of: i.type, toByteOffset: 32, as: UInt32.self)
+            p.storeBytes(of: UInt8(5), toByteOffset: 42, as: UInt8.self) // 値を読む
+        }) else { return nil }
+        return Array(o[48..<48 + Int(min(i.size, 32))])
+    }
+    private func float(_ k: UInt32) -> Float? {
+        guard let i = info(k), i.size == 4, i.type == SMC.key("flt "), let b = bytes(k) else { return nil }
+        return b.withUnsafeBytes { $0.loadUnaligned(as: Float.self) }
+    }
+    private func allKeys() -> [String] {
+        guard let b = bytes(SMC.key("#KEY")), b.count >= 4 else { return [] }
+        let n = b.prefix(4).reduce(UInt32(0)) { $0 << 8 | UInt32($1) }
+        return (0..<n).compactMap { idx in
+            guard let o = call({ p in
+                p.storeBytes(of: UInt8(8), toByteOffset: 42, as: UInt8.self) // 番号からキーを引く
+                p.storeBytes(of: idx, toByteOffset: 44, as: UInt32.self)
+            }) else { return nil }
+            let k = o.withUnsafeBytes { $0.load(as: UInt32.self) }
+            return String(bytes: [24, 16, 8, 0].map { UInt8((k >> $0) & 0xff) }, encoding: .ascii)
+        }
+    }
 }
 
 func memory() -> Mem {
@@ -505,20 +629,6 @@ func processes() -> ([Proc], [Proc]) {
     let byCpu = all.sorted { $0.0 > $1.0 }.prefix(5).map { Proc(name: $0.2, value: $0.0) }
     let byMem = all.sorted { $0.1 > $1.1 }.prefix(5).map { Proc(name: $0.2, value: $0.1) }
     return (byCpu, byMem)
-}
-
-// macmon の cpu_usage_pct はコアが起きていた時間の割合で、Activity Monitor の
-// 使用率より大きく出る。macmon は温度と E / P コアの稼働率だけに使う。
-func macmon() -> (temp: Double?, gpu: Double?, e: Double?, p: Double?) {
-    for path in ["/opt/homebrew/bin/macmon", "/usr/local/bin/macmon"] where FileManager.default.isExecutableFile(atPath: path) {
-        guard let s = run(path, ["pipe", "-s", "1", "-i", "500"]),
-              let j = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any] else { return (nil, nil, nil, nil) }
-        let t = j["temp"] as? [String: Any]
-        func pct(_ k: String) -> Double? { (j[k] as? Double).map { ($0 * 100).rounded() } }
-        return ((t?["cpu_temp_avg"] as? Double)?.rounded(), (t?["gpu_temp_avg"] as? Double)?.rounded(),
-                pct("ecpu_active_ratio"), pct("pcpu_active_ratio"))
-    }
-    return (nil, nil, nil, nil)
 }
 
 // Bluetooth 機器の名前 (アドレス → 名前)。ioreg の Product は空になる機器があるので
@@ -567,11 +677,12 @@ let historyFile = NSString(string: "~/Library/Caches/swiftbar-sysmon-cpu-history
 var history: [Double] = ((try? String(contentsOfFile: historyFile, encoding: .utf8)) ?? "")
     .split(separator: "\n").compactMap { Double($0) }.suffix(60).map { $0 }
 var prev = cpuTicks()
+let kinds = clusterTypes()
+let smc = SMC()
 var procCpu: [Proc] = [], procMem: [Proc] = []
-var temps: (temp: Double?, gpu: Double?, e: Double?, p: Double?) = (nil, nil, nil, nil)
 var bats: [Battery] = []
 var btNames: [String: String] = [:]
-var lastPs = 0.0, lastMacmon = 0.0, lastBattery = 0.0, lastNames = 0.0
+var lastPs = 0.0, lastBattery = 0.0, lastNames = 0.0
 Thread.sleep(forTimeInterval: 1) // 最初の使用率を出すため、ティックの差分を取る間を置く
 
 while true {
@@ -580,12 +691,18 @@ while true {
     // (1 時間で 2 GB ほど増えていた)。
     autoreleasepool {
         let now = Date().timeIntervalSince1970
-        let t = cpuTicks()
-        let du = Double((t.user &- prev.user) &+ (t.nice &- prev.nice)), ds = Double(t.sys &- prev.sys)
-        let di = Double(t.idle &- prev.idle)
-        let total = du + ds + di
+        let cur = cpuTicks()
+        let diff = cur.count == prev.count ? zip(cur, prev).map { $0 - $1 } : []
+        prev = cur
+        let all = diff.reduce(Ticks(), +)
+        let du = Double(all.user &+ all.nice), ds = Double(all.sys), total = all.total
         let user = total > 0 ? (du / total * 100).rounded() : 0, sys = total > 0 ? (ds / total * 100).rounded() : 0
-        prev = t
+        // E / P コアごとの使用率。コアの種類が分からなければ nil (その行を出さない)。
+        func usage(_ kind: String) -> Double? {
+            let d = diff.indices.filter { kinds[$0] == kind }.map { diff[$0] }.reduce(Ticks(), +)
+            return d.total > 0 ? (d.busy / d.total * 100).rounded() : nil
+        }
+        let eUsage = usage("E"), pUsage = usage("P")
         history.append(user + sys)
         if history.count > 60 { history.removeFirst(history.count - 60) }
         try? history.map { String(Int($0)) }.joined(separator: "\n").write(toFile: historyFile, atomically: true, encoding: .utf8)
@@ -593,14 +710,14 @@ while true {
         var la = [Double](repeating: 0, count: 3)
         getloadavg(&la, 3)
         if now - lastPs >= 20 { (procCpu, procMem) = processes(); lastPs = now }
-        if now - lastMacmon >= 30 { temps = macmon(); lastMacmon = now }
         if now - lastNames >= 3600 { btNames = bluetoothNames(); lastNames = now }
         if now - lastBattery >= 60 { bats = batteries(btNames); lastBattery = now }
 
         let input = Input(dark: isDark(), interval: interval,
-                          cpu: CPU(total: user + sys, user: user, sys: sys, e: temps.e, p: temps.p,
+                          cpu: CPU(total: user + sys, user: user, sys: sys, e: eUsage, p: pUsage,
                                    load: String(format: "%.2f / %.2f / %.2f", la[0], la[1], la[2]),
-                                   temp: temps.temp, gpu: temps.gpu, hist: history),
+                                   temp: smc?.cpuTemp?.rounded(), gpu: smc?.gpuTemp?.rounded(),
+                                   hist: history),
                           mem: memory(), procCpu: procCpu, procMem: procMem, battery: bats)
         let o = renderAll(input)
         var lines: [String] = []

@@ -18,7 +18,6 @@ Each card is drawn by a small Swift program and passed to SwiftBar as an image, 
 - SwiftBar with support for streamable plugins
 - Xcode Command Line Tools (`xcode-select --install`), for `swiftc`
 - `jq`, for `weather`
-- [macmon](https://github.com/vladkens/macmon) (optional), for temperatures and E/P core usage in `sysmon`. Without it, those rows are not shown.
 
 ## Installation
 
@@ -35,6 +34,10 @@ Each plugin compiles its helper on first run and again whenever the source chang
 ## Configuration
 
 `weather` shows Tokyo by default. The location is currently set by the defaults at the top of `plugins/weather.10m.sh` (`JMA_OFFICE`, `JMA_AREA`, `JMA_CLASS10`, `JMA_TEMP_POINT`, and `JMA_AMEDAS`); the comments there explain where to look up each code. A configuration file that takes a single place name is planned.
+
+## Acknowledgements
+
+`sysmon` reads temperatures from the SMC in the same way as [macmon](https://github.com/vladkens/macmon) (MIT License).
 
 ## License
 

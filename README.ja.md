@@ -18,7 +18,6 @@
 - 常駐型 (streamable) のプラグインに対応した SwiftBar
 - `swiftc` を使うための Xcode Command Line Tools (`xcode-select --install`)
 - `weather` 用の `jq`
-- [macmon](https://github.com/vladkens/macmon) (任意)。`sysmon` で温度と E / P コアの稼働率を出すのに使います。無ければそれらの行は出ません。
 
 ## インストール
 
@@ -35,6 +34,10 @@ SwiftBar の設定で、プラグインのフォルダをクローンした中�
 ## 設定
 
 `weather` は、何も設定しなければ東京を表示します。地域は今のところ `plugins/weather.10m.sh` の冒頭にある値 (`JMA_OFFICE`・`JMA_AREA`・`JMA_CLASS10`・`JMA_TEMP_POINT`・`JMA_AMEDAS`) で決まります。それぞれのコードの調べ方はそこのコメントにあります。地名を 1 つ指定するだけで済む設定ファイルを用意する予定です。
+
+## 謝辞
+
+`sysmon` は、[macmon](https://github.com/vladkens/macmon) (MIT License) と同じ方法で SMC から温度を読んでいます。
 
 ## ライセンス
 
