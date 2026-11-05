@@ -12,6 +12,23 @@
 
 Each card is drawn by a small Swift program and passed to SwiftBar as an image, with separate colors for light and dark appearances.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/nowplaying-dark.png">
+    <img src="docs/images/nowplaying-light.png" alt="nowplaying" width="280">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/sysmon-dark.png">
+    <img src="docs/images/sysmon-light.png" alt="sysmon" width="280">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/weather-dark.png">
+    <img src="docs/images/weather-light.png" alt="weather" width="280">
+  </picture>
+</p>
+
+The `nowplaying` and `sysmon` images use made-up values from `samples/`; the `weather` image shows a real forecast for Tokyo.
+
 ## Requirements
 
 - macOS on Apple Silicon (tested on an M1 Max with macOS 26)
@@ -46,6 +63,11 @@ When more than one station has the same name, the menu lists them with their sta
 ```ini
 amedas=44116
 ```
+
+## Development
+
+- `tests/smoke.sh` builds the helpers, runs each plugin, and checks that the menu bar line and the card image come out. CI runs it on every push.
+- `samples/render.sh` redraws the images in `docs/images/`. `nowplaying` and `sysmon` can draw a card once from given values with `--render <JSON> <output directory>`; the values are in `samples/`.
 
 ## Acknowledgements
 

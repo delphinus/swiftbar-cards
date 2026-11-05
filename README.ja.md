@@ -12,6 +12,23 @@
 
 カードは小さな Swift のプログラムが描き、画像として SwiftBar に渡します。ライトモードとダークモードで別の色を使います。
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/nowplaying-dark.png">
+    <img src="docs/images/nowplaying-light.png" alt="nowplaying" width="280">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/sysmon-dark.png">
+    <img src="docs/images/sysmon-light.png" alt="sysmon" width="280">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/weather-dark.png">
+    <img src="docs/images/weather-light.png" alt="weather" width="280">
+  </picture>
+</p>
+
+`nowplaying` と `sysmon` の画像は `samples/` の架空の値で描いたもので、`weather` の画像は東京の実際の予報です。
+
 ## 必要なもの
 
 - Apple シリコンの Mac (M1 Max・macOS 26 で確かめています)
@@ -46,6 +63,11 @@ place=横浜
 ```ini
 amedas=44116
 ```
+
+## 開発
+
+- `tests/smoke.sh` は、ヘルパーをビルドし、各プラグインを動かして、メニューバーの行とカードの画像が出るかを確かめます。CI が push のたびに流します。
+- `samples/render.sh` は `docs/images/` の画像を描き直します。`nowplaying` と `sysmon` は `--render <JSON> <出力先>` で、与えた値から 1 回だけカードを描けます。値は `samples/` にあります。
 
 ## 謝辞
 
