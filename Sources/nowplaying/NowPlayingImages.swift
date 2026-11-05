@@ -43,7 +43,7 @@ struct NowPlayingImages {
         let secondary = dark ? NSColor(white: 0.62, alpha: 1) : NSColor(white: 0.2, alpha: 1)
         let progressTrack = dark ? NSColor(white: 1, alpha: 0.15) : NSColor(white: 0, alpha: 0.18)
 
-        return PNGImage.draw(width: width, height: height) { context in
+        return PNGImage.drawCard(width: width, height: height, dark: dark) { context in
             drawArtwork(context, in: CGRect(x: 2, y: 2, width: artSize, height: artSize),
                         radius: 8, placeholderColor: secondary, shadow: true)
 
