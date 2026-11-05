@@ -254,6 +254,14 @@ if let o = input.obs {
     nextSection(obsH)
 }
 
+// 気象庁のデータは日本時間なので、時刻の目盛りも日本時間で描く (Mac の
+// タイムゾーンが日本でなくても、観測の時刻とずれないように)
+let jst: Calendar = {
+    var c = Calendar(identifier: .gregorian)
+    c.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+    return c
+}()
+
 // 2. 今後 24 時間の気温のグラフ
 if let g = input.graph {
     text("今後 24 時間", x: pad, y: top, size: 11, color: sub)
@@ -330,7 +338,7 @@ if let g = input.graph {
     // 時刻: 3 時間ごとに数字、その間は点
     var t = t0
     while t <= t1 {
-        let hour = Calendar.current.component(.hour, from: Date(timeIntervalSince1970: t))
+        let hour = jst.component(.hour, from: Date(timeIntervalSince1970: t))
         if hour % 3 == 0 {
             text("\(hour)", x: x(t), y: hourY, size: 10, color: sub, align: .center)
         } else {

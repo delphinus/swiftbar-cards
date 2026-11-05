@@ -195,7 +195,7 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" \
 	--slurpfile f "$forecast" --slurpfile a "$cache/amedas.json" --slurpfile v "$vpfd" \
 	--arg class10 "$class10" --arg office "$office" --arg amedas "$amedas" --arg obsname "$obs_name" \
 	--arg tempcode "$temp_code" --arg tempname "$temp_name" \
-	--arg latest "${latest:-}" --arg stale "$stale" --arg today "$(date +%F)" '
+	--arg latest "${latest:-}" --arg stale "$stale" --arg today "$(TZ=Asia/Tokyo date +%F)" '
 	# 2026-11-05T03:00:00+09:00 → UNIX 時刻
 	def epoch: .[0:19] + "Z" | fromdate - 32400;
 	# 色の組は「明るいメニューバー用, 暗い外観用, 明るいカード用」。メニューバーは
