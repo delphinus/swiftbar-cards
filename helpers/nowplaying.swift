@@ -283,6 +283,35 @@ func update() {
     emit()
 }
 
+// ---- 与えた曲で 1 回だけ描く (テストと README の画像用) ----
+//   nowplaying --render <曲の JSON> <出力先>
+// 曲の JSON: {"state": "playing", "name": ..., "artist": ..., "album": ...,
+//            "position": 秒, "duration": 秒, "artwork": "画像のパス (任意)"}
+// 出力先に menubar-light.png・menubar-dark.png・card-light.png・card-dark.png を書く。
+let args = CommandLine.arguments
+if args.count == 4, args[1] == "--render" {
+    guard let data = FileManager.default.contents(atPath: args[2]),
+          let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        FileHandle.standardError.write("曲の JSON を読めない: \(args[2])\n".data(using: .utf8)!)
+        exit(1)
+    }
+    track = Track(state: j["state"] as? String ?? "playing", id: "sample",
+                  name: j["name"] as? String ?? "", artist: j["artist"] as? String ?? "", album: j["album"] as? String ?? "",
+                  position: j["position"] as? Double, duration: j["duration"] as? Double)
+    if let path = j["artwork"] as? String {
+        let url = URL(fileURLWithPath: path, relativeTo: URL(fileURLWithPath: args[2]).deletingLastPathComponent())
+        art = NSImage(contentsOf: url)
+    }
+    let dir = URL(fileURLWithPath: args[3], isDirectory: true)
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    for dark in [false, true] {
+        let suffix = dark ? "dark" : "light"
+        try menuBar(dark: dark).0.write(to: dir.appendingPathComponent("menubar-\(suffix).png"))
+        try card(dark: dark).0.write(to: dir.appendingPathComponent("card-\(suffix).png"))
+    }
+    exit(0)
+}
+
 // ---- きっかけ ----
 
 let dnc = DistributedNotificationCenter.default()

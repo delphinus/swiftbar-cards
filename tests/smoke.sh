@@ -39,7 +39,7 @@ save_image() { # <出力のファイル> <行番号> <名前>
 
 echo "# shellcheck"
 if command -v shellcheck >/dev/null; then
-	if shellcheck "$repo"/plugins/*.sh "$repo"/tests/*.sh; then ok shellcheck; else ng shellcheck; fi
+	if shellcheck "$repo"/plugins/*.sh "$repo"/tests/*.sh "$repo"/samples/*.sh; then ok shellcheck; else ng shellcheck; fi
 else
 	echo "skip - shellcheck が無い"
 fi
@@ -51,6 +51,22 @@ for src in "$repo"/helpers/*.swift; do
 		cat "$work/$name.log"
 		ng "build $name"
 	fi
+done
+
+echo "# サンプルの値で描く (--render)"
+# nowplaying は曲の入ったカードを、CI でも描けるのはこの方法だけ (再生中の曲が無い)
+swift "$repo/samples/artwork.swift" "$work/artwork.png"
+sed "s#\"artwork.png\"#\"$work/artwork.png\"#" "$repo/samples/nowplaying.json" >"$work/nowplaying.json"
+for h in nowplaying sysmon; do
+	json=$repo/samples/$h.json
+	[[ $h == nowplaying ]] && json=$work/nowplaying.json
+	ok_all=1
+	if "$work/$h" --render "$json" "$work/render-$h"; then
+		for f in menubar-light menubar-dark card-light card-dark; do
+			if file -b "$work/render-$h/$f.png" | grep -q '^PNG image'; then cp "$work/render-$h/$f.png" "$out/render-$h-$f.png"; else ok_all=; fi
+		done
+	else ok_all=; fi
+	if [[ -n $ok_all ]]; then ok "render $h"; else ng "render $h"; fi
 done
 
 echo "# weather"

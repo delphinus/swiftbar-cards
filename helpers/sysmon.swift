@@ -30,7 +30,7 @@ import AppKit
 import Darwin
 import IOKit
 
-struct CPU {
+struct CPU: Codable {
     let total: Double
     let user: Double
     let sys: Double
@@ -42,7 +42,7 @@ struct CPU {
     let hist: [Double]
 }
 
-struct Mem {
+struct Mem: Codable {
     let used: Double
     let total: Double
     let compressed: Double
@@ -50,7 +50,7 @@ struct Mem {
     let pressure: Int
 }
 
-struct Proc {
+struct Proc: Codable {
     let name: String
     let value: Double
     // com.apple.WebKit.WebContent のような名前は先頭が同じで、切り詰めると区別が
@@ -58,12 +58,12 @@ struct Proc {
     var shown: String { name.hasPrefix("com.apple.") ? String(name.dropFirst("com.apple.".count)) : name }
 }
 
-struct Battery {
+struct Battery: Codable {
     let name: String
     let percent: Double
 }
 
-struct Input {
+struct Input: Codable {
     let dark: Bool
     let interval: Double // 履歴の 1 回分の秒数
     let cpu: CPU
@@ -667,6 +667,35 @@ func batteries(_ names: [String: String]) -> [Battery] {
 func isDark() -> Bool {
     CFPreferencesAppSynchronize(kCFPreferencesAnyApplication)
     return UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
+}
+
+// ---- 与えた値で 1 回だけ描く (テストと README の画像用) ----
+//   sysmon --render <Input の JSON> <出力先>
+// JSON は Input の形 (dark は無視する)。出力先に menubar-light.png・menubar-dark.png・
+// card-light.png・card-dark.png を書く。
+let args = CommandLine.arguments
+if args.count == 4, args[1] == "--render" {
+    guard let data = FileManager.default.contents(atPath: args[2]) else {
+        FileHandle.standardError.write("JSON を読めない: \(args[2])\n".data(using: .utf8)!)
+        exit(1)
+    }
+    let given: Input
+    do { given = try JSONDecoder().decode(Input.self, from: data) } catch {
+        FileHandle.standardError.write("JSON の形が違う: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+    let dir = URL(fileURLWithPath: args[3], isDirectory: true)
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    for dark in [false, true] {
+        let input = Input(dark: dark, interval: given.interval, cpu: given.cpu, mem: given.mem,
+                          procCpu: given.procCpu, procMem: given.procMem, battery: given.battery)
+        let o = renderAll(input)
+        guard o.count == 5 else { exit(1) }
+        let suffix = dark ? "dark" : "light"
+        try Data(base64Encoded: o[1])!.write(to: dir.appendingPathComponent("card-\(suffix).png"))
+        try Data(base64Encoded: o[dark ? 4 : 3])!.write(to: dir.appendingPathComponent("menubar-\(suffix).png"))
+    }
+    exit(0)
 }
 
 // ---- 常駐のループ ----
