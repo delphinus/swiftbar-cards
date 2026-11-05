@@ -23,6 +23,8 @@ unset LC_ALL
 # 表示の言語は OS の設定に従うので、確かめる文言に合わせて日本語に決め打ちする
 # (CI の仮想マシンは英語)。英語の確認だけ SWIFTBAR_CARDS_LANG=en にする。
 export SWIFTBAR_CARDS_LANG=ja
+# 裏の取り直しが終わったときに、本物の SwiftBar へ更新を指示しない
+export SWIFTBAR_CARDS_NO_REFRESH=1
 mkdir -p "$HOME"
 
 failures=0
@@ -122,6 +124,18 @@ else ng "weather 選んでいない地点のカードを裏で描く"; fi
 "$repo/plugins/weather.10m.sh" select 横浜
 run_weather multi-selected Light "$(printf 'place=東京\nplace=横浜')"
 if grep -q '^横浜 .*checked=true' "$work/weather-multi-selected.txt"; then ok "weather 選んだ地点を覚える"; else ng "weather 選んだ地点を覚える"; fi
+# 選んだ直後はキャッシュのカードと「更新中…」を出し、裏で取り直す。取り直し終わると
+# fresh の印が付き、続く実行は「更新中…」を出さない。
+if grep -q '^更新中…' "$work/weather-multi-selected.txt"; then ok "weather 選んだ直後は更新中と出す"; else ng "weather 選んだ直後は更新中と出す"; fi
+for ((i = 0; i < 60; i++)); do
+	[[ -f $HOME/Library/Caches/swiftbar-weather/fresh ]] && break
+	sleep 0.5
+done
+run_weather multi-fresh Light "$(printf 'place=東京\nplace=横浜')"
+if [[ ! -f $HOME/Library/Caches/swiftbar-weather/fresh ]] && ! grep -q '^更新中…' "$work/weather-multi-fresh.txt" &&
+	grep -q '^横浜 .*checked=true' "$work/weather-multi-fresh.txt"; then
+	ok "weather 取り直し終わったら更新中を消す"
+else ng "weather 取り直し終わったら更新中を消す"; fi
 # 同名の観測点がある地点を選んだあと、番号に書き換えても選んだままになる
 "$repo/plugins/weather.10m.sh" select 府中
 run_weather renumbered Light "$(printf 'place=東京\nplace=44116 # 府中')"

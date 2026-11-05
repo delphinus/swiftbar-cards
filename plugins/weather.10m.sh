@@ -73,15 +73,17 @@ open-config)
 	open -t "$conf"
 	exit 0
 	;;
-# メニューの地点の項目から呼ばれる。選んだ地点を覚え、続く実行 (refresh=true) で
-# 取得を待たずにキャッシュのカードを出すよう印を付ける。
-select)
-	printf '%s\n' "${2:-}" >"$cache/selected"
+# メニューの地点の項目と「今すぐ更新」から呼ばれる。続く実行 (refresh=true) で、
+# キャッシュのカードと「更新中…」を出し、裏で取り直すよう印を付ける。
+select | refresh-now)
+	[[ $1 == select ]] && printf '%s\n' "${2:-}" >"$cache/selected"
 	touch "$cache/switched"
 	exit 0
 	;;
-# 普段の実行の後に裏で呼ばれる。選んでいない地点のカードを描いてキャッシュに置く。
+# 裏で呼ばれる。prefetch は地点のカードを描いてキャッシュに置くだけ。update は
+# 選んでいる地点を取り直し、終わったら SwiftBar にプラグインの更新を指示する。
 prefetch) prefetch=${2:-} ;;
+update) update=1 ;;
 esac
 
 # 設定ファイルを読む。シェルとして読み込まず、key=value の行だけを拾う。
@@ -150,6 +152,7 @@ selected=$(cat "$cache/selected" 2>/dev/null || true)
 sel=$(jq -r --arg s "$selected" '
 	[to_entries[] | select(.value.query == $s or ([.value.found[] | .name, .amedas] | index($s) != null)) | .key]
 	| first // 0' <<<"$resolved")
+[[ -n ${update:-} ]] && prefetch=$sel
 [[ -n ${prefetch:-} ]] && sel=$prefetch
 place=${places[$sel]}
 # 地点の表示名 (切り替えのメニュー用)。解決できなかった地点は書かれたまま出す。
@@ -168,7 +171,7 @@ location_menu() {
 	echo "---"
 }
 # 設定ファイルを書き換えたあと、次の実行 (10 分ごと) を待たずに反映する
-refresh_item() { echo "$(T "今すぐ更新" "Refresh Now") | sfimage=arrow.clockwise.circle refresh=true"; }
+refresh_item() { echo "$(T "今すぐ更新" "Refresh Now") | sfimage=arrow.clockwise.circle bash=$0 param1=refresh-now terminal=false refresh=true"; }
 # 設定の不備をメニューに出して終わる
 config_error() {
 	echo ":exclamationmark.triangle: $(T "天気" "Weather")"
@@ -213,6 +216,18 @@ body=$cache/body-$amedas-$lang-$dark.txt
 # メニューを出す。カードの行には動作を付けない (無効な項目にする)。動作を付けると、
 # マウスを載せたときにカード全体が選択の色で塗られる。無効な項目でも、文字と違って
 # 画像は薄くならずに描かれる (2026-11-05 に確かめた)。
+# 裏の取り直しが終わった (か失敗した) ことを SwiftBar に知らせ、プラグインを更新させる。
+# 続く実行は取得せずにキャッシュのカードを出す。プラグインの名前はファイル名の最初の
+# . より前 (weather.10m.sh なら weather)。SWIFTBAR_CARDS_NO_REFRESH があれば知らせない
+# (テスト用)。
+notify_swiftbar() {
+	touch "$cache/fresh"
+	local name=${0##*/}
+	[[ -n ${SWIFTBAR_CARDS_NO_REFRESH:-} ]] || open -g "swiftbar://refreshplugin?name=${name%%.*}"
+	exit 0
+}
+# 引数に updating を渡すと、「今すぐ更新」の代わりに「更新中…」(動作の無い項目なので
+# 薄く出る) を出す。
 print_menu() {
 	sed -n 1p "$body"
 	echo "---"
@@ -220,21 +235,51 @@ print_menu() {
 	echo "---"
 	location_menu
 	echo "$(T "設定ファイルを開く" "Open Configuration File") | sfimage=gearshape.circle bash=$0 param1=open-config terminal=false"
-	refresh_item
+	if [[ ${1:-} == updating ]]; then
+		echo "$(T "更新中…" "Updating…") | sfimage=arrow.triangle.2.circlepath"
+	else
+		refresh_item
+	fi
 	echo "$(T "気象庁の天気予報を開く" "Open JMA Forecast") | sfimage=arrow.up.forward.circle href=https://www.jma.go.jp/bosai/forecast/#area_type=offices&area_code=$office"
 }
-# 地点を選んだ直後は、取得を待たずにキャッシュのカードを出す。取り直すと数秒
-# かかり、その間にメニューを開き直すと、開いている最中に中身が差し替わる。
-# SwiftBar はそのとき高さの変わったカードに合わせてメニューを描き直さず、
-# 上がはみ出す。最新のデータは次の実行 (10 分ごと) か「今すぐ更新」で取り直す。
-if [[ -z ${prefetch:-} && -f $cache/switched ]]; then
-	rm -f "$cache/switched"
-	if [[ -s $body && -z $(find "$body" -mmin +15) ]]; then
-		print_menu
-		exit 0
+# 選んでいない地点のうち、キャッシュが 60 分より古い (か無い) ものを裏で描いておく。
+# 地点を選んだときにすぐ出せるようにし、高さをそろえる元にもする。1 つずつ順に
+# 描き、出力は捨てる (SwiftBar はプラグインの出力が閉じるまで待つ)。
+prefetch_others() {
+	[[ ${#places[@]} -gt 1 ]] || return 0
+	local i code todo=()
+	for i in "${!places[@]}"; do
+		[[ $i == "$sel" ]] && continue
+		code=$(jq -r --argjson i "$i" '.[$i] | select(.status == "ok") | .found[0].amedas' <<<"$resolved")
+		[[ -n $code ]] || continue
+		f=$cache/body-$code-$lang-$dark.txt
+		[[ -s $f && -z $(find "$f" -mmin +60) ]] || todo+=("$i")
+	done
+	[[ ${#todo[@]} -gt 0 ]] || return 0
+	(for i in "${todo[@]}"; do "$0" prefetch "$i"; done) </dev/null >/dev/null 2>&1 &
+}
+# 地点を選んだ直後と「今すぐ更新」の直後は、取得を待たずにキャッシュのカードと
+# 「更新中…」を出し、裏で取り直す。取り直すと数秒かかり、その間にメニューを開き
+# 直すと、開いている最中に中身が差し替わる (高さをそろえてあるので崩れはしない)。
+# 取り直し終わると、裏の処理が SwiftBar にプラグインの更新を指示し (fresh の印を
+# 付けて)、続く実行は取得せずに新しいカードを出す。
+if [[ -z ${prefetch:-} ]]; then
+	if [[ -f $cache/switched ]]; then
+		rm -f "$cache/switched"
+		if [[ -s $body ]]; then
+			print_menu updating
+			"$0" update </dev/null >/dev/null 2>&1 &
+			exit 0
+		fi
+	elif [[ -f $cache/fresh ]]; then
+		rm -f "$cache/fresh"
+		if [[ -s $body ]]; then
+			print_menu
+			prefetch_others
+			exit 0
+		fi
 	fi
 fi
-rm -f "$cache/switched"
 
 # 予報のファイルが別の府県予報区のものに入っている区域がある (2026-11 に全
 # 58 区域を取って確かめた)
@@ -262,6 +307,7 @@ else
 fi
 
 if [[ ! -s $forecast ]]; then
+	[[ -n ${update:-} ]] && notify_swiftbar
 	[[ -n ${prefetch:-} ]] && exit 0
 	echo " | sfimage=exclamationmark.icloud"
 	echo "---"
@@ -464,15 +510,7 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" --argjson minh "$min_height
 	fi
 } >"$body.$$" && mv "$body.$$" "$body"
 rm -f "$cache/menu-$$.txt"
+[[ -n ${update:-} ]] && notify_swiftbar
 [[ -n ${prefetch:-} ]] && exit 0
 print_menu
-
-# 選んでいない地点のカードを裏で描いておく (地点を選んだときにすぐ出せるように)。
-# 1 つずつ順に描き、出力は捨てる (SwiftBar はプラグインの出力が閉じるまで待つ)。
-if [[ ${#places[@]} -gt 1 ]]; then
-	(
-		for i in "${!places[@]}"; do
-			[[ $i == "$sel" ]] || "$0" prefetch "$i"
-		done
-	) </dev/null >/dev/null 2>&1 &
-fi
+prefetch_others
