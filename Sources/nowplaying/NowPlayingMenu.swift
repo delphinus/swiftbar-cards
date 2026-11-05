@@ -39,7 +39,8 @@ struct NowPlayingMenu {
             menuBar = Self.musicNoteIcon
         }
         let card = SwiftBar.imageLine(images.card(dark: isDarkAppearance()))
-        return [menuBar, "---", card, "---"]
+        // カードの下には区切り線を引かない (カードの地の縁が境目になる)
+        return [menuBar, "---", card]
     }
 
     /// 操作の項目。前の曲に戻る操作は頻度が低いので、⌥ を押している間だけ「次の曲」と
