@@ -10,24 +10,24 @@
 | `sysmon` | CPU history and usage, memory, and temperature | CPU (usage, last 10 minutes, E/P cores, temperatures), memory, top processes by CPU and memory, and Bluetooth device batteries |
 | `weather` | Today's weather icon, current temperature, and chance of rain | Current observations, a 24-hour temperature graph, the regional forecast, and the weekly forecast from the Japan Meteorological Agency (JMA) |
 
-Each card is drawn by a small Swift program and passed to SwiftBar as an image, with separate colors for light and dark appearances.
+Each card is drawn by a small Swift program and passed to SwiftBar as an image, with separate colors for light and dark appearances. The plugins show English or Japanese text, following the language setting of macOS.
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/nowplaying-dark.png">
-    <img src="docs/images/nowplaying-light.png" alt="nowplaying" width="280">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/en/nowplaying-dark.png">
+    <img src="docs/images/en/nowplaying-light.png" alt="nowplaying" width="280">
   </picture>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/sysmon-dark.png">
-    <img src="docs/images/sysmon-light.png" alt="sysmon" width="280">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/en/sysmon-dark.png">
+    <img src="docs/images/en/sysmon-light.png" alt="sysmon" width="280">
   </picture>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/weather-dark.png">
-    <img src="docs/images/weather-light.png" alt="weather" width="280">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/en/weather-dark.png">
+    <img src="docs/images/en/weather-light.png" alt="weather" width="280">
   </picture>
 </p>
 
-The `nowplaying` and `sysmon` images use made-up values from `samples/`; the `weather` image shows a real forecast for Tokyo.
+The `nowplaying` and `sysmon` images use made-up values from `samples/`; the `weather` image shows a real forecast for Tokyo, with Osaka as a second location.
 
 ## Requirements
 
@@ -48,6 +48,12 @@ Each plugin compiles its Swift program on first run and again whenever the sourc
 
 `nowplaying` asks Music.app for the current track through AppleScript. The first time it runs, macOS asks whether SwiftBar may control Music.
 
+## Language
+
+The plugins use Japanese when the first preferred language in macOS is Japanese, and English otherwise. To choose one regardless of the setting, set `SWIFTBAR_CARDS_LANG` to `ja` or `en` for SwiftBar.
+
+In English, `weather` uses JMA's English names for stations and areas. JMA publishes the forecast text only in Japanese, so the card shows the English name of each day's weather code (such as "Partly cloudy") instead.
+
 ## Configuration
 
 `weather` shows Tokyo unless configured. To change the location, write the name of an AMeDAS station (in Japanese, as listed on the [JMA AMeDAS page](https://www.jma.go.jp/bosai/amedas/)) to `~/.config/swiftbar-cards/weather.conf`:
@@ -56,19 +62,27 @@ Each plugin compiles its Swift program on first run and again whenever the sourc
 place=横浜
 ```
 
-The plugin finds the forecast area from the station: it uses the forecast area whose representative temperature point is nearest to the station, within the same region. The **設定ファイルを開く** (Open configuration file) item in the menu creates this file with comments if it does not exist.
+The plugin finds the forecast area from the station: it uses the forecast area whose representative temperature point is nearest to the station, within the same region. The **Open Configuration File** item in the menu creates this file with comments if it does not exist.
 
-When more than one station has the same name, the menu lists them with their station numbers. Pick one by number, which takes precedence over `place`:
+List more than one station to switch between them from the **Location** submenu. The plugin remembers the one you chose.
 
 ```ini
-amedas=44116
+place=東京
+place=大阪
+```
+
+When more than one station has the same name, the menu lists them with their station numbers. Write the number instead of the name:
+
+```ini
+place=44116
 ```
 
 ## Development
 
 - The Swift programs are laid out as a Swift package (`Package.swift`), so `swift build` and editors work as usual. The plugins themselves compile them with `swiftc` directly, without SwiftPM.
 - `tests/smoke.sh` builds the Swift programs, runs each plugin, and checks that the menu bar line and the card image come out. CI runs it on every push.
-- `samples/render.sh` redraws the images in `docs/images/`. `nowplaying` and `sysmon` can draw a card once from given values with `--render <JSON> <output directory>`; the values are in `samples/`.
+- `samples/render.sh` redraws the images in `docs/images/en/` and `docs/images/ja/`. `nowplaying` and `sysmon` can draw a card once from given values with `--render <JSON> <output directory>`; the values are in `samples/`.
+- `scripts/update-telops.sh` regenerates `data/jma-telops.json`, the English names of the weather codes, from the table embedded in the JMA forecast page.
 
 ## Acknowledgements
 
