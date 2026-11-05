@@ -348,7 +348,10 @@ if let g = input.graph {
     text(fmt(lo), x: plot.maxX + 4, y: y(lo) - 7, size: 10, color: sub)
 
     ctx.saveGState()
-    ctx.clip(to: CGRect(x: plot.minX - 4, y: plot.minY - 20, width: plot.width + 8, height: plot.height + 40))
+    // 横はグラフの範囲ちょうどで切る。予報は 3 時間ごとなので、右端 (24 時間後) を
+    // 過ぎた次の点まで線を引き、範囲の境目で切り落とす。外側に余白を取ると、線が
+    // 範囲の外まで伸びかけて途中で切れたように見える。
+    ctx.clip(to: CGRect(x: plot.minX, y: plot.minY - 20, width: plot.width, height: plot.height + 40))
     func path(_ pts: [(Double, Double)]) {
         for (i, p) in pts.enumerated() {
             let q = CGPoint(x: x(p.0), y: y(p.1))
