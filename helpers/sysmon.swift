@@ -575,47 +575,52 @@ var lastPs = 0.0, lastMacmon = 0.0, lastBattery = 0.0, lastNames = 0.0
 Thread.sleep(forTimeInterval: 1) // 最初の使用率を出すため、ティックの差分を取る間を置く
 
 while true {
-    let now = Date().timeIntervalSince1970
-    let t = cpuTicks()
-    let du = Double((t.user &- prev.user) &+ (t.nice &- prev.nice)), ds = Double(t.sys &- prev.sys)
-    let di = Double(t.idle &- prev.idle)
-    let total = du + ds + di
-    let user = total > 0 ? (du / total * 100).rounded() : 0, sys = total > 0 ? (ds / total * 100).rounded() : 0
-    prev = t
-    history.append(user + sys)
-    if history.count > 60 { history.removeFirst(history.count - 60) }
-    try? history.map { String(Int($0)) }.joined(separator: "\n").write(toFile: historyFile, atomically: true, encoding: .utf8)
+    // 1 回ごとに autorelease pool を空にする。このループは RunLoop で回して
+    // いないので、囲まないと毎回描く画像や文字列が解放されずに溜まり続ける
+    // (1 時間で 2 GB ほど増えていた)。
+    autoreleasepool {
+        let now = Date().timeIntervalSince1970
+        let t = cpuTicks()
+        let du = Double((t.user &- prev.user) &+ (t.nice &- prev.nice)), ds = Double(t.sys &- prev.sys)
+        let di = Double(t.idle &- prev.idle)
+        let total = du + ds + di
+        let user = total > 0 ? (du / total * 100).rounded() : 0, sys = total > 0 ? (ds / total * 100).rounded() : 0
+        prev = t
+        history.append(user + sys)
+        if history.count > 60 { history.removeFirst(history.count - 60) }
+        try? history.map { String(Int($0)) }.joined(separator: "\n").write(toFile: historyFile, atomically: true, encoding: .utf8)
 
-    var la = [Double](repeating: 0, count: 3)
-    getloadavg(&la, 3)
-    if now - lastPs >= 20 { (procCpu, procMem) = processes(); lastPs = now }
-    if now - lastMacmon >= 30 { temps = macmon(); lastMacmon = now }
-    if now - lastNames >= 3600 { btNames = bluetoothNames(); lastNames = now }
-    if now - lastBattery >= 60 { bats = batteries(btNames); lastBattery = now }
+        var la = [Double](repeating: 0, count: 3)
+        getloadavg(&la, 3)
+        if now - lastPs >= 20 { (procCpu, procMem) = processes(); lastPs = now }
+        if now - lastMacmon >= 30 { temps = macmon(); lastMacmon = now }
+        if now - lastNames >= 3600 { btNames = bluetoothNames(); lastNames = now }
+        if now - lastBattery >= 60 { bats = batteries(btNames); lastBattery = now }
 
-    let input = Input(dark: isDark(), interval: interval,
-                      cpu: CPU(total: user + sys, user: user, sys: sys, e: temps.e, p: temps.p,
-                               load: String(format: "%.2f / %.2f / %.2f", la[0], la[1], la[2]),
-                               temp: temps.temp, gpu: temps.gpu, hist: history),
-                      mem: memory(), procCpu: procCpu, procMem: procMem, battery: bats)
-    let o = renderAll(input)
-    var lines: [String] = []
-    if o.count == 5 {
-        lines.append(" | image=\(o[3]),\(o[4]) width=\(o[2].replacingOccurrences(of: " ", with: " height="))")
+        let input = Input(dark: isDark(), interval: interval,
+                          cpu: CPU(total: user + sys, user: user, sys: sys, e: temps.e, p: temps.p,
+                                   load: String(format: "%.2f / %.2f / %.2f", la[0], la[1], la[2]),
+                                   temp: temps.temp, gpu: temps.gpu, hist: history),
+                          mem: memory(), procCpu: procCpu, procMem: procMem, battery: bats)
+        let o = renderAll(input)
+        var lines: [String] = []
+        if o.count == 5 {
+            lines.append(" | image=\(o[3]),\(o[4]) width=\(o[2].replacingOccurrences(of: " ", with: " height="))")
+            lines.append("---")
+            // カードの行には動作を付けない (無効な項目にする)。動作を付けると、マウスを
+            // 載せたときにカード全体が選択の色で塗られる。画像は無効な項目でも薄くならない。
+            lines.append(" | image=\(o[1]) width=\(o[0].replacingOccurrences(of: " ", with: " height="))")
+        } else {
+            lines.append("CPU \(Int(user + sys))%")
+        }
         lines.append("---")
-        // カードの行には動作を付けない (無効な項目にする)。動作を付けると、マウスを
-        // 載せたときにカード全体が選択の色で塗られる。画像は無効な項目でも薄くならない。
-        lines.append(" | image=\(o[1]) width=\(o[0].replacingOccurrences(of: " ", with: " height="))")
-    } else {
-        lines.append("CPU \(Int(user + sys))%")
-    }
-    lines.append("---")
-    lines.append("アクティビティモニタを開く | sfimage=arrow.up.forward.circle bash=/usr/bin/open param1=-a param2=\"Activity Monitor\" terminal=false")
-    // 中身の後ろに区切りを出す (sysmon.sh の useTrailingStreamSeparator)
-    print(lines.joined(separator: "\n") + "\n~~~")
-    fflush(stdout)
+        lines.append("アクティビティモニタを開く | sfimage=arrow.up.forward.circle bash=/usr/bin/open param1=-a param2=\"Activity Monitor\" terminal=false")
+        // 中身の後ろに区切りを出す (sysmon.sh の useTrailingStreamSeparator)
+        print(lines.joined(separator: "\n") + "\n~~~")
+        fflush(stdout)
 
-    // 次の 10 秒の区切りまで寝る
-    let next = (floor(Date().timeIntervalSince1970 / interval) + 1) * interval
-    Thread.sleep(forTimeInterval: max(1, next - Date().timeIntervalSince1970))
+        // 次の 10 秒の区切りまで寝る
+        let next = (floor(Date().timeIntervalSince1970 / interval) + 1) * interval
+        Thread.sleep(forTimeInterval: max(1, next - Date().timeIntervalSince1970))
+    }
 }
