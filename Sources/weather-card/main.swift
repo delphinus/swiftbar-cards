@@ -70,6 +70,9 @@ struct Input: Decodable {
     let daysTitle: String
     let days: [Day]
     let week: [WeekDay]
+    // カードの高さをこれ以上にする (下を空ける)。地点を切り替えたときに高さが
+    // 変わらないよう、設定した地点のカードの高さをそろえるのに使う。
+    let minHeight: Double?
 }
 
 // 曜日の名前 (0 が日曜)
@@ -190,7 +193,8 @@ let daysH: CGFloat = input.days.isEmpty ? 0 : 20 + dayRowHs.reduce(0, +)
 let weekH: CGFloat = input.week.isEmpty ? 0 : 20 + 98
 let gap: CGFloat = 13 // 節の間 (区切り線を含む)
 let sections = [obsH, graphH, daysH, weekH].filter { $0 > 0 }
-let height = sections.reduce(0, +) + gap * CGFloat(max(sections.count - 1, 0))
+let naturalHeight = sections.reduce(0, +) + gap * CGFloat(max(sections.count - 1, 0))
+let height = max(naturalHeight, CGFloat(input.minHeight ?? 0))
 let scale: CGFloat = 2
 
 let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(width * scale), pixelsHigh: Int(height * scale),
@@ -418,5 +422,6 @@ if !input.week.isEmpty {
 
 NSGraphicsContext.restoreGraphicsState()
 let png = rep.representation(using: .png, properties: [:])!
-print("\(Int(width)) \(Int(ceil(height)))")
+// 幅、高さ、本来の高さ (下を空ける前)
+print("\(Int(width)) \(Int(ceil(height))) \(Int(ceil(naturalHeight)))")
 print(png.base64EncodedString())

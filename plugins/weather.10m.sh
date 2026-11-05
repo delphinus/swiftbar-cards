@@ -207,7 +207,8 @@ esac
 dark=false
 [[ ${OS_APPEARANCE:-$(defaults read -g AppleInterfaceStyle 2>/dev/null)} == Dark ]] && dark=true
 
-# 地点ごとのキャッシュ。1 行目がメニューバーの行、2 行目がカードの行。
+# 地点ごとのキャッシュ。1 行目がメニューバーの行、2 行目がカードの行、3 行目が
+# カードの本来の高さ (下を空ける前)。
 body=$cache/body-$amedas-$lang-$dark.txt
 # メニューを出す。カードの行には動作を付けない (無効な項目にする)。動作を付けると、
 # マウスを載せたときにカード全体が選択の色で塗られる。無効な項目でも、文字と違って
@@ -301,10 +302,22 @@ done
 bin=$cache/weather-card
 build_helper weather-card "$bin"
 rm -f "$cache/weather-graph" "$cache/graph.b64" "$cache/menu.txt" # 以前の名前の残り
+
+# 設定した地点のカードの高さをそろえる。地点を切り替えた直後にメニューを開き直すと、
+# 開いている最中に中身が差し替わることがあり、SwiftBar はそのとき高さの変わった
+# カードに合わせてメニューを描き直さない (上がはみ出す)。高さが同じなら崩れない。
+# そろえる高さは、各地点のカードの本来の高さ (キャッシュの 3 行目) のうち最大のもの。
+min_height=0
+while IFS= read -r code; do
+	f=$cache/body-$code-$lang-$dark.txt
+	[[ -s $f && -z $(find "$f" -mmin +180) ]] || continue
+	h=$(sed -n 3p "$f")
+	[[ $h =~ ^[0-9]+$ && $h -gt $min_height ]] && min_height=$h
+done < <([[ ${#places[@]} -gt 1 ]] && jq -r '.[] | select(.status == "ok") | .found[0].amedas' <<<"$resolved")
 find "$cache" -maxdepth 1 -name 'body-*.txt' -mtime +2 -delete
 
 # 1 行目にメニューバーの行、2 行目以降にカードの JSON を出す
-jq -n -r --argjson now "$now" --argjson dark "$dark" \
+jq -n -r --argjson now "$now" --argjson dark "$dark" --argjson minh "$min_height" \
 	--slurpfile f "$forecast" --slurpfile a "$cache/amedas.json" --slurpfile v "$vpfd" \
 	--arg class10 "$class10" --arg office "$office" --arg amedas "$amedas" --arg obsname "$obs_name" \
 	--arg tempcode "$temp_code" --arg tempname "$temp_name" --arg lang "$lang" --arg areaname "$area_name" \
@@ -382,7 +395,7 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" \
 	   + (if $stale != "" then " sfcolor\(if $pop != "" then 3 else 2 end)=#D70015,#FF6961" else "" end)),
 
 	# カード
-	({ dark: $dark, now: $now,
+	({ dark: $dark, now: $now, minHeight: $minh,
 	   obs: (if $nowtemp != null then
 		{ point: $obsname, time: ($latest[11:16]), temp: $nowtemp, tempColor: ($nowtemp | tostring | temp_color),
 		  humidity: val("humidity"), precip: val("precipitation1h"),
@@ -443,8 +456,9 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" \
 {
 	head -1 "$cache/menu-$$.txt"
 	if [[ -x $bin ]] && card=$(tail -n +2 "$cache/menu-$$.txt" | "$bin" 2>/dev/null) && [[ -n $card ]]; then
-		{ read -r cw ch; read -r b64; } <<<"$card"
+		{ read -r cw ch nh; read -r b64; } <<<"$card"
 		echo " | image=$b64 width=$cw height=$ch"
+		echo "$nh"
 	else
 		echo "$(T "天気のカードを描けなかった" "Could not draw the weather card") | refresh=true"
 	fi
