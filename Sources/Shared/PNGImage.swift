@@ -33,6 +33,30 @@ public struct PNGImage {
         return PNGImage(data: png, size: CGSize(width: width, height: height))
     }
 
+    /// メニューを開いたときに出すカードを描く。周りに `cardInset` の余白を取り、
+    /// 半透明の角丸の地を敷いてから、余白の内側に `draw` で描く。`width` と `height` は
+    /// 余白の内側の大きさで、画像はその分だけ大きくなる。
+    ///
+    /// macOS 26 のポップアップは背後が透けるので、背後のウィンドウや壁紙によって明るく
+    /// も暗くも見える。メニューの文字は macOS がその場で色を変えるが、カードは開く前に
+    /// 描いておく画像なので追従できない (ダークモードで背後が明るいと、白い文字が明るい
+    /// 灰色の地に載って読めなかった)。地を敷いて、背後によらず文字が読めるようにする。
+    public static func drawCard(width: CGFloat, height: CGFloat, dark: Bool,
+                                _ draw: (CGContext) -> Void) -> PNGImage {
+        let inset = cardInset
+        return Self.draw(width: width + inset * 2, height: height + inset * 2) { context in
+            let background = dark ? NSColor(white: 0.1, alpha: 0.72) : NSColor(white: 1, alpha: 0.72)
+            context.fillRoundedRect(CGRect(x: 0, y: 0, width: width + inset * 2, height: height + inset * 2),
+                                    radius: cardCornerRadius, color: background)
+            context.translateBy(x: inset, y: inset)
+            draw(context)
+        }
+    }
+
+    /// カードの地の、文字から縁までの余白
+    public static let cardInset: CGFloat = 8
+    public static let cardCornerRadius: CGFloat = 8
+
     /// `--render` で画像をファイルに書き出すときに使う
     public func write(to directory: URL, name: String) throws {
         try data.write(to: directory.appendingPathComponent("\(name).png"))

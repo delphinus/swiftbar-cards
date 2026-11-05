@@ -7,10 +7,12 @@ import Shared
 /// 温度)、メモリ、CPU とメモリの上位 5 件のプロセス、バッテリー。
 struct SystemCard {
     let snapshot: Snapshot
+    let dark: Bool
     let colors: CardColors
 
     init(snapshot: Snapshot, dark: Bool) {
         self.snapshot = snapshot
+        self.dark = dark
         self.colors = CardColors(dark: dark)
     }
 
@@ -38,7 +40,7 @@ struct SystemCard {
             sections.append(CardSection(height: headerHeight + batteryRowHeights.reduce(0, +), draw: drawBatteries(in:top:)))
         }
 
-        return PNGImage.draw(width: width, height: sections.totalHeight(gap: gap)) { context in
+        return PNGImage.drawCard(width: width, height: sections.totalHeight(gap: gap), dark: dark) { context in
             sections.drawStacked(in: context, gap: gap) { y in
                 Pen(context: context, colors: colors).horizontalRule(y: y, from: pad, to: width - pad)
             }
