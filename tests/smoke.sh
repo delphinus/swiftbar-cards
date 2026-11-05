@@ -60,13 +60,17 @@ sed "s#\"artwork.png\"#\"$work/artwork.png\"#" "$repo/samples/nowplaying.json" >
 for h in nowplaying sysmon; do
 	json=$repo/samples/$h.json
 	[[ $h == nowplaying ]] && json=$work/nowplaying.json
-	ok_all=1
-	if "$work/$h" --render "$json" "$work/render-$h"; then
-		for f in menubar-light menubar-dark card-light card-dark; do
-			if file -b "$work/render-$h/$f.png" | grep -q '^PNG image'; then cp "$work/render-$h/$f.png" "$out/render-$h-$f.png"; else ok_all=; fi
-		done
-	else ok_all=; fi
-	if [[ -n $ok_all ]]; then ok "render $h"; else ng "render $h"; fi
+	for l in ja en; do
+		ok_all=1
+		if SWIFTBAR_CARDS_LANG=$l "$work/$h" --render "$json" "$work/render-$h-$l"; then
+			for f in menubar-light menubar-dark card-light card-dark; do
+				if file -b "$work/render-$h-$l/$f.png" | grep -q '^PNG image'; then
+					cp "$work/render-$h-$l/$f.png" "$out/render-$h-$l-$f.png"
+				else ok_all=; fi
+			done
+		else ok_all=; fi
+		if [[ -n $ok_all ]]; then ok "render $h ($l)"; else ng "render $h ($l)"; fi
+	done
 done
 
 echo "# weather"
@@ -91,12 +95,27 @@ if grep -q 'image=' "$work/weather-yokohama.txt" && save_image "$work/weather-yo
 	ok "weather place=横浜"
 else ng "weather place=横浜"; fi
 run_weather fuchu Light "place=府中"
-if grep -q 'amedas=44116' "$work/weather-fuchu.txt" && grep -q 'amedas=67326' "$work/weather-fuchu.txt"; then
+if grep -q 'place=44116' "$work/weather-fuchu.txt" && grep -q 'place=67326' "$work/weather-fuchu.txt"; then
 	ok "weather place=府中 は候補を出す"
 else
 	cat "$work/weather-fuchu.txt"
 	ng "weather place=府中 は候補を出す"
 fi
+run_weather multi Light "$(printf 'place=東京\nplace=横浜')"
+if [[ $(grep -c '^--[^-]' "$work/weather-multi.txt") == 2 ]] && grep -q '^--東京 .*checked=true' "$work/weather-multi.txt"; then
+	ok "weather 複数の地点は切り替えのメニューを出す"
+else
+	grep -v image= "$work/weather-multi.txt"
+	ng "weather 複数の地点は切り替えのメニューを出す"
+fi
+"$repo/plugins/weather.10m.sh" select 横浜
+run_weather multi-selected Light "$(printf 'place=東京\nplace=横浜')"
+if grep -q '^--横浜 .*checked=true' "$work/weather-multi-selected.txt"; then ok "weather 選んだ地点を覚える"; else ng "weather 選んだ地点を覚える"; fi
+"$repo/plugins/weather.10m.sh" select 東京
+SWIFTBAR_CARDS_LANG=en run_weather english Light "place=横浜"
+if grep -q 'Open JMA Forecast' "$work/weather-english.txt" && save_image "$work/weather-english.txt" 3 weather-english; then
+	ok "weather 英語"
+else ng "weather 英語"; fi
 run_weather missing Light "place=存在しない地点"
 if grep -q '見つからない' "$work/weather-missing.txt"; then ok "weather 見つからない地点"; else
 	cat "$work/weather-missing.txt"

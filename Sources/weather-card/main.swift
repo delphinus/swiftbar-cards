@@ -42,7 +42,8 @@ struct Graph: Decodable {
 }
 
 struct Day: Decodable {
-    let label: String
+    let date: String // 11/5 の形
+    let dow: Int     // 曜日 (0 が日曜)
     let text: String
     let icon: String
     let color: String
@@ -50,7 +51,7 @@ struct Day: Decodable {
 
 struct WeekDay: Decodable {
     let date: String
-    let wday: String
+    let dow: Int
     let icon: String
     let color: String
     let max: String
@@ -69,6 +70,12 @@ struct Input: Decodable {
     let daysTitle: String
     let days: [Day]
     let week: [WeekDay]
+}
+
+// 曜日の名前 (0 が日曜)
+func weekday(_ dow: Int) -> String {
+    let i = (dow % 7 + 7) % 7
+    return L(["日", "月", "火", "水", "木", "金", "土"][i], ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][i])
 }
 
 let data = FileHandle.standardInput.readDataToEndOfFile()
@@ -138,7 +145,9 @@ func styled(_ s: String, font: NSFont, color: NSColor, size: CGFloat, weight: NS
 // (語の中の字の間に U+2060 WORD JOINER、語の間に U+200B ZERO WIDTH SPACE を
 // 置く)。字の間のどこでも折り返すと、「雷を伴」と「う」に分かれたりする。
 // 助詞で始まる語 (まで・で・から・を など) は前の語につなげ、手前で折らない。
+// 英語の天気の名前のように全角の空白を含まない文は、そのまま返す (普通に語の間で折り返す)。
 func phrased(_ s: String) -> String {
+    guard s.contains("　") else { return s }
     let particles = ["まで", "では", "で", "から", "を", "に", "の", "より"]
     var words: [String] = []
     for w in s.split(separator: "　").map(String.init) {
@@ -243,17 +252,21 @@ if let o = input.obs {
     let tempStr = o.temp.map { fmt($0, 1) } ?? "-"
     let big = text(tempStr, x: pad, y: top - 2, size: 32, color: hex(o.tempColor), weight: .light)
     text("°C", x: pad + big.width + 1, y: top + 4, size: 16, color: hex(o.tempColor), weight: .light)
-    text("\(o.point)  \(o.time) の観測", x: pad, y: top + 36, size: 11, color: sub)
+    text(L("\(o.point)  \(o.time) の観測", "\(o.point), observed at \(o.time)"), x: pad, y: top + 36, size: 11, color: sub)
     let rx: CGFloat = 176
     var ry = top + 2
+    // 値の書き出し位置は、いちばん長いラベルの後ろにそろえる (言語でラベルの長さが変わる)
+    let labels = (humidity: L("湿度", "Humidity"), precip: L("降水量", "Precip."), wind: L("風", "Wind"))
+    let labelW = [labels.humidity, labels.precip, labels.wind]
+        .map { NSAttributedString(string: $0, attributes: [.font: NSFont.systemFont(ofSize: 12)]).size().width }.max() ?? 0
     func row(_ label: String, _ value: String, _ color: NSColor = fg) {
         text(label, x: rx, y: ry, size: 12, color: sub)
-        text(value, x: rx + 48, y: ry, size: 12, color: color, weight: .medium)
+        text(value, x: rx + max(48, ceil(labelW) + 12), y: ry, size: 12, color: color, weight: .medium)
         ry += 16
     }
-    if let h = o.humidity { row("湿度", "\(fmt(h))%") }
-    if let p = o.precip { row("降水量", "\(fmt(p, 1)) mm/h", p > 0 ? hex(input.dark ? "#64B5FF" : "#0047B3") : fg) }
-    if let w = o.wind { row("風", "\(o.windDir ?? "") \(fmt(w, 1)) m/s") }
+    if let h = o.humidity { row(labels.humidity, "\(fmt(h))%") }
+    if let p = o.precip { row(labels.precip, "\(fmt(p, 1)) mm/h", p > 0 ? hex(input.dark ? "#64B5FF" : "#0047B3") : fg) }
+    if let w = o.wind { row(labels.wind, "\(o.windDir ?? "") \(fmt(w, 1)) m/s") }
     nextSection(obsH)
 }
 
@@ -267,7 +280,7 @@ let jst: Calendar = {
 
 // 2. 今後 24 時間の気温のグラフ
 if let g = input.graph {
-    text("今後 24 時間", x: pad, y: top, size: 11, color: sub)
+    text(L("今後 24 時間", "Next 24 hours"), x: pad, y: top, size: 11, color: sub)
     let plot = CGRect(x: 14, y: top + 26, width: width - 14 - 30, height: 78)
     let hourY = plot.maxY + 8
     let iconCY = hourY + 32
@@ -373,7 +386,7 @@ if !input.days.isEmpty {
     var ry = top + 20
     for (d, h) in zip(input.days, dayRowHs) {
         symbol(d.icon, color: hex(d.color), cx: pad + 9, cy: ry + 8, size: 14)
-        text(d.label, x: pad + 26, y: ry, size: 13, color: sub)
+        text(L("\(d.date)(\(weekday(d.dow)))", "\(weekday(d.dow)) \(d.date)"), x: pad + 26, y: ry, size: 13, color: sub)
         textBox(phrased(d.text), x: dayTextX, y: ry, width: dayTextW, size: 13)
         ry += h
     }
@@ -382,16 +395,16 @@ if !input.days.isEmpty {
 
 // 4. 週間予報: 7 日を横に並べる
 if !input.week.isEmpty {
-    text("週間予報", x: pad, y: top, size: 11, color: sub)
+    text(L("週間予報", "Weekly forecast"), x: pad, y: top, size: 11, color: sub)
     let colW = (width - pad * 2) / CGFloat(input.week.count)
     let y0 = top + 20
     for (i, d) in input.week.enumerated() {
         let cx = pad + colW * (CGFloat(i) + 0.5)
         // 土曜は青、日曜は赤
-        let wcolor: NSColor = d.wday == "土" ? hex(input.dark ? "#64B5FF" : "#0047B3")
-            : d.wday == "日" ? hex(input.dark ? "#FF6961" : "#A3000F") : sub
+        let wcolor: NSColor = d.dow == 6 ? hex(input.dark ? "#64B5FF" : "#0047B3")
+            : d.dow == 0 ? hex(input.dark ? "#FF6961" : "#A3000F") : sub
         text(d.date, x: cx, y: y0, size: 11, color: sub, align: .center)
-        text("(\(d.wday))", x: cx, y: y0 + 13, size: 10, color: wcolor, align: .center)
+        text(L("(\(weekday(d.dow)))", weekday(d.dow)), x: cx, y: y0 + 13, size: 10, color: wcolor, align: .center)
         symbol(d.icon, color: hex(d.color), cx: cx, cy: y0 + 41, size: 17)
         text(d.max.isEmpty ? "-" : "\(d.max)°", x: cx, y: y0 + 56, size: 13, color: hex(d.maxColor),
              weight: .semibold, align: .center)

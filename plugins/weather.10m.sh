@@ -10,13 +10,18 @@
 # 気象庁のサイト (www.jma.go.jp/bosai/) が裏で読んでいる JSON を使う。API キーは要らない。
 # アメダスは 10 分ごと、予報は 1 日 3 回 (5 時・11 時・17 時) 更新される。
 #
-# 地域は設定ファイル (~/.config/swiftbar-cards/weather.conf) で、アメダスの
-# 観測点の名前を 1 つ書いて決める。無ければ東京。
+# 地点は設定ファイル (~/.config/swiftbar-cards/weather.conf) に、アメダスの観測点の
+# 名前を書いて決める。無ければ東京。複数書くと、メニューから切り替えられる。
+#   place=東京
 #   place=横浜
-#   amedas=44116   # 同じ名前の観測点が複数あるときは番号で選ぶ (place より優先)
+#   place=44116   # 同じ名前の観測点が複数あるときは番号で書く
 # 観測点から、予報に要るコード (府県予報区・一次細分区域・予報の気温の地点) を
 # 引く。予報の気温の地点 (forecast_area.json に区域ごとに 1 つある) のうち、
 # 観測点と同じ地域でいちばん近いものの区域を使う。
+#
+# 表示の言語は OS の設定に従う (scripts/lib.sh の cards_lang)。英語のときは、
+# 観測点や区域の名前に気象庁の表の英語名を使い、予報の文 (日本語でしか配られない)
+# の代わりに天気コードの英語名 (data/jma-telops.json) を出す。
 
 export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
 # shellcheck source=SCRIPTDIR/../scripts/lib.sh
@@ -26,26 +31,50 @@ cache=~/Library/Caches/swiftbar-weather
 mkdir -p "$cache"
 base=https://www.jma.go.jp/bosai
 conf=${XDG_CONFIG_HOME:-$HOME/.config}/swiftbar-cards/weather.conf
+lang=$(cards_lang)
+# 日本語と英語の文言から、表示の言語のほうを選ぶ
+T() { if [[ $lang == ja ]]; then printf '%s' "$1"; else printf '%s' "$2"; fi; }
 
 fetch() { curl -sf --max-time 10 "$1" -o "$2.tmp" && mv "$2.tmp" "$2"; }
 
+case ${1:-} in
 # メニューの「設定ファイルを開く」から呼ばれる。無ければひな形を作る。
-if [[ ${1:-} == open-config ]]; then
+open-config)
 	if [[ ! -f $conf ]]; then
 		mkdir -p "$(dirname "$conf")"
-		cat >"$conf" <<-'EOF'
-			# アメダスの観測点の名前 (https://www.jma.go.jp/bosai/amedas/ で探せる)
-			place=東京
-			# 同じ名前の観測点が複数あるときは、番号で選ぶ (place より優先)
-			#amedas=44132
-		EOF
+		if [[ $lang == ja ]]; then
+			cat >"$conf" <<-'EOF'
+				# アメダスの観測点の名前 (https://www.jma.go.jp/bosai/amedas/ で探せる)。
+				# 複数書くと、メニューの「地点」から切り替えられる。
+				place=東京
+				#place=横浜
+				# 同じ名前の観測点が複数あるときは、番号で書く
+				#place=44116
+			EOF
+		else
+			cat >"$conf" <<-'EOF'
+				# Names of AMeDAS stations, in Japanese (see https://www.jma.go.jp/bosai/amedas/).
+				# List more than one to switch between them from the Location menu.
+				place=東京
+				#place=横浜
+				# When more than one station has the same name, use its number
+				#place=44116
+			EOF
+		fi
 	fi
 	open -t "$conf"
 	exit 0
-fi
+	;;
+# メニューの「地点」から呼ばれる。選んだ地点を覚える。
+select)
+	printf '%s\n' "${2:-}" >"$cache/selected"
+	exit 0
+	;;
+esac
 
 # 設定ファイルを読む。シェルとして読み込まず、key=value の行だけを拾う。
-place=東京 amedas_pin=
+# 以前の amedas=<番号> も、1 つの地点として読む。
+places=()
 if [[ -f $conf ]]; then
 	while IFS= read -r line || [[ -n $line ]]; do
 		line=${line%%#*}
@@ -53,11 +82,16 @@ if [[ -f $conf ]]; then
 		k=${line%%=*} v=${line#*=}
 		k=${k//[[:space:]]/} v=$(echo "$v" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')
 		case $k in
-		place) [[ -n $v ]] && place=$v ;;
-		amedas) amedas_pin=$v ;;
+		place | amedas) [[ -n $v ]] && places+=("$v") ;;
 		esac
 	done <"$conf"
 fi
+[[ ${#places[@]} -gt 0 ]] || places=(東京)
+# 選んでいる地点。覚えている地点が設定から消えていたら先頭にする。
+selected=$(cat "$cache/selected" 2>/dev/null || true)
+sel=0
+for i in "${!places[@]}"; do [[ ${places[$i]} == "$selected" ]] && sel=$i; done
+place=${places[$sel]}
 
 # 観測点の表と、予報区と観測点の対応表。めったに変わらないので週に 1 回取り直す。
 mkdir -p "$cache/const"
@@ -67,59 +101,85 @@ for f in amedas/const/amedastable.json forecast/const/forecast_area.json common/
 		fetch "$base/$f" "$out"
 	fi
 done
-
-# 設定の不備をメニューに出して終わる
-config_error() {
-	echo ":exclamationmark.triangle: 天気"
-	echo "---"
-	printf '%s\n' "$@"
-	echo "---"
-	echo "設定ファイルを開く | sfimage=gearshape.circle bash=$0 param1=open-config terminal=false"
-	exit 0
-}
 if [[ ! -s $cache/const/amedastable.json || ! -s $cache/const/forecast_area.json || ! -s $cache/const/area.json ]]; then
 	echo " | sfimage=exclamationmark.icloud"
 	echo "---"
-	echo "気象庁のデータを取得できない"
+	T "気象庁のデータを取得できない" "Could not get data from JMA"
+	echo
 	exit 0
 fi
 
-# 観測点の名前 (か番号) から地域を引く。1 行目が ok / notfound / ambiguous。
-# ok のときは 2 行目以降に「府県予報区 一次細分区域 観測点の番号 観測点の名前
-# 予報の気温の地点の番号 その名前」を 1 行ずつ出す。ambiguous のときは候補を出す。
-location=$(jq -n -r --arg place "$place" --arg pin "$amedas_pin" \
+# 地点ごとに、観測点の名前 (か番号) から地域を引く。地点 1 つにつき 1 つ、
+# { status: ok / notfound / ambiguous, found: [候補] } を返す。
+resolved=$(printf '%s\n' "${places[@]}" | jq -R . | jq -s -c \
 	--slurpfile am "$cache/const/amedastable.json" --slurpfile fa "$cache/const/forecast_area.json" \
 	--slurpfile ar "$cache/const/area.json" '
 	def deg: .[0] + .[1] / 60;
-	$am[0] as $am | $ar[0].offices as $offices
+	$am[0] as $am | $ar[0] as $ar
 	# 予報の気温の地点と、それが属する府県予報区・一次細分区域
 	| [$fa[0] | to_entries[] | .key as $o | .value[] | .class10 as $c | .amedas[]
 	   | select($am[.] != null) | { office: $o, class10: $c, temp: ., lat: ($am[.].lat | deg), lon: ($am[.].lon | deg) }] as $points
-	| (if $pin != "" then [$pin | select($am[.] != null)]
-	   else [$am | to_entries[] | select(.value.kjName == $place) | .key] end) as $cands
-	| [$cands[] | . as $c | $am[$c] as $s | ($s.lat | deg) as $la | ($s.lon | deg) as $lo
-	   | ($la * 3.14159265 / 180 | cos) as $k
-	   # 番号の上 2 桁は地域 (おおむね府県予報区) を表すので、同じ地域の地点から
-	   # 選ぶ。近さだけで選ぶと、県境の近くで隣の県の地点を拾う (東京都の府中は
-	   # 東京とさいたまからほぼ同じ距離にある)。
-	   | ([$points[] | select(.temp[0:2] == $c[0:2])] | if length > 0 then . else $points end)
-	   | min_by(((.lat - $la) | . * .) + ((.lon - $lo) * $k | . * .)) as $best
-	   | { amedas: $c, name: $s.kjName, office: $best.office, class10: $best.class10,
-	       temp: $best.temp, tempName: $am[$best.temp].kjName, officeName: $offices[$best.office].name }] as $found
-	| if ($found | length) == 0 then "notfound"
-	  elif ($found | length) > 1 then "ambiguous", ($found[] | "\(.name) (\(.officeName)): amedas=\(.amedas)")
-	  else "ok", ($found[0] | .office, .class10, .amedas, .name, .temp, .tempName) end')
-case $(head -1 <<<"$location") in
-ok) { read -r _; read -r office; read -r class10; read -r amedas; read -r obs_name; read -r temp_code; read -r temp_name; } <<<"$location" ;;
+	| map(. as $q
+		# 数字だけなら観測点の番号、それ以外は名前
+		| (if test("^[0-9]+$") then [$q | select($am[.] != null)]
+		   else [$am | to_entries[] | select(.value.kjName == $q) | .key] end) as $cands
+		| [$cands[] | . as $c | $am[$c] as $s | ($s.lat | deg) as $la | ($s.lon | deg) as $lo
+		   | ($la * 3.14159265 / 180 | cos) as $k
+		   # 番号の上 2 桁は地域 (おおむね府県予報区) を表すので、同じ地域の地点から
+		   # 選ぶ。近さだけで選ぶと、県境の近くで隣の県の地点を拾う (東京都の府中は
+		   # 東京とさいたまからほぼ同じ距離にある)。
+		   | ([$points[] | select(.temp[0:2] == $c[0:2])] | if length > 0 then . else $points end)
+		   | min_by(((.lat - $la) | . * .) + ((.lon - $lo) * $k | . * .)) as $best
+		   | { amedas: $c, name: $s.kjName, enName: $s.enName, office: $best.office, class10: $best.class10,
+		       class10En: $ar.class10s[$best.class10].enName,
+		       temp: $best.temp, tempName: $am[$best.temp].kjName,
+		       officeName: $ar.offices[$best.office].name, officeEn: $ar.offices[$best.office].enName }] as $found
+		| { query: $q, found: $found,
+		    status: (if ($found | length) == 0 then "notfound" elif ($found | length) > 1 then "ambiguous" else "ok" end) })')
+# 地点の表示名 (切り替えのメニュー用)。解決できなかった地点は書かれたまま出す。
+place_label() { # <番号>
+	jq -r --argjson i "$1" --arg lang "$lang" \
+		'.[$i] | if .status == "ok" then .found[0] | (if $lang == "ja" then .name else .enName end) else .query end' <<<"$resolved"
+}
+# メニューの「地点」。地点が 2 つ以上あるときだけ出す。
+location_menu() {
+	[[ ${#places[@]} -gt 1 ]] || return 0
+	echo "$(T "地点" "Location"): $(place_label "$sel") | sfimage=mappin.circle"
+	for i in "${!places[@]}"; do
+		echo "--$(place_label "$i") | bash=$0 param1=select param2=${places[$i]} terminal=false refresh=true$([[ $i == "$sel" ]] && echo " checked=true")"
+	done
+}
+# 設定の不備をメニューに出して終わる
+config_error() {
+	echo ":exclamationmark.triangle: $(T "天気" "Weather")"
+	echo "---"
+	printf '%s\n' "$@"
+	echo "---"
+	location_menu
+	echo "$(T "設定ファイルを開く" "Open Configuration File") | sfimage=gearshape.circle bash=$0 param1=open-config terminal=false"
+	exit 0
+}
+
+field() { jq -r --argjson i "$sel" ".[\$i].found[0].$1 // \"\"" <<<"$resolved"; }
+case $(jq -r --argjson i "$sel" '.[$i].status' <<<"$resolved") in
+ok)
+	office=$(field office) class10=$(field class10) amedas=$(field amedas)
+	temp_code=$(field temp) temp_name=$(field tempName)
+	if [[ $lang == ja ]]; then obs_name=$(field name) area_name=; else obs_name=$(field enName) area_name="$(field class10En), $(field officeEn)"; fi
+	;;
 notfound)
-	if [[ -n $amedas_pin ]]; then
-		config_error "アメダスの観測点 $amedas_pin が見つからない"
+	if [[ $place =~ ^[0-9]+$ ]]; then
+		config_error "$(T "アメダスの観測点 $place が見つからない" "No AMeDAS station numbered $place")"
 	else
-		config_error "「${place}」という名前のアメダスの観測点が見つからない" \
-			"気象庁の「アメダス」のページで観測点の名前を確かめる | href=https://www.jma.go.jp/bosai/amedas/"
+		config_error "$(T "「${place}」という名前のアメダスの観測点が見つからない" "No AMeDAS station named \"${place}\"")" \
+			"$(T "気象庁の「アメダス」のページで観測点の名前を確かめる" "Look up station names on the JMA AMeDAS page") | href=https://www.jma.go.jp/bosai/amedas/"
 	fi
 	;;
-*) config_error "「${place}」という名前の観測点が複数ある。設定ファイルに番号で書く:" "$(tail -n +2 <<<"$location")" ;;
+*)
+	config_error "$(T "「${place}」という名前の観測点が複数ある。設定ファイルに番号で書く:" "More than one station is named \"${place}\". Write its number in the configuration file:")" \
+		"$(jq -r --argjson i "$sel" --arg lang "$lang" '.[$i].found[]
+			| if $lang == "ja" then "\(.name) (\(.officeName)): place=\(.amedas)" else "\(.enName) (\(.officeEn)): place=\(.amedas)" end' <<<"$resolved")"
+	;;
 esac
 # 予報のファイルが別の府県予報区のものに入っている区域がある (2026-11 に全
 # 58 区域を取って確かめた)
@@ -149,7 +209,8 @@ fi
 if [[ ! -s $forecast ]]; then
 	echo " | sfimage=exclamationmark.icloud"
 	echo "---"
-	echo "気象庁のデータを取得できない"
+	T "気象庁のデータを取得できない" "Could not get data from JMA"
+	echo
 	exit 0
 fi
 
@@ -193,7 +254,8 @@ dark=false
 jq -n -r --argjson now "$now" --argjson dark "$dark" \
 	--slurpfile f "$forecast" --slurpfile a "$cache/amedas.json" --slurpfile v "$vpfd" \
 	--arg class10 "$class10" --arg office "$office" --arg amedas "$amedas" --arg obsname "$obs_name" \
-	--arg tempcode "$temp_code" --arg tempname "$temp_name" \
+	--arg tempcode "$temp_code" --arg tempname "$temp_name" --arg lang "$lang" --arg areaname "$area_name" \
+	--slurpfile tel "$cards_root/data/jma-telops.json" \
 	--arg latest "${latest:-}" --arg stale "$stale" --arg today "$(TZ=Asia/Tokyo date +%F)" '
 	# 2026-11-05T03:00:00+09:00 → UNIX 時刻
 	def epoch: .[0:19] + "Z" | fromdate - 32400;
@@ -227,8 +289,13 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" \
 		| if $t == null then null elif $t >= 30 then (["", "#FF6961", "#A3000F"] | pick)
 		  elif $t >= 25 then (["", "#FFD60A", "#7A5000"] | pick) elif $t <= 5 then (["", "#64B5FF", "#0047B3"] | pick)
 		  elif $t <= 12 then (["", "#5AD8E6", "#005E73"] | pick) else null end;
-	def wday($t): ["日","月","火","水","木","金","土"][$t[0:10] + "T00:00:00Z" | fromdate | strftime("%w") | tonumber];
-	def dir: ["静穏","北北東","北東","東北東","東","東南東","南東","南南東","南","南南西","南西","西南西","西","西北西","北西","北北西","北"][.] // null;
+	# 曜日 (0 が日曜)。名前はカードの側で言語に合わせて付ける。
+	def dow($t): $t[0:10] + "T00:00:00Z" | fromdate | strftime("%w") | tonumber;
+	def dir: (if $lang == "ja"
+		then ["静穏","北北東","北東","東北東","東","東南東","南東","南南東","南","南南西","南西","西南西","西","西北西","北西","北北西","北"]
+		else ["Calm","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW","N"] end)[.] // null;
+	# 予報の文。英語のときは、日本語でしか配られない文の代わりに天気コードの英語名を使う。
+	def forecast_text($text; $code): if $lang == "ja" then $text else ($tel[0][$code] // $text) end;
 	def val($k): ($a[0][$amedas][$k] // [null])[0];
 
 	$f[0][0] as $short
@@ -281,14 +348,15 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" \
 		  pops: [range($p.timeDefines | length) as $i | ($pa.pops[$i] // "") as $pp | select($pp != "")
 			| [($p.timeDefines[$i] | epoch | tostring), $pp, ($pp | pop_colors | pick)]] }
 		else null end),
-	   daysTitle: "\($wa.area.name)の予報 (\($short.reportDatetime[11:16]) 発表)",
+	   daysTitle: (if $lang == "ja" then "\($wa.area.name)の予報 (\($short.reportDatetime[11:16]) 発表)"
+		else "Forecast for \(if $areaname != "" then $areaname else $wa.area.name end) (issued \($short.reportDatetime[11:16]))" end),
 	   # 予報は 5・11・17 時に発表されるので、日付が変わってから次の発表までは
 	   # 先頭が昨日の分になる。今日より前の日は出さない。
 	   days: [$w.timeDefines | to_entries[] | select(.value[0:10] >= $today) | ($wa.weatherCodes[.key] | code_icon) as $ic
 		# 「今日」「明日」は日付をまたぐと指す日が変わって分かりにくいので、日付で出す
-		| { label: "\(.value[5:7] | tonumber)/\(.value[8:10] | tonumber)(\(wday(.value)))",
+		| { date: "\(.value[5:7] | tonumber)/\(.value[8:10] | tonumber)", dow: dow(.value),
 		    # 全角の空白 (語の区切り) は残し、カードの側で折り返しの位置に使う
-		    text: $wa.weathers[.key], icon: $ic, color: ($ic | icon_colors | pick) }],
+		    text: forecast_text($wa.weathers[.key]; $wa.weatherCodes[.key]), icon: $ic, color: ($ic | icon_colors | pick) }],
 	   # 週間予報の初日 (明日) は、気温と降水確率が空欄で配られる (短期予報で
 	   # 発表されるため)。空欄なら短期予報の値で埋める。気温は 0 時の値が最低、
 	   # 9 時の値が最高。降水確率は 6 時間ごとの値のうちいちばん高いもの。
@@ -312,7 +380,7 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" \
 				| (max // null) | if . == null then "" else tostring end
 				else . end) as $wpop
 			| ($wwa.weatherCodes[.key] | code_icon) as $ic
-			| { date: "\(.value[5:7] | tonumber)/\(.value[8:10] | tonumber)", wday: wday(.value),
+			| { date: "\(.value[5:7] | tonumber)/\(.value[8:10] | tonumber)", dow: dow(.value),
 				icon: $ic, color: ($ic | icon_colors | pick),
 				max: $tmax, maxColor: ($tmax | temp_color), min: $tmin, minColor: ($tmin | temp_color),
 				pop: $wpop, popColor: (if $wpop == "" then null else ($wpop | pop_colors | pick) end) }]
@@ -328,8 +396,9 @@ if [[ -x $bin ]] && card=$(tail -n +2 "$cache/menu.txt" | "$bin" 2>/dev/null) &&
 	{ read -r cw ch; read -r b64; } <<<"$card"
 	echo " | image=$b64 width=$cw height=$ch"
 else
-	echo "天気のカードを描けなかった | refresh=true"
+	echo "$(T "天気のカードを描けなかった" "Could not draw the weather card") | refresh=true"
 fi
 echo "---"
-echo "設定ファイルを開く | sfimage=gearshape.circle bash=$0 param1=open-config terminal=false"
-echo "気象庁の天気予報を開く | sfimage=arrow.up.forward.circle href=https://www.jma.go.jp/bosai/forecast/#area_type=offices&area_code=$office"
+location_menu
+echo "$(T "設定ファイルを開く" "Open Configuration File") | sfimage=gearshape.circle bash=$0 param1=open-config terminal=false"
+echo "$(T "気象庁の天気予報を開く" "Open JMA Forecast") | sfimage=arrow.up.forward.circle href=https://www.jma.go.jp/bosai/forecast/#area_type=offices&area_code=$office"
