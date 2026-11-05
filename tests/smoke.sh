@@ -50,9 +50,10 @@ else
 fi
 
 echo "# ビルド"
-for dir in "$repo"/Sources/*/main.swift; do
-	name=$(basename "$(dirname "$dir")")
-	if swiftc -O -o "$work/$name" "$repo"/Sources/Shared/*.swift "$dir" 2>"$work/$name.log"; then ok "build $name"; else
+for main in "$repo"/Sources/*/main.swift; do
+	dir=$(dirname "$main")
+	name=$(basename "$dir")
+	if swiftc -O -o "$work/$name" "$repo"/Sources/Shared/*.swift "$dir"/*.swift 2>"$work/$name.log"; then ok "build $name"; else
 		cat "$work/$name.log"
 		ng "build $name"
 	fi
