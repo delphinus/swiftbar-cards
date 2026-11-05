@@ -673,7 +673,11 @@ func isDark() -> Bool {
 
 setvbuf(stdout, nil, _IOLBF, 0)
 let interval: TimeInterval = 10
-let historyFile = NSString(string: "~/Library/Caches/swiftbar-sysmon-cpu-history.txt").expandingTildeInPath
+// ~ の展開 (expandingTildeInPath) は環境変数 HOME を見ないので、HOME から組む。
+// sysmon.sh のキャッシュ (~/Library/Caches/swiftbar-sysmon) と同じ場所の考え方にそろえ、
+// HOME を一時ディレクトリにして動かすテスト (tests/smoke.sh) で本物を書き換えない。
+let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
+let historyFile = home + "/Library/Caches/swiftbar-sysmon-cpu-history.txt"
 var history: [Double] = ((try? String(contentsOfFile: historyFile, encoding: .utf8)) ?? "")
     .split(separator: "\n").compactMap { Double($0) }.suffix(60).map { $0 }
 var prev = cpuTicks()
