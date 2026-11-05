@@ -20,6 +20,9 @@ export HOME=$work/home XDG_CONFIG_HOME=$work/home/.config
 # 変数名として読むなど、新しい bash と振る舞いが違う。
 export LANG=en_US.UTF-8
 unset LC_ALL
+# 表示の言語は OS の設定に従うので、確かめる文言に合わせて日本語に決め打ちする
+# (CI の仮想マシンは英語)。英語の確認だけ SWIFTBAR_CARDS_LANG=en にする。
+export SWIFTBAR_CARDS_LANG=ja
 mkdir -p "$HOME"
 
 failures=0
