@@ -32,6 +32,7 @@ import Shared
 #endif
 import Darwin
 import IOKit
+import IOKit.ps
 
 struct CPU: Codable {
     let total: Double
@@ -64,6 +65,28 @@ struct Proc: Codable {
 struct Battery: Codable {
     let name: String
     let percent: Double
+    // 以下は Mac 本体のバッテリーのときだけ
+    var `internal`: Bool? = nil
+    var external: Bool? = nil // 電源につながっている
+    var charging: Bool? = nil
+    var charged: Bool? = nil
+    var minutes: Int? = nil   // 残り時間 (電源につながっていないとき) か満充電までの時間。分からなければ nil
+}
+
+// 本体のバッテリーの状態の文。例: 「充電中・満充電まで 1:25」
+func batteryStatus(_ b: Battery) -> String? {
+    guard b.internal == true else { return nil }
+    let time = b.minutes.map { String(format: "%d:%02d", $0 / 60, $0 % 60) }
+    let sep = L("・", " · ")
+    if b.external != true {
+        return L("バッテリー駆動", "On battery") + sep + (time.map { L("残り \($0)", "\($0) remaining") } ?? L("計算中…", "Calculating…"))
+    }
+    if b.charged == true || b.percent >= 100 { return L("電源に接続", "On power") + sep + L("充電済み", "Fully charged") }
+    if b.charging == true {
+        return L("充電中", "Charging") + sep + (time.map { L("満充電まで \($0)", "\($0) until full") } ?? L("計算中…", "Calculating…"))
+    }
+    // 電源につながっているが充電していない (バッテリー充電の最適化で止めているときなど)
+    return L("電源に接続", "On power") + sep + L("充電していない", "Not charging")
 }
 
 struct Input: Codable {
@@ -105,7 +128,9 @@ func renderAll(_ input: Input) -> [String] {
     let memH: CGFloat = 20 + 52 + 18
     let procRows = max(input.procCpu.count, input.procMem.count)
     let procH: CGFloat = procRows > 0 ? 20 + 18 * CGFloat(procRows) : 0
-    let batH: CGFloat = input.battery.isEmpty ? 0 : 20 + 18 * CGFloat(input.battery.count)
+    // 本体のバッテリーは、状態の文の行のぶん高い
+    let batRowH: [CGFloat] = input.battery.map { batteryStatus($0) == nil ? 18 : 33 }
+    let batH: CGFloat = input.battery.isEmpty ? 0 : 20 + batRowH.reduce(0, +)
     let sections = [cpuH, memH, procH, batH].filter { $0 > 0 }
     let height = sections.reduce(0, +) + gap * CGFloat(max(sections.count - 1, 0))
     let scale: CGFloat = 2
@@ -306,13 +331,16 @@ func renderAll(_ input: Input) -> [String] {
     if !input.battery.isEmpty {
         text(L("バッテリー", "Battery"), x: pad, y: top, size: 11, color: sub)
         var ry = top + 20
-        for b in input.battery {
+        for (b, h) in zip(input.battery, batRowH) {
             // 残量は少ないほど危ないので、少ないときに黄・赤にする
             let col = b.percent < 20 ? red : b.percent < 40 ? yellow : green
-            text(b.name, x: pad, y: ry, size: 12, maxWidth: 150)
+            text(b.internal == true ? L("この Mac", "This Mac") : b.name, x: pad, y: ry, size: 12, maxWidth: 150)
             bar(x: 160, y: ry + 5, w: 130, value: b.percent, color: col)
             text("\(fmt(b.percent))%", x: width - pad, y: ry, size: 12, weight: .medium, align: .right)
-            ry += 18
+            if let status = batteryStatus(b) {
+                text(status, x: pad, y: ry + 16, size: 11, color: sub)
+            }
+            ry += h
         }
         top += batH
     }
@@ -652,6 +680,25 @@ func bluetoothNames() -> [String: String] {
     return names
 }
 
+// Mac 本体のバッテリー (MacBook)。デスクトップには無いので nil。
+func internalBattery() -> Battery? {
+    guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+          let list = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef] else { return nil }
+    for ps in list {
+        guard let d = IOPSGetPowerSourceDescription(info, ps)?.takeUnretainedValue() as? [String: Any],
+              d[kIOPSTypeKey] as? String == kIOPSInternalBatteryType,
+              let cur = d[kIOPSCurrentCapacityKey] as? Int, let max = d[kIOPSMaxCapacityKey] as? Int, max > 0 else { continue }
+        let external = d[kIOPSPowerSourceStateKey] as? String == kIOPSACPowerValue
+        let charging = d[kIOPSIsChargingKey] as? Bool ?? false
+        // 時間は分で、計算中は -1
+        let minutes = (external ? d[kIOPSTimeToFullChargeKey] : d[kIOPSTimeToEmptyKey]) as? Int
+        return Battery(name: "", percent: (Double(cur) / Double(max) * 100).rounded(), internal: true, external: external,
+                       charging: charging, charged: d[kIOPSIsChargedKey] as? Bool,
+                       minutes: minutes.flatMap { $0 > 0 ? $0 : nil })
+    }
+    return nil
+}
+
 func batteries(_ names: [String: String]) -> [Battery] {
     guard let s = run("/usr/sbin/ioreg", ["-r", "-k", "BatteryPercent", "-l"]) else { return [] }
     var out: [Battery] = []
@@ -755,7 +802,9 @@ while true {
                                    load: String(format: "%.2f / %.2f / %.2f", la[0], la[1], la[2]),
                                    temp: smc?.cpuTemp?.rounded(), gpu: smc?.gpuTemp?.rounded(),
                                    hist: history),
-                          mem: memory(), procCpu: procCpu, procMem: procMem, battery: bats)
+                          mem: memory(), procCpu: procCpu, procMem: procMem,
+                          // 本体のバッテリーは毎回読む (API を呼ぶだけで軽い)
+                          battery: (internalBattery().map { [$0] } ?? []) + bats)
         let o = renderAll(input)
         var lines: [String] = []
         if o.count == 5 {
