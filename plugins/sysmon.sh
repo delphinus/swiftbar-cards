@@ -8,7 +8,7 @@
 # <swiftbar.hideDisablePlugin>true</swiftbar.hideDisablePlugin>
 # <swiftbar.hideSwiftBar>true</swiftbar.hideSwiftBar>
 #
-# 常駐型 (streamable) のプラグイン。中身は ../Sources/sysmon/main.swift で、ここでは
+# 常駐型 (streamable) のプラグイン。中身は ../Sources/sysmon/ の Swift のプログラムで、ここでは
 # それをコンパイルして起動するだけ。10 秒ごとに値を集めて描き、メニューを
 # 差し替える。以前の 10 秒ごとにスクリプトを起動する形より CPU を使わない
 # (平均して 1 コアの 2.5% ほどから 1% ほどへ)。
