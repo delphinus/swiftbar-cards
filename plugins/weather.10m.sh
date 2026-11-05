@@ -113,11 +113,11 @@ notfound)
 	if [[ -n $amedas_pin ]]; then
 		config_error "アメダスの観測点 $amedas_pin が見つからない"
 	else
-		config_error "「$place」という名前のアメダスの観測点が見つからない" \
+		config_error "「${place}」という名前のアメダスの観測点が見つからない" \
 			"気象庁の「アメダス」のページで観測点の名前を確かめる | href=https://www.jma.go.jp/bosai/amedas/"
 	fi
 	;;
-*) config_error "「$place」という名前の観測点が複数ある。設定ファイルに番号で書く:" "$(tail -n +2 <<<"$location")" ;;
+*) config_error "「${place}」という名前の観測点が複数ある。設定ファイルに番号で書く:" "$(tail -n +2 <<<"$location")" ;;
 esac
 # 予報のファイルが別の府県予報区のものに入っている区域がある (2026-11 に全
 # 58 区域を取って確かめた)
