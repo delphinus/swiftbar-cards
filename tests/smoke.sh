@@ -15,6 +15,11 @@ out=$(mkdir -p "${1:-smoke-out}" && cd "${1:-smoke-out}" && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 export HOME=$work/home XDG_CONFIG_HOME=$work/home/.config
+# SwiftBar と同じく、プラグインは shebang の /bin/bash (macOS 標準の 3.2) で、
+# UTF-8 のロケールで動かす。bash 3.2 は UTF-8 のロケールで "$var」" の 」 まで
+# 変数名として読むなど、新しい bash と振る舞いが違う。
+export LANG=en_US.UTF-8
+unset LC_ALL
 mkdir -p "$HOME"
 
 failures=0
@@ -53,7 +58,7 @@ conf=$XDG_CONFIG_HOME/swiftbar-cards/weather.conf
 mkdir -p "$(dirname "$conf")"
 run_weather() { # <名前> <外観> [設定ファイルの中身]
 	if [[ -n ${3:-} ]]; then printf '%s\n' "$3" >"$conf"; else rm -f "$conf"; fi
-	OS_APPEARANCE=$2 bash "$repo/plugins/weather.10m.sh" >"$work/weather-$1.txt"
+	OS_APPEARANCE=$2 "$repo/plugins/weather.10m.sh" >"$work/weather-$1.txt"
 }
 for appearance in Light Dark; do
 	name=default-$appearance
@@ -84,7 +89,7 @@ fi
 
 # 常駐型のプラグインは、最初の区切り (~~~) が届いたら止める
 run_stream() { # <プラグイン> <出力のファイル>
-	bash "$repo/plugins/$1" >"$2" 2>/dev/null &
+	"$repo/plugins/$1" >"$2" 2>/dev/null &
 	local pid=$! i
 	for ((i = 0; i < 120; i++)); do
 		grep -qx '~~~' "$2" 2>/dev/null && break
