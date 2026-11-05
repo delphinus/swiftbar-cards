@@ -75,8 +75,8 @@ let imageTrailing: CGFloat = 10
 let popW = cardSize.width + imageTrailing + popPad * 2
 let contentW = popW - popPad * 2
 let sepH: CGFloat = 11
-let itemsH = items.isEmpty ? 0 : 9 + items.reduce(0) { $0 + ($1.symbol == "-" ? sepH : rowH) } + 4
-let popH = popPad + cardSize.height + 12 + itemsH
+let itemsH = items.isEmpty ? 0 : items.reduce(0) { $0 + ($1.symbol == "-" ? sepH : rowH) } + 4
+let popH = popPad + cardSize.height + 4 + itemsH
 let popX = margin, popY = barH + 6
 let width = popW + margin * 2
 let height = popY + popH + margin
@@ -137,10 +137,8 @@ card.draw(in: CGRect(x: popX + popPad, y: popY + popPad, width: cardSize.width, 
 
 // 操作の項目
 if !items.isEmpty {
-    var y = popY + popPad + cardSize.height + 12
-    cg.setFillColor(rule.cgColor)
-    cg.fill(CGRect(x: popX + popPad, y: y, width: contentW, height: 1))
-    y += 9
+    // カードの下には区切り線が無い (プラグインと同じ)
+    var y = popY + popPad + cardSize.height + 4
     for (sym, label, checked) in items {
         if sym == "-" {
             cg.setFillColor(rule.cgColor)

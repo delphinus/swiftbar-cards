@@ -62,8 +62,8 @@ while true {
         SwiftBar.replaceMenu(with: [
             SwiftBar.menuBarImageLine(light: menuBar.render(dark: false), dark: menuBar.render(dark: true)),
             "---",
+            // カードの下には区切り線を引かない (カードの地の縁が境目になる)
             SwiftBar.imageLine(card.render()),
-            "---",
             openActivityMonitor,
         ])
 

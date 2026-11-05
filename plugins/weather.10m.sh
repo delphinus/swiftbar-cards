@@ -236,8 +236,8 @@ notify_swiftbar() {
 print_menu() {
 	sed -n 1p "$body"
 	echo "---"
+	# カードの下には区切り線を引かない (カードの地の縁が境目になる)
 	sed -n 2p "$body"
-	echo "---"
 	location_menu
 	echo "$(T "設定ファイルを開く" "Open Configuration File") | sfimage=gearshape.circle bash=$0 param1=open-config terminal=false"
 	if [[ ${1:-} == updating ]]; then
