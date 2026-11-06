@@ -31,10 +31,9 @@ The `nowplaying` and `sysmon` images use made-up values from `samples/`; the `we
 
 ## Requirements
 
-- macOS on Apple Silicon (tested on an M1 Max with macOS 26)
+- macOS 15 or later on Apple Silicon (tested on an M1 Max with macOS 26). `weather` uses `curl` and `jq`, which come with macOS
 - SwiftBar with support for streamable plugins
 - Xcode Command Line Tools (`xcode-select --install`), for `swiftc`
-- `jq`, for `weather`
 - Location Services, for showing your location in `weather` (without them, it shows Tokyo)
 
 ## Installation

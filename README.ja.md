@@ -31,10 +31,9 @@
 
 ## 必要なもの
 
-- Apple シリコンの Mac (M1 Max・macOS 26 で確かめています)
+- macOS 15 以降の Apple シリコンの Mac (M1 Max・macOS 26 で確かめています)。`weather` は macOS に付属の `curl` と `jq` を使います
 - 常駐型 (streamable) のプラグインに対応した SwiftBar
 - `swiftc` を使うための Xcode Command Line Tools (`xcode-select --install`)
-- `weather` 用の `jq`
 - `weather` で現在地を出すには、位置情報サービス (無くても東京を表示します)
 
 ## インストール
