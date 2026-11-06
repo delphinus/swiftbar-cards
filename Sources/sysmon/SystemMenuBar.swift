@@ -5,10 +5,13 @@ import Shared
 
 /// メニューバーの画像。
 ///
-///     [cpu] [直近 3 分の折れ線グラフ] 28%  [memorychip] [横棒] 58%  48°C  [電池] 76%
+///     [cpu] [直近 3 分の折れ線グラフ]  [memorychip] [横棒]  [電池] 1:25  48°C
 ///
-/// CPU とメモリの見出しは、幅を詰めるため文字でなく SF Symbols のアイコンにしている。
-/// 電池は本体のバッテリーがあるとき (MacBook) だけ出す。Bluetooth 機器の残量は
+/// 数字を減らして静かに見せるため、CPU とメモリは使用率の数字を出さず、グラフと棒
+/// (と、その色) だけで表す。見出しも文字でなく SF Symbols のアイコンにしている。
+/// 電池は本体のバッテリーがあるとき (MacBook) だけ出す。残量は電池の塗りで表し、
+/// 数字では残り時間 (電池で動いているとき) か満充電までの時間 (充電中) を出す。
+/// 時間が分からないとき (計算中・充電済み) は電池だけを出す。Bluetooth 機器の残量は
 /// メニューのカードにだけ出し、20% を切ったときだけ警告のアイコンを足す。
 ///
 /// 明るいメニューバー用と暗いメニューバー用の 2 枚を描く (SwiftBar.menuBarImageLine)。
@@ -20,7 +23,7 @@ struct SystemMenuBar {
     private let font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
     private let chartSize = CGSize(width: 40, height: 14)
     private let barSize = CGSize(width: 26, height: 6)
-    /// ラベルとグラフ・値の間
+    /// 見出しとグラフ・値の間
     private let spacing: CGFloat = 4
     /// 見出しのアイコンの大きさ
     private let iconPointSize: CGFloat = 13
@@ -28,7 +31,7 @@ struct SystemMenuBar {
     private let batterySize = CGSize(width: 22, height: 11)
     /// 電池の出っ張りの幅
     private let batteryNubWidth: CGFloat = 1.5
-    /// CPU・MEM・温度・電池の項目の間
+    /// CPU・メモリ・電池・温度の項目の間
     private let itemGap: CGFloat = 10
     /// グラフに描く回数 (18 回 = 3 分)
     private let chartSamples = 18
@@ -57,18 +60,20 @@ struct SystemMenuBar {
         let memoryLabel = label("MEM", primary)
         let cpuHeadWidth = cpuIcon?.size.width ?? cpuLabel.size().width
         let memoryHeadWidth = memoryIcon?.size.width ?? memoryLabel.size().width
-        let cpuValue = label(threeDigits(cpuPercent) + "%", primary)
-        let memoryValue = label(threeDigits(memoryPercent) + "%", level(memoryPercent, warning: 70, critical: 85))
         let tempValue = snapshot.cpu.temp.map { label(String(format: "%.0f°C", $0), level($0, warning: 70, critical: 85)) }
         let internalBattery = snapshot.battery.first { $0.isInternal }
-        // 残量はゆっくりしか変わらないので、ほかの値と違って 3 桁の幅にはそろえない
-        let batteryValue = internalBattery.map { label(String(format: "%.0f%%", $0.percent), primary) }
+        let batteryTime = internalBattery?.minutes.map {
+            label(String(format: "%d:%02d", $0 / 60, $0 % 60), primary)
+        }
         let bluetoothIsLow = snapshot.battery.contains { !$0.isInternal && $0.percent < 20 }
 
-        var width = cpuHeadWidth + spacing + chartSize.width + spacing + cpuValue.size().width + itemGap
-            + memoryHeadWidth + spacing + barSize.width + spacing + memoryValue.size().width
+        var width = cpuHeadWidth + spacing + chartSize.width + itemGap
+            + memoryHeadWidth + spacing + barSize.width
+        if internalBattery != nil {
+            width += itemGap + batterySize.width + batteryNubWidth
+            if let batteryTime { width += spacing + batteryTime.size().width }
+        }
         if let tempValue { width += itemGap + tempValue.size().width }
-        if let batteryValue { width += itemGap + batterySize.width + batteryNubWidth + spacing + batteryValue.size().width }
         if bluetoothIsLow { width += spacing + 16 }
         width = ceil(width) + 1
 
@@ -93,9 +98,7 @@ struct SystemMenuBar {
                                              width: chartSize.width, height: chartSize.height),
                          background: track.withAlphaComponent(dark ? 0.12 : 0.08),
                          color: level(cpuPercent, warning: 50, critical: 80))
-            x += chartSize.width + spacing
-            put(cpuValue)
-            x += itemGap
+            x += chartSize.width + itemGap
 
             put(memoryIcon, or: memoryLabel)
             x += spacing
@@ -106,19 +109,21 @@ struct SystemMenuBar {
                                            width: max(barSize.height, barSize.width * CGFloat(memoryPercent / 100)),
                                            height: barSize.height),
                                     radius: radius, color: level(memoryPercent, warning: 70, critical: 85))
-            x += barSize.width + spacing
-            put(memoryValue)
+            x += barSize.width
 
-            if let tempValue {
-                x += itemGap
-                put(tempValue)
-            }
-            if let internalBattery, let batteryValue {
+            if let internalBattery {
                 x += itemGap
                 drawBattery(context, internalBattery, at: x, outline: primary,
                             fill: internalBattery.percent < 20 ? red : internalBattery.percent < 40 ? yellow : green)
-                x += batterySize.width + batteryNubWidth + spacing
-                put(batteryValue)
+                x += batterySize.width + batteryNubWidth
+                if let batteryTime {
+                    x += spacing
+                    put(batteryTime)
+                }
+            }
+            if let tempValue {
+                x += itemGap
+                put(tempValue)
             }
             if bluetoothIsLow {
                 x += spacing
@@ -164,11 +169,5 @@ struct SystemMenuBar {
            let bolt = NSImage.symbol("bolt.fill", pointSize: 9, color: outline) {
             bolt.drawUpright(centeredAt: CGPoint(x: body.midX, y: body.midY))
         }
-    }
-
-    /// 3 桁の幅にそろえた数。桁が少ないときは、数字 1 文字分の空白 (U+2007 figure space)
-    /// で前を埋める。
-    private func threeDigits(_ value: Double) -> String {
-        String(format: "%3.0f", value).replacingOccurrences(of: " ", with: "\u{2007}")
     }
 }
