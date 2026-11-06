@@ -14,7 +14,7 @@ import Shared
 /// 時間が分からないとき (計算中・充電済み) は電池だけを出す。Bluetooth 機器の残量は
 /// メニューのカードにだけ出し、20% を切ったときだけ警告のアイコンを足す。
 ///
-/// 白や黒で描く部分を持たず、アイコン・電池の枠・数字もすべて使用率や残量の色で描く。
+/// 白や黒で描く部分を持たない。見出しのアイコンは青で、電池の枠・数字は使用率や残量の色で描く。
 /// SwiftBar は明るい用と暗い用の 2 枚 (SwiftBar.menuBarImageLine) から、メインの
 /// モニタのメニューバーに合うほうを選び、その 1 枚をほかのモニタにも出す。モニタごとに
 /// 壁紙が違うと、明るいメニューバーに暗い用の画像が載る (白いアイコンが消えて見えた)。
@@ -51,6 +51,9 @@ struct SystemMenuBar {
         let yellow = NSColor(rgb: dark ? 0xFF9500 : 0xE08000)
         let red = NSColor(rgb: dark ? 0xFF3B30 : 0xE0352B)
         let track = NSColor(white: 0.55, alpha: 0.4)
+        // CPU とメモリの見出しのアイコンは、グラフや棒と同じ色だと見分けにくいので、
+        // 使用率の色 (緑・橙・赤) に使わない青で描く
+        let heading = NSColor(rgb: dark ? 0x4A9DFF : 0x1F7AE0)
         func level(_ value: Double, warning: Double, critical: Double) -> NSColor {
             value >= critical ? red : value >= warning ? yellow : green
         }
@@ -64,10 +67,10 @@ struct SystemMenuBar {
         // アイコンが無い OS では文字に戻す
         let cpuColor = level(cpuPercent, warning: 50, critical: 80)
         let memoryColor = level(memoryPercent, warning: 70, critical: 85)
-        let cpuIcon = NSImage.symbol("cpu", pointSize: iconPointSize, color: cpuColor)
-        let memoryIcon = NSImage.symbol("memorychip", pointSize: iconPointSize, color: memoryColor)
-        let cpuLabel = label("CPU", cpuColor)
-        let memoryLabel = label("MEM", memoryColor)
+        let cpuIcon = NSImage.symbol("cpu", pointSize: iconPointSize, color: heading)
+        let memoryIcon = NSImage.symbol("memorychip", pointSize: iconPointSize, color: heading)
+        let cpuLabel = label("CPU", heading)
+        let memoryLabel = label("MEM", heading)
         let cpuHeadWidth = cpuIcon?.size.width ?? cpuLabel.size().width
         let memoryHeadWidth = memoryIcon?.size.width ?? memoryLabel.size().width
         let tempValue = snapshot.cpu.temp.map { label(String(format: "%.0f°C", $0), level($0, warning: 70, critical: 85)) }
