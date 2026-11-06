@@ -46,7 +46,7 @@ In SwiftBar's settings, set the plugin folder to the `plugins` directory of the 
 
 Each plugin compiles its Swift program on first run and again whenever the source changes. The binaries are kept under `~/Library/Caches/`.
 
-`nowplaying` asks Music.app for the current track through AppleScript. The first time it runs, macOS asks whether SwiftBar may control Music.
+`nowplaying` asks Music.app for the current track through Apple Events (ScriptingBridge). The first time it runs, macOS asks whether SwiftBar may control Music. Music.app does not hand over the artwork of tracks played straight from the Apple Music catalog (not added to your library), so for those `nowplaying` looks it up with the iTunes Search API, sending the track name, artist and album to Apple.
 
 `weather` finds your location through Location Services. The first time, macOS asks whether an app named `swiftbar-cards` may use your location (see [Configuration](#configuration)).
 

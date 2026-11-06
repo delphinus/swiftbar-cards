@@ -75,6 +75,23 @@ final class NowPlayingPlugin {
         guard track.id != artworkTrackID else { return }
         artworkTrackID = track.id
         artwork = track.hasTrack ? MusicApp.artwork() : nil
+        if artwork == nil && track.hasTrack {
+            findStoreArtwork()
+        }
+    }
+
+    /// Music.app がアートワークを渡さない曲 (StoreArtwork.swift) のアートワークを、ストアで
+    /// 探す。通信を待つあいだはアートワーク無しで出しておき、見つかったら差し替える。
+    /// `Task` は、待ち合わせ (await) を含む処理を裏で動かす。`@MainActor` を付けると、
+    /// 中の処理はメインスレッドで動き、通信を待つあいだだけメインスレッドを空ける。
+    private func findStoreArtwork() {
+        let requested = track
+        Task { @MainActor [weak self] in
+            guard let image = await StoreArtwork.find(for: requested),
+                  let self, self.track.id == requested.id else { return }
+            self.artwork = image
+            self.publishMenu()
+        }
     }
 
     private func forgetTrack() {

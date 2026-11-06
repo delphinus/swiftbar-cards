@@ -16,8 +16,10 @@
 # それをコンパイルして起動するだけ。Music.app の通知で更新し、再生中だけ 5 秒ごとに
 # 再生位置を問い合わせる。一時停止中・停止中は何もしない。
 #
-# Music.app に AppleScript で問い合わせるだけなので、macOS 15.4 で塞がれた
-# MediaRemote には頼らない。初回は SwiftBar から Music を操作する許可を求められる。
+# Music.app に Apple Events (ScriptingBridge) で問い合わせるだけなので、macOS 15.4 で
+# 塞がれた MediaRemote には頼らない。初回は SwiftBar から Music を操作する許可を
+# 求められる。メニューの操作の項目は、このスクリプトを `control <操作>` の引数で
+# 起動する (引数はそのままプログラムに渡す)。
 #
 # 中身の区切りの「~~~」は、中身の後ろに出す (useTrailingStreamSeparator)。既定の
 # 「前に出す」方式では、SwiftBar はパイプから届いたかたまりごとに中身を書き足して
@@ -41,4 +43,4 @@ if [[ ! -x $bin ]]; then
 fi
 # 以前の形 (nowplaying.5s.sh) で使っていたファイルを消す
 rm -f "$cache/nowplaying-card" "$cache/out.txt" "$cache"/*.jpg "$cache"/*.small "$cache"/*.large
-exec "$bin"
+exec "$bin" "$@"

@@ -48,10 +48,10 @@ struct NowPlayingMenu {
     private func controlLines() -> [String] {
         [
             track.isPlaying
-                ? Self.control(L("一時停止", "Pause"), icon: "pause.circle", command: "playpause")
-                : Self.control(L("再生", "Play"), icon: "play.circle", command: "play"),
-            Self.control(L("次の曲", "Next Track"), icon: "forward.end.circle", command: "next track"),
-            Self.control(L("前の曲", "Previous Track"), icon: "backward.end.circle", command: "previous track",
+                ? Self.control(L("一時停止", "Pause"), icon: "pause.circle", command: .playpause)
+                : Self.control(L("再生", "Play"), icon: "play.circle", command: .play),
+            Self.control(L("次の曲", "Next Track"), icon: "forward.end.circle", command: .next),
+            Self.control(L("前の曲", "Previous Track"), icon: "backward.end.circle", command: .previous,
                          extra: " alternate=true"),
             Self.openMusic,
         ]
@@ -69,11 +69,16 @@ struct NowPlayingMenu {
     ///     {"renderingMode":"Hierarchical","colors":[],"scale":"medium"}
     private static let musicNoteIcon = " | sfimage=music.note sfconfig=eyJyZW5kZXJpbmdNb2RlIjoiSGllcmFyY2hpY2FsIiwiY29sb3JzIjpbXSwic2NhbGUiOiJtZWRpdW0ifQ=="
 
+    /// .app の場所を href に渡すと、SwiftBar がそれを開く (Music.app を起動する)
     private static let openMusic = L("Music を開く", "Open Music")
-        + " | sfimage=arrow.up.forward.circle bash=/usr/bin/open param1=-a param2=Music terminal=false"
+        + " | sfimage=arrow.up.forward.circle href=file:///System/Applications/Music.app"
 
-    /// Music.app を AppleScript で操作する項目
-    private static func control(_ title: String, icon: String, command: String, extra: String = "") -> String {
-        "\(title) | sfimage=\(icon) bash=/usr/bin/osascript param1=-e param2='tell application \"Music\" to \(command)' terminal=false\(extra)"
+    /// Music.app を操作する項目。クリックすると、SwiftBar がこのプラグインを
+    /// `control <操作>` の引数で起動し直し、その実行が操作だけをして終わる (main.swift)。
+    /// 常駐しているほうは、Music.app の通知を受けてメニューを差し替える。
+    /// プラグインの場所は、SwiftBar が環境変数 SWIFTBAR_PLUGIN_PATH で渡す。
+    private static func control(_ title: String, icon: String, command: MusicApp.Command, extra: String = "") -> String {
+        let plugin = ProcessInfo.processInfo.environment["SWIFTBAR_PLUGIN_PATH"] ?? "nowplaying.sh"
+        return "\(title) | sfimage=\(icon) bash=\(plugin) param1=control param2=\(command.rawValue) terminal=false\(extra)"
     }
 }

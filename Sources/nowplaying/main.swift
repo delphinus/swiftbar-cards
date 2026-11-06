@@ -5,7 +5,7 @@
 // (nowplaying.sh の useTrailingStreamSeparator)。
 //
 // Music.app の通知で更新し、再生中だけ 5 秒ごとに再生位置を問い合わせる。問い合わせは
-// NSAppleScript でこのプログラムの中から行い、osascript などのプロセスは起動しない。
+// ScriptingBridge でこのプログラムの中から行い、osascript などのプロセスは起動しない。
 // SwiftBar から起動されるので、Music を操作する許可は SwiftBar のものが使われる。
 //
 // 以前は 5 秒ごとにシェルのスクリプトを起動し、osascript・jq・描画のプログラムを
@@ -14,7 +14,9 @@
 // ファイルの分け方:
 // - main.swift             ここ。起動したときに上から順に実行される
 // - NowPlayingPlugin.swift 常駐して、通知やタイマーを受けてメニューを差し替える
-// - MusicApp.swift         Music.app への問い合わせ (AppleScript)
+// - MusicApp.swift         Music.app への問い合わせと操作
+// - MusicScripting.swift   Music.app の用語の宣言 (ScriptingBridge)
+// - StoreArtwork.swift     Music.app がアートワークを渡さない曲のアートワークを、ストアで探す
 // - Track.swift            曲の情報
 // - NowPlayingMenu.swift   メニューの行
 // - NowPlayingImages.swift メニューバーとカードの画像
@@ -31,6 +33,14 @@ import Shared
 let arguments = CommandLine.arguments
 if arguments.count == 4, arguments[1] == "--render" {
     SampleRender.run(jsonPath: arguments[2], outputDirectory: arguments[3])
+}
+// メニューの操作の項目から `control <操作>` で呼ばれる。操作だけをして終わる
+if arguments.count == 3, arguments[1] == "control" {
+    guard let command = MusicApp.Command(rawValue: arguments[2]) else {
+        exitWithError("nowplaying: 知らない操作: \(arguments[2])")
+    }
+    MusicApp.perform(command)
+    exit(0)
 }
 
 SwiftBar.beginStreaming()
