@@ -14,12 +14,13 @@ import Shared
 /// 時間が分からないとき (計算中・充電済み) は電池だけを出す。Bluetooth 機器の残量は
 /// メニューのカードにだけ出し、20% を切ったときだけ警告のアイコンを足す。
 ///
-/// 白や黒で描く部分を持たない。見出しのアイコンは青で、電池の枠・数字は使用率や残量の色で描く。
+/// 見出しのアイコンは白か黒で、電池の枠・数字は使用率や残量の色で描く。
 /// SwiftBar は明るい用と暗い用の 2 枚 (SwiftBar.menuBarImageLine) から、メインの
 /// モニタのメニューバーに合うほうを選び、その 1 枚をほかのモニタにも出す。モニタごとに
 /// 壁紙が違うと、明るいメニューバーに暗い用の画像が載る (白いアイコンが消えて見えた)。
-/// どちらの 1 枚もどちらの地で読めるよう、色は中くらいの明るさの鮮やかな色にし、
-/// 2 枚の違いは明るさを少し寄せるだけにする。地の灰色も、白や黒でなく中間の灰色にする。
+/// 見出しのアイコン以外は、どちらの 1 枚もどちらの地で読めるよう、色は中くらいの
+/// 明るさの鮮やかな色にし、2 枚の違いは明るさを少し寄せるだけにする。地の灰色も、
+/// 白や黒でなく中間の灰色にする。
 /// 数字は等幅の数字で描くので、値が変わっても項目の幅が変わらない。
 struct SystemMenuBar {
     let snapshot: Snapshot
@@ -51,9 +52,11 @@ struct SystemMenuBar {
         let yellow = NSColor(rgb: dark ? 0xFF9500 : 0xE08000)
         let red = NSColor(rgb: dark ? 0xFF3B30 : 0xE0352B)
         let track = NSColor(white: 0.55, alpha: 0.4)
-        // CPU とメモリの見出しのアイコンは、グラフや棒と同じ色だと見分けにくいので、
-        // 使用率の色 (緑・橙・赤) に使わない青で描く
-        let heading = NSColor(rgb: dark ? 0x4A9DFF : 0x1F7AE0)
+        // CPU とメモリの見出しのアイコンは、グラフや棒と見分けられるよう白か黒で描く。
+        // ほかのモニタのメニューバーの明るさが違うと、そこではアイコンだけ見えなくなる
+        // (グラフや棒は色付きなので残る)。それでも、青や灰色より白黒のほうがメニュー
+        // バーのほかの項目となじむので、こちらを選んだ。
+        let heading = dark ? NSColor(white: 1, alpha: 0.92) : NSColor(white: 0, alpha: 0.85)
         func level(_ value: Double, warning: Double, critical: Double) -> NSColor {
             value >= critical ? red : value >= warning ? yellow : green
         }
