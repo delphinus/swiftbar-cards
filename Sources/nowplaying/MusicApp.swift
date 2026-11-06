@@ -64,7 +64,7 @@ enum MusicApp {
         guard let music else { return }
         switch command {
         case .playpause: music.playpause?()
-        case .play: music.play?()
+        case .play: music.playOnce?(false)
         case .next: music.nextTrack?()
         case .previous: music.previousTrack?()
         }

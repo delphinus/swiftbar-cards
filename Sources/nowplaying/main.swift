@@ -16,6 +16,7 @@
 // - NowPlayingPlugin.swift 常駐して、通知やタイマーを受けてメニューを差し替える
 // - MusicApp.swift         Music.app への問い合わせと操作
 // - MusicScripting.swift   Music.app の用語の宣言 (ScriptingBridge)
+// - StoreArtwork.swift     Music.app がアートワークを渡さない曲のアートワークを、ストアで探す
 // - Track.swift            曲の情報
 // - NowPlayingMenu.swift   メニューの行
 // - NowPlayingImages.swift メニューバーとカードの画像

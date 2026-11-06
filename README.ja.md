@@ -46,7 +46,7 @@ SwiftBar の設定で、プラグインのフォルダをクローンした中�
 
 各プラグインは、初回とソースを変えたときに Swift のプログラムをコンパイルします。できたバイナリは `~/Library/Caches/` の下に置かれます。
 
-`nowplaying` は再生中の曲を Apple Events (ScriptingBridge) で Music.app に問い合わせます。初回は、SwiftBar から Music を操作してよいかを macOS が尋ねます。
+`nowplaying` は再生中の曲を Apple Events (ScriptingBridge) で Music.app に問い合わせます。初回は、SwiftBar から Music を操作してよいかを macOS が尋ねます。ライブラリに入れずに Apple Music のカタログから直接再生している曲は、Music.app がアートワークを渡さないので、iTunes Search API で探します。このとき曲名・アーティスト・アルバム名を Apple に送ります。
 
 `weather` は現在地を調べるのに位置情報サービスを使います。初回は、`swiftbar-cards` というアプリに位置情報の利用を許可するかを macOS が尋ねます (詳しくは「[設定](#設定)」)。
 

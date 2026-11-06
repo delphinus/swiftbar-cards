@@ -26,7 +26,9 @@ import ScriptingBridge
     @objc optional var currentTrack: MusicTrack { get }
 
     @objc optional func playpause()
-    @objc optional func play()
+    /// play には省いてよい引数 once があるので、ScriptingBridge での名前は playOnce: になる
+    /// (引数の無い play という名前は無い)
+    @objc optional func playOnce(_ once: Bool)
     @objc optional func nextTrack()
     @objc optional func previousTrack()
 }
