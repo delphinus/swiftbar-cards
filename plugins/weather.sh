@@ -1,7 +1,7 @@
 #!/bin/bash
 # <xbar.title>Weather (JMA)</xbar.title>
 # <xbar.desc>気象庁の天気予報とアメダスの観測値をメニューバーに出す</xbar.desc>
-# <xbar.version>v1.0.1</xbar.version>
+# <xbar.version>v1.1.0</xbar.version>
 # <xbar.author>delphinus</xbar.author>
 # <xbar.author.github>delphinus</xbar.author.github>
 # <xbar.abouturl>https://github.com/delphinus/swiftbar-cards</xbar.abouturl>
