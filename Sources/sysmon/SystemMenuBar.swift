@@ -147,7 +147,9 @@ struct SystemMenuBar {
         context.drawFilledLine(through: points, bottom: box.maxY, color: color, fillAlpha: 0.35, lineWidth: 1.25)
     }
 
-    /// 電池の形。枠の中を残量の割合だけ塗り、電源につながっていれば稲妻を重ねる。
+    /// 電池の形。枠の中を残量の割合だけ塗る。macOS の標準の表示に合わせて、充電中は
+    /// 稲妻を、電源につながっているが充電していないとき (充電済み、バッテリー充電の
+    /// 最適化や充電上限で止めているとき) はプラグを重ねる。
     private func drawBattery(_ context: CGContext, _ battery: Battery, at x: CGFloat, outline: NSColor, fill: NSColor) {
         let body = CGRect(x: x, y: (height - batterySize.height) / 2,
                           width: batterySize.width, height: batterySize.height)
@@ -165,9 +167,10 @@ struct SystemMenuBar {
                                            width: max(1.5, inner.width * level), height: inner.height),
                                     radius: 1.5, color: fill)
         }
-        if battery.external == true,
-           let bolt = NSImage.symbol("bolt.fill", pointSize: 9, color: outline) {
-            bolt.drawUpright(centeredAt: CGPoint(x: body.midX, y: body.midY))
+        guard battery.external == true else { return }
+        let mark = battery.charging == true ? "bolt.fill" : "powerplug.fill"
+        if let icon = NSImage.symbol(mark, pointSize: 9, color: outline) {
+            icon.drawUpright(centeredAt: CGPoint(x: body.midX, y: body.midY))
         }
     }
 }
