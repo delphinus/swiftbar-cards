@@ -52,6 +52,12 @@ else
 	echo "skip - shellcheck が無い"
 fi
 
+echo "# プラグインの版"
+# 版はリポジトリで 1 つ。どのプラグインも同じ <xbar.version> を持つ
+versions=$(sed -nE 's#^\# <xbar\.version>(.*)</xbar\.version>#\1#p' "$repo"/plugins/*.sh | sort -u)
+count=$(grep -c . <<<"$versions" || true)
+if [[ $count == 1 && $versions =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then ok "version $versions"; else ng "プラグインの版がそろっていない: $(tr "\n" " " <<<"$versions")"; fi
+
 echo "# ビルド"
 for main in "$repo"/Sources/*/main.swift; do
 	dir=$(dirname "$main")

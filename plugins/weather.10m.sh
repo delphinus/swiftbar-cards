@@ -2,6 +2,10 @@
 # <xbar.title>Weather (JMA)</xbar.title>
 # <xbar.desc>気象庁の天気予報とアメダスの観測値をメニューバーに出す</xbar.desc>
 # <xbar.dependencies>jq, curl</xbar.dependencies>
+# <xbar.version>v1.0.0</xbar.version>
+# <xbar.author>delphinus</xbar.author>
+# <xbar.author.github>delphinus</xbar.author.github>
+# <xbar.abouturl>https://github.com/delphinus/swiftbar-cards</xbar.abouturl>
 # <swiftbar.hideAbout>true</swiftbar.hideAbout>
 # <swiftbar.hideRunInTerminal>true</swiftbar.hideRunInTerminal>
 # <swiftbar.hideDisablePlugin>true</swiftbar.hideDisablePlugin>
