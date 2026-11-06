@@ -1,0 +1,102 @@
+import Foundation
+#if canImport(Shared)
+import Shared
+#endif
+
+/// メニューバー・メニュー・カードで使う色の組 ("#RRGGBB")。
+///
+/// 明るい外観では、メニューバーとカードで別の色を使う。カードを出すポップアップは背後の
+/// 壁紙を透かして灰色に見えるので、白地を前提にしたメニューバーの色では読めなかった。
+struct ColorSet {
+    let lightMenuBar: String
+    let dark: String
+    let lightCard: String
+
+    /// メニューバーの行の sfcolor に渡す「明るい用,暗い用」
+    var menuBar: String { "\(lightMenuBar),\(dark)" }
+    /// メニューの項目 (背後の壁紙を透かす地) の sfcolor に渡す「明るい用,暗い用」。
+    /// 明るい外観ではカードと同じ濃い色にする
+    var menuItem: String { "\(lightCard),\(dark)" }
+    /// カードに描く色。外観に合うほう
+    func card(dark: Bool) -> String { dark ? self.dark : lightCard }
+}
+
+/// 天気・降水確率・気温・風向から、アイコンと色を決める
+enum WeatherStyle {
+    /// 天気コードのアイコン。百の位で大まかに分ける (1 晴れ・2 くもり・3 雨・4 雪)。
+    /// 十の位以下は「時々」「のち」などの組み合わせ。
+    static func icon(forCode code: String) -> String {
+        let c = Int(code) ?? 0
+        switch c {
+        case 400...: return "cloud.snow"
+        case 300...: return "cloud.rain"
+        // 201〜209 (くもり時々晴れなど) は晴れ間のあるくもり
+        case 200...: return (2..<10).contains(c % 100) ? "cloud.sun" : "cloud"
+        case 100: return "sun.max"
+        case 101...: return "cloud.sun"
+        default: return "questionmark"
+        }
+    }
+
+    /// 地域時系列予報の天気のアイコン。こちらは天気が文字で配られる
+    static func icon(forText text: String) -> String {
+        if text.contains("雪") { return "cloud.snow" }
+        if text.contains("雨") { return "cloud.rain" }
+        if text.contains("くもり") { return text.contains("晴") ? "cloud.sun" : "cloud" }
+        if text.contains("晴") { return "sun.max" }
+        return "questionmark"
+    }
+
+    /// アイコンの色
+    static func colors(forIcon icon: String) -> ColorSet {
+        switch icon {
+        case "sun.max": ColorSet(lightMenuBar: "#F08A00", dark: "#FFB340", lightCard: "#A85400")
+        case "cloud.sun": ColorSet(lightMenuBar: "#E09A00", dark: "#FFC75A", lightCard: "#8A5C00")
+        case "cloud.rain": ColorSet(lightMenuBar: "#0A6FD8", dark: "#64B5FF", lightCard: "#0050C0")
+        case "cloud.snow": ColorSet(lightMenuBar: "#3A9BC1", dark: "#9EDCF5", lightCard: "#14668A")
+        default: ColorSet(lightMenuBar: "#6E6E73", dark: "#AEAEB2", lightCard: "#47474D")
+        }
+    }
+
+    /// 降水確率の色。青の鮮やかさだけで段階を付け、高いほど目立たせる。
+    /// 0〜20% は灰、30〜50% はくすんだ青、60% 以上は鮮やかな青。
+    static func colors(forPrecipitationChance percent: String) -> ColorSet {
+        switch Int(percent) ?? 0 {
+        case 60...: ColorSet(lightMenuBar: "#0A6FD8", dark: "#64B5FF", lightCard: "#0047B3")
+        case 30...: ColorSet(lightMenuBar: "#5B7FA6", dark: "#7895B8", lightCard: "#2F5480")
+        default: ColorSet(lightMenuBar: "#8E8E93", dark: "#7C7C80", lightCard: "#5A5A60")
+        }
+    }
+
+    /// 気温の色 (カード用)。暑いほど赤、寒いほど青。どれにも当たらなければ nil (標準の文字色)。
+    static func color(forTemperature temperature: Double?, dark: Bool) -> String? {
+        guard let t = temperature else { return nil }
+        let pair: (dark: String, light: String)
+        switch t {
+        case 30...: pair = ("#FF6961", "#A3000F")
+        case 25...: pair = ("#FFD60A", "#7A5000")
+        case ...5: pair = ("#64B5FF", "#0047B3")
+        case ...12: pair = ("#5AD8E6", "#005E73")
+        default: return nil
+        }
+        return dark ? pair.dark : pair.light
+    }
+
+    /// 気温の色。気温を文字で受け取る (週間予報の値は文字で配られ、空のことがある)
+    static func color(forTemperature text: String, dark: Bool) -> String? {
+        color(forTemperature: Double(text), dark: dark)
+    }
+
+    /// 風向の名前。アメダスの風向は 0 が静穏、1〜16 が北北東から時計回りに北まで
+    static func windDirection(_ index: Int) -> String? {
+        let names = isJapanese
+            ? ["静穏", "北北東", "北東", "東北東", "東", "東南東", "南東", "南南東",
+               "南", "南南西", "南西", "西南西", "西", "西北西", "北西", "北北西", "北"]
+            : ["Calm", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+               "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW", "N"]
+        return names.indices.contains(index) ? names[index] : nil
+    }
+
+    /// メニューバーの「古いデータを出している」印の色
+    static let staleColors = "#D70015,#FF6961"
+}

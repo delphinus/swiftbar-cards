@@ -32,14 +32,14 @@ for l in ja en; do
 	"$work/bin/nowplaying" --render "$work/nowplaying-$l.json" "$work/$l/nowplaying"
 	"$work/bin/sysmon" --render "$repo/samples/sysmon.json" "$work/$l/sysmon"
 
-	# weather: プラグインをそのまま動かし、メニューバーの行とカードを取り出す。
+	# weather: プラグインを 1 回だけ動かし (--once)、メニューバーの行とカードを取り出す。
 	# 地点を 2 つ設定して、切り替えの項目も見せる。
 	mkdir -p "$work/home/.config/swiftbar-cards" "$work/$l/weather"
 	printf 'place=東京\nplace=大阪\n' >"$work/home/.config/swiftbar-cards/weather.conf"
 	for appearance in light dark; do
 		o=$work/$l/weather/out-$appearance.txt
-		HOME=$work/home XDG_CONFIG_HOME=$work/home/.config OS_APPEARANCE=$([[ $appearance == dark ]] && echo Dark || echo Light) \
-			"$repo/plugins/weather.10m.sh" >"$o"
+		HOME=$work/home XDG_CONFIG_HOME=$work/home/.config SWIFTBAR_CARDS_APPEARANCE=$appearance \
+			"$repo/plugins/weather.sh" --once >"$o"
 		sed -n 3p "$o" | sed -nE 's/.*image=([^ ]+).*/\1/p' | base64 -d >"$work/$l/weather/card-$appearance.png"
 	done
 	# 地点の項目 (選んでいる地点は塗りつぶしたピン)。compose の項目の形にする。

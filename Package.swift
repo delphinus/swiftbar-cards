@@ -10,7 +10,7 @@ let package = Package(
         .target(name: "Shared"),
         .executableTarget(name: "nowplaying", dependencies: ["Shared"]),
         .executableTarget(name: "sysmon", dependencies: ["Shared"]),
-        .executableTarget(name: "weather-card", dependencies: ["Shared"]),
+        .executableTarget(name: "weather", dependencies: ["Shared"]),
         // .app の形でビルドする (scripts/lib.sh の build_app)。Shared は使わない
         .executableTarget(name: "locate", exclude: ["Info.plist", "en.lproj", "ja.lproj"]),
     ]

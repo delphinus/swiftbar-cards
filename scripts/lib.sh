@@ -48,17 +48,3 @@ build_app() {
 		return 1
 	fi
 }
-
-# 表示の言語 (ja / en)。SWIFTBAR_CARDS_LANG で決め打ちできる。無ければ OS の優先
-# 言語の先頭が日本語なら ja、それ以外は en。Sources/Shared/Localization.swift と同じ規則。
-cards_lang() {
-	case ${SWIFTBAR_CARDS_LANG:-} in
-	ja | en)
-		echo "$SWIFTBAR_CARDS_LANG"
-		return
-		;;
-	esac
-	local first
-	first=$(defaults read -g AppleLanguages 2>/dev/null | sed -n '2p' | tr -d ' ",')
-	[[ $first == ja* ]] && echo ja || echo en
-}
