@@ -60,7 +60,14 @@ struct NowPlayingMenu {
     // メニューのアイコンは幅 15pt のもの (円で囲んだ系統など) でそろえる。SF Symbols は
     // アイコンごとに幅が違い、その差だけ文字の書き出し位置がずれる。
 
-    private static let musicNoteIcon = " | sfimage=music.note"
+    /// メニューバーの音符。SwiftBar の sfimage は大きさ (scale) を large で描くので、
+    /// そのままではほかのアイコンより一回り大きい (14×20pt)。sfconfig で medium にして、
+    /// sysmon の見出しのアイコン (13pt) と同じ 11×15pt にする。sfconfig は次の JSON を
+    /// Base64 にしたもの。色を指定しないので、テンプレート画像のまま (メニューバーの
+    /// 地に合わせた色で描かれる) になる。
+    ///
+    ///     {"renderingMode":"Hierarchical","colors":[],"scale":"medium"}
+    private static let musicNoteIcon = " | sfimage=music.note sfconfig=eyJyZW5kZXJpbmdNb2RlIjoiSGllcmFyY2hpY2FsIiwiY29sb3JzIjpbXSwic2NhbGUiOiJtZWRpdW0ifQ=="
 
     private static let openMusic = L("Music を開く", "Open Music")
         + " | sfimage=arrow.up.forward.circle bash=/usr/bin/open param1=-a param2=Music terminal=false"
