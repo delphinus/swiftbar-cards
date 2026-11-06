@@ -43,8 +43,11 @@ import ScriptingBridge
 
 /// 曲のアートワーク (artwork)
 @objc protocol MusicArtwork {
-    /// 画像。ScriptingBridge が NSImage にして返す
-    @objc optional var data: NSImage { get }
+    /// 画像。ScriptingBridge は NSImage にして返すことも、画像の形式によっては
+    /// (PNG のアートワークで起きた) Apple Event の値 (NSAppleEventDescriptor) のまま
+    /// 返すこともある。型を決めつけると、違う型が来たときに描く段階で落ちるので、
+    /// Any で受けて MusicApp.artwork() で見分ける。
+    @objc optional var data: Any { get }
 }
 
 extension SBApplication: MusicApplication {}

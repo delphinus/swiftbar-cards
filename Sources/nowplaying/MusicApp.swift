@@ -52,7 +52,15 @@ enum MusicApp {
     /// 再生中の曲のアートワーク
     static func artwork() -> NSImage? {
         let artwork = music?.currentTrack?.artworks?().firstObject as? MusicArtwork
-        return artwork?.data
+        switch artwork?.data {
+        case let image as NSImage:
+            return image
+        case let descriptor as NSAppleEventDescriptor:
+            // 中身は画像のファイルのバイト列 (PNG・JPEG)
+            return NSImage(data: descriptor.data)
+        default:
+            return nil
+        }
     }
 
     /// メニューの操作の項目から呼ばれる、Music.app の操作
