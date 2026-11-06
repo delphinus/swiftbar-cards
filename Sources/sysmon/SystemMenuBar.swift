@@ -25,6 +25,10 @@ struct SystemMenuBar {
     private let barSize = CGSize(width: 26, height: 6)
     /// 見出しとグラフ・値の間
     private let spacing: CGFloat = 4
+    /// 文字を真ん中から持ち上げる量。画像の真ん中に置くと、メニューバーのほかの文字
+    /// (天気や時計) より 1pt 下に見えた (メニューバーを撮った画像で数字の上下端を測った)。
+    /// アイコンは真ん中のままで、ほかのアプリのアイコンと高さがそろっている。
+    private let textRaise: CGFloat = 1
     /// 見出しのアイコンの大きさ
     private let iconPointSize: CGFloat = 13
     /// 電池の本体 (出っ張りを除く)
@@ -82,7 +86,7 @@ struct SystemMenuBar {
             var x: CGFloat = 0
             func put(_ text: NSAttributedString) {
                 let size = text.size()
-                text.draw(at: CGPoint(x: x, y: (height - size.height) / 2))
+                text.draw(at: CGPoint(x: x, y: (height - size.height) / 2 - textRaise))
                 x += size.width
             }
             func put(_ icon: NSImage?, or text: NSAttributedString) {
