@@ -40,7 +40,7 @@ enum SampleRender {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             for dark in [false, true] {
                 let appearance = dark ? "dark" : "light"
-                try images.menuBar(dark: dark).write(to: directory, name: "menubar-\(appearance)")
+                try images.menuBarPreview(dark: dark).write(to: directory, name: "menubar-\(appearance)")
                 try images.card(dark: dark).write(to: directory, name: "card-\(appearance)")
             }
         } catch {

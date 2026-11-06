@@ -15,6 +15,21 @@ public enum SwiftBar {
         " | image=\(light.base64),\(dark.base64) \(sizeParameters(light.size))"
     }
 
+    /// 画像と文字を並べたメニューバーの行。文字は SwiftBar がメニューバーの文字として
+    /// 描くので、色がモニタごとのメニューバーの地に合う (画像に描いた白や黒の文字は、
+    /// メインのモニタに合わせた 1 枚がほかのモニタにも出るので、地によって消える)。
+    /// 画像は明るい用と暗い用を分けない。
+    ///
+    /// 文字の中の「|」は引数との区切りに、「\」はエスケープに使われるので置き換える。
+    /// 「:名前:」を SF Symbols や絵文字に置き換える機能 (symbolize・emojize) も切る。
+    public static func menuBarLine(title: String, image: PNGImage) -> String {
+        let escaped = title
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "|", with: "｜")
+            .replacingOccurrences(of: "\n", with: " ")
+        return "\(escaped) | image=\(image.base64) \(sizeParameters(image.size)) symbolize=false emojize=false"
+    }
+
     private static func sizeParameters(_ size: CGSize) -> String {
         "width=\(Int(ceil(size.width))) height=\(Int(ceil(size.height)))"
     }

@@ -33,7 +33,7 @@ struct NowPlayingMenu {
         let images = NowPlayingImages(track: track, artwork: artwork)
         let menuBar: String
         if track.isPlaying {
-            menuBar = SwiftBar.menuBarImageLine(light: images.menuBar(dark: false), dark: images.menuBar(dark: true))
+            menuBar = SwiftBar.menuBarLine(title: images.menuBarTitle(), image: images.menuBarArtwork())
         } else {
             // 一時停止中のメニューバーは、音符のアイコンだけにする
             menuBar = Self.musicNoteIcon

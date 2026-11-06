@@ -10,20 +10,48 @@ struct NowPlayingImages {
 
     // MARK: - メニューバー
 
-    /// メニューバー: アートワーク (18pt) と曲名。曲名は 220pt で切る。
-    func menuBar(dark: Bool) -> PNGImage {
+    /// メニューバーの曲名を切る幅
+    static let menuBarTitleWidth: CGFloat = 220
+
+    /// メニューバーのアートワーク (18pt)。曲名は画像に描かず、SwiftBar の文字として
+    /// 並べる (SwiftBar.menuBarLine)。アートワークが無いときの音符は、明るい地にも
+    /// 暗い地にも見える中間の灰色で描く。
+    func menuBarArtwork() -> PNGImage {
+        let artSize: CGFloat = 18
+        return PNGImage.draw(width: artSize, height: artSize) { context in
+            drawArtwork(context, in: CGRect(x: 0, y: 0, width: artSize, height: artSize),
+                        radius: 3, placeholderColor: NSColor(white: 0.55, alpha: 1), shadow: false)
+        }
+    }
+
+    /// メニューバーの曲名。220pt を超える分は末尾を「…」にして切る。
+    func menuBarTitle() -> String {
+        let font = NSFont.menuBarFont(ofSize: 0)
+        let name = track.name
+        guard textWidth(name, font: font) > Self.menuBarTitleWidth else { return name }
+        var characters = Array(name)
+        while !characters.isEmpty, textWidth(String(characters) + "…", font: font) > Self.menuBarTitleWidth {
+            characters.removeLast()
+        }
+        return String(characters).trimmingCharacters(in: .whitespaces) + "…"
+    }
+
+    /// README とテスト用に、メニューバーの見た目 (アートワークと曲名) を 1 枚に描く。
+    /// 実際のメニューバーでは、曲名は SwiftBar が文字として描く。
+    func menuBarPreview(dark: Bool) -> PNGImage {
         let height: CGFloat = 22
         let artSize: CGFloat = 18
-        let font = NSFont.systemFont(ofSize: 13)
-        let titleWidth = min(ceil(textWidth(track.name, font: font)), 220)
+        let font = NSFont.menuBarFont(ofSize: 0)
+        let title = menuBarTitle()
+        let titleWidth = ceil(textWidth(title, font: font))
         let width = artSize + 5 + titleWidth + 1
         let color = dark ? NSColor(white: 1, alpha: 0.92) : NSColor(white: 0, alpha: 0.85)
 
         return PNGImage.draw(width: width, height: height) { context in
             drawArtwork(context, in: CGRect(x: 0, y: (height - artSize) / 2, width: artSize, height: artSize),
-                        radius: 3, placeholderColor: color, shadow: false)
+                        radius: 3, placeholderColor: NSColor(white: 0.55, alpha: 1), shadow: false)
             let lineHeight = ceil(font.ascender - font.descender + font.leading)
-            drawText(track.name, in: CGRect(x: artSize + 5, y: (height - lineHeight) / 2, width: titleWidth, height: lineHeight),
+            drawText(title, in: CGRect(x: artSize + 5, y: (height - lineHeight) / 2 - 1, width: titleWidth + 1, height: lineHeight),
                      font: font, color: color)
         }
     }
