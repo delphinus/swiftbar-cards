@@ -1,6 +1,6 @@
 #!/bin/bash
 # <xbar.title>System Monitor</xbar.title>
-# <xbar.desc>CPU・メモリ・温度をメニューバーに出し、上位のプロセスと Bluetooth 機器のバッテリーをメニューに出す</xbar.desc>
+# <xbar.desc>CPU・メモリ・温度・本体のバッテリーをメニューバーに出し、上位のプロセスと Bluetooth 機器のバッテリーをメニューに出す</xbar.desc>
 # <swiftbar.type>streamable</swiftbar.type>
 # <swiftbar.useTrailingStreamSeparator>true</swiftbar.useTrailingStreamSeparator>
 # <swiftbar.hideAbout>true</swiftbar.hideAbout>
