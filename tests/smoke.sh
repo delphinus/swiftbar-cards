@@ -143,8 +143,11 @@ else
 	grep -v image= "$work/weather-multi.txt"
 	ng "weather 現在地と設定した地点を切り替えのメニューに出す"
 fi
-# 地点の項目には、キャッシュにあるその地点のメニューバーの行 (気温と色の指定) を添える
-if grep -q '^現在地 (東京)   :[a-z.]*: [0-9-]*°.* | sfimage=location.circle.fill sfcolor=' "$work/weather-multi.txt"; then
+# 地点の項目には、キャッシュにあるその地点のメニューバーの行 (気温と色の指定) を添える。
+# 色はメニューの地に合わせたもので、明るい外観ではメニューバーの色と違う。
+bar_color=$(head -1 "$work/weather-multi.txt" | grep -o 'sfcolor=[^ ]*')
+if grep -q '^現在地 (東京)   :[a-z.]*: [0-9-]*°.* | sfimage=location.circle.fill sfcolor=' "$work/weather-multi.txt" &&
+	! grep '^現在地 (東京)' "$work/weather-multi.txt" | grep -qF " $bar_color "; then
 	ok "weather 地点の項目に天気を添える"
 else
 	grep -v ' image=' "$work/weather-multi.txt"

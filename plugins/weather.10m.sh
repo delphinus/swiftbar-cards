@@ -249,13 +249,15 @@ location_menu() {
 		is_here "${places[$i]}" && icon=location.circle
 		[[ $i == "$sel" ]] && icon=$icon.fill
 		# 地点名の後ろに、その地点のメニューバーの行 (天気・気温・降水確率) を添える。
-		# 取り直さず、キャッシュのカード (1 行目がメニューバーの行) にあるものを使う。
+		# 取り直さず、キャッシュのカードの 4 行目 (メニューの地に合わせた色で書いた
+		# もの) を使う。4 行目が無い古いキャッシュでは 1 行目 (メニューバーの行)。
 		# 色の指定 (sfcolor・sfcolor2) で色が付くのは文中のアイコンだけで、sfimage の
 		# ピンは標準の色のまま (SwiftBar の main のソースで確かめた。2026-11-06)。
 		summary='' params=''
 		code=$(jq -r --argjson i "$i" '.[$i] | select(.status == "ok") | .found[0].amedas' <<<"$resolved")
 		if [[ -n $code && -s $cache/body-$code-$lang-$dark.txt ]]; then
-			summary=$(sed -n 1p "$cache/body-$code-$lang-$dark.txt")
+			summary=$(sed -n 4p "$cache/body-$code-$lang-$dark.txt")
+			[[ -n $summary ]] || summary=$(sed -n 1p "$cache/body-$code-$lang-$dark.txt")
 			[[ $summary == *' | '* ]] && params=" ${summary#* | }" summary=${summary%% | *}
 			summary="   $summary"
 		fi
@@ -304,7 +306,8 @@ dark=false
 [[ ${OS_APPEARANCE:-$(defaults read -g AppleInterfaceStyle 2>/dev/null)} == Dark ]] && dark=true
 
 # 地点ごとのキャッシュ。1 行目がメニューバーの行、2 行目がカードの行、3 行目が
-# カードの本来の高さ (下を空ける前)。
+# カードの本来の高さ (下を空ける前)、4 行目が地点の切り替えの項目に添える行
+# (1 行目と同じ中身を、メニューの地に合わせた色で書いたもの)。
 body=$cache/body-$amedas-$lang-$dark.txt
 # メニューを出す。カードの行には動作を付けない (無効な項目にする)。動作を付けると、
 # マウスを載せたときにカード全体が選択の色で塗られる。無効な項目でも、文字と違って
@@ -524,15 +527,19 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" --argjson minh "$min_height
 	# アイコンは :name: の形で文中に書く (SwiftBar の symbolize)。sfimage と違って
 	# 1 行に複数置けて、どれも同じ大きさで描かれる。sfcolor と sfcolor2 が
 	# 1 個目と 2 個目のアイコンの色になる。
+	# 同じ行を、地点の切り替えの項目にも添える (キャッシュの 4 行目)。項目はメニュー
+	# (背後の壁紙を透かす) の上に描かれるので、色はメニューバー用ではなく、明るい
+	# 外観ではカードと同じ濃い色を使う (メニューバー用の色では読みにくかった)。
 	| ([$p.timeDefines | to_entries[] | select(.value <= (now + 32400 | strftime("%Y-%m-%dT%H:%M:%S+09:00")) or .key == 0) | .key] | last) as $pi
 	| ($wa.weatherCodes[0]) as $code
 	| ($pa.pops[$pi] // "") as $pop
-	| (":\($code | code_icon): \(if $nowtemp != null then "\($nowtemp | round)°" else "" end)"
+	| def summary(colors): ":\($code | code_icon): \(if $nowtemp != null then "\($nowtemp | round)°" else "" end)"
 	   + (if $pop != "" then " :umbrella.fill: \($pop)%" else "" end)
 	   + (if $stale != "" then " :exclamationmark.triangle:" else "" end)
-	   + " | sfcolor=\($code | code_icon | icon_colors | bar)"
-	   + (if $pop != "" then " sfcolor2=\($pop | pop_colors | bar)" else "" end)
-	   + (if $stale != "" then " sfcolor\(if $pop != "" then 3 else 2 end)=#D70015,#FF6961" else "" end)),
+	   + " | sfcolor=\($code | code_icon | icon_colors | colors)"
+	   + (if $pop != "" then " sfcolor2=\($pop | pop_colors | colors)" else "" end)
+	   + (if $stale != "" then " sfcolor\(if $pop != "" then 3 else 2 end)=#D70015,#FF6961" else "" end);
+	  summary(bar), summary([.[2], .[1]] | join(",")),
 
 	# カード
 	({ dark: $dark, now: $now, minHeight: $minh,
@@ -599,13 +606,15 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" --argjson minh "$min_height
 
 {
 	head -1 "$cache/menu-$$.txt"
-	if [[ -x $bin ]] && card=$(tail -n +2 "$cache/menu-$$.txt" | "$bin" 2>/dev/null) && [[ -n $card ]]; then
+	if [[ -x $bin ]] && card=$(tail -n +3 "$cache/menu-$$.txt" | "$bin" 2>/dev/null) && [[ -n $card ]]; then
 		{ read -r cw ch nh; read -r b64; } <<<"$card"
 		echo " | image=$b64 width=$cw height=$ch"
 		echo "$nh"
 	else
 		echo "$(T "天気のカードを描けなかった" "Could not draw the weather card") | refresh=true"
+		echo
 	fi
+	sed -n 2p "$cache/menu-$$.txt"
 } >"$body.$$" && mv "$body.$$" "$body"
 rm -f "$cache/menu-$$.txt"
 [[ -n ${update:-} ]] && notify_swiftbar
