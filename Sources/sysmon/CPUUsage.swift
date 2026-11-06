@@ -76,8 +76,11 @@ final class CPUUsageMeter {
         var cpuCount: natural_t = 0
         var info: processor_info_array_t?
         var infoCount: mach_msg_type_number_t = 0
-        guard host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO, &cpuCount, &info, &infoCount) == KERN_SUCCESS,
-              let info else { return [] }
+        let result = host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO, &cpuCount, &info, &infoCount)
+        guard result == KERN_SUCCESS, let info else {
+            logger.error("host_processor_info に失敗: \(result)")
+            return []
+        }
         // カーネルが用意したメモリは、使い終わったら返す。defer の中身は関数を抜けるときに実行される
         defer {
             vm_deallocate(mach_task_self_, vm_address_t(bitPattern: info),

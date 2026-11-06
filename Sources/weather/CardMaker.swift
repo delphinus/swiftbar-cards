@@ -74,13 +74,18 @@ final class CardMaker {
     func draw(_ station: Place.Station, now: Double, dark: Bool, minHeight: Double) -> PlaceCard? {
         let decoder = JSONDecoder()
         let office = JMAClient.forecastOffice(for: station.office)
-        guard let forecastData = try? Data(contentsOf: cache.forecast(office: office)),
-              let forecast = try? decoder.decode([ForecastReport].self, from: forecastData), !forecast.isEmpty
-        else { return nil }
-
+        // ファイルが無いのは、まだ取れていないだけ。中身を読めないときだけ記録する
         func decode<T: Decodable>(_ type: T.Type, _ file: URL) -> T? {
-            (try? Data(contentsOf: file)).flatMap { try? decoder.decode(type, from: $0) }
+            guard let data = try? Data(contentsOf: file) else { return nil }
+            do {
+                return try decoder.decode(type, from: data)
+            } catch {
+                logger.error("読めない: \(file.lastPathComponent, privacy: .public): \(String(describing: error), privacy: .public)")
+                return nil
+            }
         }
+        guard let forecast = decode([ForecastReport].self, cache.forecast(office: office)), !forecast.isEmpty
+        else { return nil }
         var series: [String: AmedasObservation] = [:]
         for block in Self.observationBlocks(now: now) {
             let values = decode([String: AmedasObservation].self, cache.observationSeries(station: station.code, block: block))

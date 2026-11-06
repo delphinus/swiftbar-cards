@@ -1,4 +1,7 @@
 import AppKit
+#if canImport(Shared)
+import Shared
+#endif
 
 /// Apple Music のカタログから直接再生している曲 (ライブラリに入れていない曲) のアートワークを、
 /// iTunes Search API で探す。
@@ -8,6 +11,8 @@ import AppKit
 /// ストアを検索し、見つかった曲のアートワークを取る。API キーは要らない。
 /// https://performance-partners.apple.com/search-api
 enum StoreArtwork {
+    private static let logger = makeLogger("nowplaying")
+
     /// 検索の結果のうち、使う値だけ。`Decodable` にすると、JSONDecoder が同じ名前のキーを読む
     private struct SearchResponse: Decodable {
         let results: [Song]
@@ -26,7 +31,7 @@ enum StoreArtwork {
               let small = song.artworkUrl100,
               // ファイル名の大きさを書き換えると、その大きさの画像が返る
               let url = URL(string: small.replacingOccurrences(of: "100x100bb", with: "600x600bb")),
-              let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+              let data = await fetch(url) else { return nil }
         return NSImage(data: data)
     }
 
@@ -43,10 +48,31 @@ enum StoreArtwork {
             // Music.app と同じストア (地域の設定) で探す
             URLQueryItem(name: "country", value: Locale.current.region?.identifier ?? "US"),
         ]
-        guard let url = components.url,
-              let (data, _) = try? await URLSession.shared.data(from: url),
-              let songs = try? JSONDecoder().decode(SearchResponse.self, from: data).results else { return nil }
+        guard let url = components.url, let data = await fetch(url) else { return nil }
+        let songs: [Song]
+        do {
+            songs = try JSONDecoder().decode(SearchResponse.self, from: data).results
+        } catch {
+            logger.error("検索の結果を読めない: \(String(describing: error), privacy: .public)")
+            return nil
+        }
         return songs.first { $0.trackName == track.name && $0.collectionName == track.album }
             ?? songs.first { $0.trackName == track.name }
+    }
+
+    /// `url` を取る。取れなければ (応答が 200 でなければ) 理由を記録して nil
+    private static func fetch(_ url: URL) async -> Data? {
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard status == 200 else {
+                logger.error("取得に失敗: \(url.host ?? "", privacy: .public)\(url.path, privacy: .public): HTTP \(status)")
+                return nil
+            }
+            return data
+        } catch {
+            logger.error("取得に失敗: \(url.host ?? "", privacy: .public)\(url.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 }

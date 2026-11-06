@@ -94,6 +94,10 @@ final class CPUHistory {
     func append(_ value: Double) {
         values.append(value)
         if values.count > capacity { values.removeFirst(values.count - capacity) }
-        try? values.map { String(Int($0)) }.joined(separator: "\n").write(toFile: file, atomically: true, encoding: .utf8)
+        do {
+            try values.map { String(Int($0)) }.joined(separator: "\n").write(toFile: file, atomically: true, encoding: .utf8)
+        } catch {
+            logger.error("履歴を書けない: \(self.file, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
     }
 }

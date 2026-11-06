@@ -3,6 +3,9 @@ import Foundation
 import Shared
 #endif
 
+/// 失敗したときの記録 (Shared の makeLogger)
+let logger = makeLogger("weather")
+
 /// キャッシュのフォルダ (~/Library/Caches/swiftbar-weather) の中のファイル。
 ///
 /// 取得した気象庁のデータ、地点ごとに描いたカード、現在地 (Locate.app が書く)、
@@ -78,7 +81,11 @@ struct CacheFolder {
 
     /// 書き終えてから置き換える (読む側が書きかけのファイルを読まない)
     static func writeText(_ text: String, to file: URL) {
-        try? text.write(to: file, atomically: true, encoding: .utf8)
+        do {
+            try text.write(to: file, atomically: true, encoding: .utf8)
+        } catch {
+            logger.error("書けない: \(file.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     /// `directory` の中で、名前が `matching` に当てはまり、`days` 日より古いファイルを消す

@@ -54,7 +54,9 @@ final class SMC {
 
     private static func openConnection() -> io_connect_t? {
         var iterator: io_iterator_t = 0
-        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("AppleSMC"), &iterator) == KERN_SUCCESS else {
+        let result = IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("AppleSMC"), &iterator)
+        guard result == KERN_SUCCESS else {
+            logger.error("AppleSMC を探せない: \(result)")
             return nil
         }
         defer { IOObjectRelease(iterator) }
@@ -67,6 +69,7 @@ final class SMC {
                 IOServiceOpen(device, mach_task_self_, 0, &connection)
             }
         }
+        if connection == 0 { logger.error("AppleSMC に接続できない") }
         return connection != 0 ? connection : nil
     }
 
