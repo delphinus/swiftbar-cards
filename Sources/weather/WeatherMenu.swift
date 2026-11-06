@@ -59,7 +59,8 @@ struct WeatherMenu {
         case .ambiguous(let stations):
             messages = [L("「\(query)」という名前の観測点が複数ある。設定ファイルに番号で書く:",
                           "More than one station is named \"\(query)\". Write its number in the configuration file:")]
-                + stations.map { "\($0.localizedName) (\(L($0.officeName, $0.officeEnName))): place=\($0.code)" }
+                + stations.map { L("\($0.localizedName)（\($0.officeName)）: place=\($0.code)",
+                                    "\($0.localizedName) (\($0.officeEnName)): place=\($0.code)") }
         case .found:
             break
         }
@@ -127,14 +128,15 @@ struct WeatherMenu {
         return "\(label(of: place))\(summary) | sfimage=\(icon)\(parameters) \(action("select", place.query))"
     }
 
-    /// 地点の表示名。解決できなかった地点は書かれたまま出す。現在地は「現在地 (府中)」の
+    /// 地点の表示名。解決できなかった地点は書かれたまま出す。現在地は「現在地（府中）」の
     /// ように、使っている観測点を添えて出す。英語では、macOS の天気・マップと同じ
     /// My Location。現在地が分からないあいだは「現在地」だけ。
     private func label(of place: Place) -> String {
         guard let station = place.station else { return place.query }
         guard station.isHere else { return station.localizedName }
         let name = L("現在地", "My Location")
-        return state.here.isKnown ? "\(name) (\(station.localizedName))" : name
+        guard state.here.isKnown else { return name }
+        return L("\(name)（\(station.localizedName)）", "\(name) (\(station.localizedName))")
     }
 
     private var openConfigurationItem: String {
