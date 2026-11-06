@@ -35,6 +35,7 @@ The `nowplaying` and `sysmon` images use made-up values from `samples/`; the `we
 - SwiftBar with support for streamable plugins
 - Xcode Command Line Tools (`xcode-select --install`), for `swiftc`
 - `jq`, for `weather`
+- Location Services, for showing your location in `weather` (without them, it shows Tokyo)
 
 ## Installation
 
@@ -47,6 +48,8 @@ In SwiftBar's settings, set the plugin folder to the `plugins` directory of the 
 Each plugin compiles its Swift program on first run and again whenever the source changes. The binaries are kept under `~/Library/Caches/`.
 
 `nowplaying` asks Music.app for the current track through AppleScript. The first time it runs, macOS asks whether SwiftBar may control Music.
+
+`weather` finds your location through Location Services. The first time, macOS asks whether an app named `swiftbar-cards` may use your location (see [Configuration](#configuration)).
 
 ## Language
 
