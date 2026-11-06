@@ -552,9 +552,13 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" --argjson minh "$min_height
 		| { date: "\(.value[5:7] | tonumber)/\(.value[8:10] | tonumber)", dow: dow(.value),
 		    # 全角の空白 (語の区切り) は残し、カードの側で折り返しの位置に使う
 		    text: forecast_text($wa.weathers[.key]; $wa.weatherCodes[.key]), icon: $ic, color: ($ic | icon_colors | pick) }],
-	   # 週間予報の初日 (明日) は、気温と降水確率が空欄で配られる (短期予報で
-	   # 発表されるため)。空欄なら短期予報の値で埋める。気温は 0 時の値が最低、
-	   # 9 時の値が最高。降水確率は 6 時間ごとの値のうちいちばん高いもの。
+	   # 週間予報の初日は、気温と降水確率が空欄で配られる (短期予報で発表される
+	   # ため)。初日は、5 時の発表までは前の日の 17 時に出た週間予報の初日 (今日)、
+	   # 11 時の発表からは明日。空欄なら短期予報の値で埋める。気温は 0 時の値が
+	   # 最低、9 時の値が最高。降水確率は 6 時間ごとの値のうちいちばん高いもの。
+	   # ただし短期予報は発表した日の最低気温を予報せず、その日の 0 時の欄にも最高
+	   # 気温を入れて配る (11/6 11 時の発表の東京なら、11/6 の 9 時と 0 時がどちらも
+	   # 25)。発表した日の最低気温は埋めずに空欄のままにする。
 	   week: (($f[0][1] // null) as $week
 		| if $week then
 		  # 週間予報の天気は、一次細分区域ごとのことも府県でまとめてのこともある
@@ -567,7 +571,7 @@ jq -n -r --argjson now "$now" --argjson dark "$dark" --argjson minh "$min_height
 			| (($wt.tempsMax[.key] // "") | if . == "" and $ta then
 				[$t.timeDefines | to_entries[] | select(.value[0:10] == $d and .value[11:13] != "00") | $ta.temps[.key]][0] // ""
 				else . end) as $tmax
-			| (($wt.tempsMin[.key] // "") | if . == "" and $ta then
+			| (($wt.tempsMin[.key] // "") | if . == "" and $ta and $d != $short.reportDatetime[0:10] then
 				[$t.timeDefines | to_entries[] | select(.value[0:10] == $d and .value[11:13] == "00") | $ta.temps[.key]][0] // ""
 				else . end) as $tmin
 			| (($wwa.pops[.key] // "") | if . == "" then
