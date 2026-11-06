@@ -22,6 +22,12 @@ import Shared
 /// 明るさの鮮やかな色にし、2 枚の違いは明るさを少し寄せるだけにする。地の灰色も、
 /// 白や黒でなく中間の灰色にする。
 /// 数字は等幅の数字で描くので、値が変わっても項目の幅が変わらない。
+///
+/// 高さは文字に合わせる。アイコンは文字の中に置いたときと同じく、ベースラインに
+/// 乗せる (SF Symbols の alignmentRect は、ベースラインから大文字の高さまでの枠)。
+/// グラフ・棒・電池は、数字の中心 (ベースラインから大文字の高さの半分の位置) に
+/// 置く。画像の真ん中に置くと、アイコンは文字より 0.75pt ほど下に出て、隣の数字と
+/// 段差ができた。weather の項目も、アイコンを文字に埋め込んで同じ高さに並べている。
 struct SystemMenuBar {
     let snapshot: Snapshot
 
@@ -33,7 +39,6 @@ struct SystemMenuBar {
     private let spacing: CGFloat = 4
     /// 文字を真ん中から持ち上げる量。画像の真ん中に置くと、メニューバーのほかの文字
     /// (天気や時計) より 1pt 下に見えた (メニューバーを撮った画像で数字の上下端を測った)。
-    /// アイコンは真ん中のままで、ほかのアプリのアイコンと高さがそろっている。
     private let textRaise: CGFloat = 1
     /// 見出しのアイコンの大きさ
     private let iconPointSize: CGFloat = 13
@@ -45,6 +50,22 @@ struct SystemMenuBar {
     private let itemGap: CGFloat = 10
     /// グラフに描く回数 (18 回 = 3 分)
     private let chartSamples = 18
+
+    /// 文字の上端。どの文字も同じフォントなので、行の高さは文字列によらない
+    private var textTop: CGFloat {
+        (height - NSAttributedString(string: "0", attributes: [.font: font]).size().height) / 2 - textRaise
+    }
+    /// 文字のベースライン
+    private var baseline: CGFloat { textTop + font.ascender }
+    /// 数字の中心。グラフ・棒・電池はここを中心に置く
+    private var midline: CGFloat { baseline - font.capHeight / 2 }
+
+    /// アイコンを、文字の中に置いたときと同じくベースラインに乗せる枠
+    private func iconRect(_ icon: NSImage, x: CGFloat) -> CGRect {
+        // alignmentRect は下から上へ取った座標。minY がベースラインの位置
+        CGRect(x: x, y: baseline + icon.alignmentRect.minY - icon.size.height,
+               width: icon.size.width, height: icon.size.height)
+    }
 
     func render(dark: Bool) -> PNGImage {
         // 黄色は明るい地で見えなくなるので、注意の色は橙にする
@@ -99,26 +120,25 @@ struct SystemMenuBar {
             var x: CGFloat = 0
             func put(_ text: NSAttributedString) {
                 let size = text.size()
-                text.draw(at: CGPoint(x: x, y: (height - size.height) / 2 - textRaise))
+                text.draw(at: CGPoint(x: x, y: textTop))
                 x += size.width
             }
             func put(_ icon: NSImage?, or text: NSAttributedString) {
                 guard let icon else { return put(text) }
-                icon.drawUpright(in: CGRect(x: x, y: (height - icon.size.height) / 2,
-                                            width: icon.size.width, height: icon.size.height))
+                icon.drawUpright(in: iconRect(icon, x: x))
                 x += icon.size.width
             }
 
             put(cpuIcon, or: cpuLabel)
             x += spacing
-            drawCPUChart(context, in: CGRect(x: x, y: (height - chartSize.height) / 2,
+            drawCPUChart(context, in: CGRect(x: x, y: midline - chartSize.height / 2,
                                              width: chartSize.width, height: chartSize.height),
                          background: track.withAlphaComponent(0.2), color: cpuColor)
             x += chartSize.width + itemGap
 
             put(memoryIcon, or: memoryLabel)
             x += spacing
-            let bar = CGRect(x: x, y: (height - barSize.height) / 2, width: barSize.width, height: barSize.height)
+            let bar = CGRect(x: x, y: midline - barSize.height / 2, width: barSize.width, height: barSize.height)
             let radius = barSize.height / 2
             context.fillRoundedRect(bar, radius: radius, color: track)
             context.fillRoundedRect(CGRect(x: bar.minX, y: bar.minY,
@@ -143,8 +163,7 @@ struct SystemMenuBar {
             if bluetoothIsLow {
                 x += spacing
                 if let icon = NSImage.symbol("exclamationmark.triangle.fill", pointSize: 12, color: red) {
-                    icon.drawUpright(in: CGRect(x: x, y: (height - icon.size.height) / 2,
-                                                width: icon.size.width, height: icon.size.height))
+                    icon.drawUpright(in: iconRect(icon, x: x))
                 }
             }
         }
@@ -166,7 +185,7 @@ struct SystemMenuBar {
     /// 稲妻を、電源につながっているが充電していないとき (充電済み、バッテリー充電の
     /// 最適化や充電上限で止めているとき) はプラグを重ねる。枠も塗りも残量の色で描く。
     private func drawBattery(_ context: CGContext, _ battery: Battery, at x: CGFloat, color: NSColor) {
-        let body = CGRect(x: x, y: (height - batterySize.height) / 2,
+        let body = CGRect(x: x, y: midline - batterySize.height / 2,
                           width: batterySize.width, height: batterySize.height)
         context.setStrokeColor(color.withAlphaComponent(0.7).cgColor)
         context.setLineWidth(1)
