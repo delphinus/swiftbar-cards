@@ -3,7 +3,7 @@ import AppKit
 import Shared
 #endif
 
-/// カードの色。weather.10m.sh が外観に合わせて選んだ色 ("#RRGGBB") もここで NSColor にする。
+/// カードの色。WeatherStyle が外観に合わせて選んだ色 ("#RRGGBB") もここで NSColor にする。
 struct CardColors {
     let dark: Bool
     let primary: NSColor
@@ -28,7 +28,7 @@ struct CardColors {
     /// 日曜日の赤
     var red: NSColor { NSColor(hex: dark ? "#FF6961" : "#A3000F")! }
 
-    /// JSON で渡された色。無ければ (空文字列や null なら) 標準の文字色
+    /// WeatherStyle で選んだ色。無ければ (空文字列や null なら) 標準の文字色
     func color(_ hex: String?) -> NSColor {
         NSColor(hex: hex) ?? primary
     }

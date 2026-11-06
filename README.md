@@ -31,7 +31,7 @@ The `nowplaying` and `sysmon` images use made-up values from `samples/`; the `we
 
 ## Requirements
 
-- macOS 15 or later on Apple Silicon (tested on an M1 Max with macOS 26). `weather` uses `curl` and `jq`, which come with macOS
+- macOS 15 or later on Apple Silicon (tested on an M1 Max with macOS 26)
 - SwiftBar with support for streamable plugins
 - Xcode Command Line Tools (`xcode-select --install`), for `swiftc`
 - Location Services, for showing your location in `weather` (without them, it shows Tokyo)
@@ -88,7 +88,7 @@ place=44116
 
 - The Swift programs are laid out as a Swift package (`Package.swift`), so `swift build` and editors work as usual. The plugins themselves compile them with `swiftc` directly, without SwiftPM.
 - `tests/smoke.sh` builds the Swift programs, runs each plugin, and checks that the menu bar line and the card image come out. CI runs it on every push.
-- `samples/render.sh` redraws the images in `docs/images/en/` and `docs/images/ja/`. `nowplaying` and `sysmon` can draw a card once from given values with `--render <JSON> <output directory>`; the values are in `samples/`.
+- `samples/render.sh` redraws the images in `docs/images/en/` and `docs/images/ja/`. `nowplaying` and `sysmon` can draw a card once from given values with `--render <JSON> <output directory>`; the values are in `samples/`. `weather` prints its menu once and exits with `--once`.
 - Releases follow [Semantic Versioning](https://semver.org/) and are tagged `vX.Y.Z`. All plugins share the version in their `<xbar.version>` header (shown in SwiftBar's plugin settings); `tests/smoke.sh` checks that they match.
 - `scripts/update-telops.sh` regenerates `data/jma-telops.json`, the English names of the weather codes, from the table embedded in the JMA forecast page.
 

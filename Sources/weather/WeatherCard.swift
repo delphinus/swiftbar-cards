@@ -43,7 +43,7 @@ struct WeatherCard {
         }
 
         let naturalHeight = sections.totalHeight(gap: gap)
-        let height = max(naturalHeight, CGFloat(input.minHeight ?? 0))
+        let height = max(naturalHeight, CGFloat(input.minHeight))
         let image = PNGImage.drawCard(width: width, height: height, dark: input.dark) { context in
             sections.drawStacked(in: context, gap: gap) { y in
                 WeatherPen(context: context, colors: colors).horizontalLine(y: y, from: pad, to: width - pad, color: colors.rule)
