@@ -240,7 +240,7 @@ here_note() {
 # ときに動作の無いサブメニューの親が押せない状態のまま残ることがあるため。
 location_menu() {
 	[[ ${#places[@]} -gt 1 ]] || return 0
-	local i icon
+	local i icon code summary params
 	for i in "${!places[@]}"; do
 		# 選んでいる地点は、チェックマークではなく塗りつぶしたピンで示す。チェックマークを
 		# 付けると、macOS がメニュー全体にその欄を取り、カードの左が 14pt 空く。
@@ -248,7 +248,18 @@ location_menu() {
 		icon=mappin.circle
 		is_here "${places[$i]}" && icon=location.circle
 		[[ $i == "$sel" ]] && icon=$icon.fill
-		echo "$(place_label "$i") | sfimage=$icon bash=$0 param1=select param2=${places[$i]} terminal=false refresh=true"
+		# 地点名の後ろに、その地点のメニューバーの行 (天気・気温・降水確率) を添える。
+		# 取り直さず、キャッシュのカード (1 行目がメニューバーの行) にあるものを使う。
+		# 色の指定 (sfcolor・sfcolor2) で色が付くのは文中のアイコンだけで、sfimage の
+		# ピンは標準の色のまま (SwiftBar の main のソースで確かめた。2026-11-06)。
+		summary='' params=''
+		code=$(jq -r --argjson i "$i" '.[$i] | select(.status == "ok") | .found[0].amedas' <<<"$resolved")
+		if [[ -n $code && -s $cache/body-$code-$lang-$dark.txt ]]; then
+			summary=$(sed -n 1p "$cache/body-$code-$lang-$dark.txt")
+			[[ $summary == *' | '* ]] && params=" ${summary#* | }" summary=${summary%% | *}
+			summary="   $summary"
+		fi
+		echo "$(place_label "$i")$summary | sfimage=$icon$params bash=$0 param1=select param2=${places[$i]} terminal=false refresh=true"
 	done
 	echo "---"
 }

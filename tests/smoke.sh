@@ -131,17 +131,27 @@ else
 	cat "$work/weather-fuchu.txt"
 	ng "weather place=府中 は候補を出す"
 fi
+# 切り替えのメニューの地点名を、カンマでつないで出す。地点名の後ろの天気
+# (空白 3 つの後ろ) と、| から後ろは除く。
+place_labels() { grep 'param1=select' "$1" | sed 's/ |.*//; s/   .*//' | tr '\n' ,; }
 # 現在地は書かなくても先頭に出る。書いてあればその位置に出る
 run_weather multi Light "$(printf 'place=東京\nplace=横浜')"
 if [[ $(grep -c 'param1=select' "$work/weather-multi.txt") == 3 ]] && grep -q '^現在地 (東京) .*sfimage=location.circle.fill ' "$work/weather-multi.txt" &&
-	[[ $(grep 'param1=select' "$work/weather-multi.txt" | sed 's/ |.*//' | tr '\n' ,) == '現在地 (東京),東京,横浜,' ]]; then
+	[[ $(place_labels "$work/weather-multi.txt") == '現在地 (東京),東京,横浜,' ]]; then
 	ok "weather 現在地と設定した地点を切り替えのメニューに出す"
 else
 	grep -v image= "$work/weather-multi.txt"
 	ng "weather 現在地と設定した地点を切り替えのメニューに出す"
 fi
+# 地点の項目には、キャッシュにあるその地点のメニューバーの行 (気温と色の指定) を添える
+if grep -q '^現在地 (東京)   :[a-z.]*: [0-9-]*°.* | sfimage=location.circle.fill sfcolor=' "$work/weather-multi.txt"; then
+	ok "weather 地点の項目に天気を添える"
+else
+	grep -v ' image=' "$work/weather-multi.txt"
+	ng "weather 地点の項目に天気を添える"
+fi
 run_weather here-last Light "$(printf 'place=東京\nplace=現在地')"
-if [[ $(grep 'param1=select' "$work/weather-here-last.txt" | sed 's/ |.*//' | tr '\n' ,) == '東京,現在地 (東京),' ]]; then
+if [[ $(place_labels "$work/weather-here-last.txt") == '東京,現在地 (東京),' ]]; then
 	ok "weather 現在地を書いた位置に出す"
 else
 	grep -v ' image=' "$work/weather-here-last.txt"

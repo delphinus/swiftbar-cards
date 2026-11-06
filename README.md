@@ -68,7 +68,7 @@ place=東京
 place=大阪
 ```
 
-The menu lists **My Location (Fuchu)** first (with the station in use in parentheses), followed by the stations you wrote, and you can switch between them. The icon of the one shown is filled, and the plugin remembers the one you chose. After editing the file, choose **Refresh Now** to apply it without waiting for the next update (every 10 minutes). The **Open Configuration File** item in the menu creates this file with comments if it does not exist.
+The menu lists **My Location (Fuchu)** first (with the station in use in parentheses), followed by the stations you wrote, and you can switch between them. Each item shows the weather icon, temperature, and chance of rain from the last time that location was updated, the same as in the menu bar. The icon of the one shown is filled, and the plugin remembers the one you chose. After editing the file, choose **Refresh Now** to apply it without waiting for the next update (every 10 minutes). The **Open Configuration File** item in the menu creates this file with comments if it does not exist.
 
 The plugin finds the forecast area from the station: it uses the forecast area whose representative temperature point is nearest to the station, within the same region.
 
