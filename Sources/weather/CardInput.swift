@@ -13,6 +13,8 @@ struct CardInput {
     /// 3 日分の予報の節の見出し (予報の区域の名前を含む)
     let daysTitle: String
     let days: [DayForecast]
+    /// 週間予報の節の見出し。気温が観測点とは別の地点の予報なら、その地点の名前を含む
+    let weekTitle: String
     let week: [WeekForecast]
     /// カードの高さをこれ以上にする (下を空ける)。地点を切り替えたときに高さが
     /// 変わらないよう、設定した地点のカードの高さをそろえるのに使う。

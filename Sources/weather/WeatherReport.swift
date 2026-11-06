@@ -22,6 +22,8 @@ struct WeatherReport {
     let series: [String: AmedasObservation]
     /// 天気コード → 英語名 (data/jma-telops.json)
     let telops: [String: String]
+    /// 観測点の番号 → 観測点 (週間予報の気温の地点の英語名を引く)
+    let stations: [String: AmedasStation]
     /// 取得に失敗して、前に取れたデータを出しているか
     let stale: Bool
     let now: Double
@@ -90,7 +92,7 @@ struct WeatherReport {
 
     var card: CardInput {
         CardInput(dark: dark, now: now, obs: observation, graph: graph, daysTitle: daysTitle,
-                  days: days, week: week, minHeight: minHeight)
+                  days: days, weekTitle: weekTitle, week: week, minHeight: minHeight)
     }
 
     private var observation: Observation? {
@@ -207,24 +209,51 @@ struct WeatherReport {
 
     // MARK: 週間予報
 
+    /// 週間予報の気温の地点と、それが観測点の予報の気温の地点か。週間予報の気温の地点は
+    /// 府県に 1 つだけのことがある (山口県なら下関だけ、神奈川県なら横浜だけ)。予報の
+    /// 気温の地点が無ければ先頭の地点を使う。
+    private var weekTemperature: (area: ForecastReport.AreaValues, isOwnPoint: Bool)? {
+        guard forecast.count > 1, forecast[1].timeSeries.count > 1 else { return nil }
+        let areas = forecast[1].timeSeries[1].areas
+        if let own = areas.first(where: { $0.area.code == station.temperaturePoint }) { return (own, true) }
+        return areas.first.map { ($0, false) }
+    }
+
+    /// 週間予報の節の見出し。気温が別の地点の予報なら、「週間予報（下関）」のように
+    /// その地点の名前を添える (山口の観測値の下に下関の気温が出ると、内陸と海沿いで
+    /// 朝の気温が 7°C 違うことがあった)。
+    private var weekTitle: String {
+        guard let weekTemperature, !weekTemperature.isOwnPoint else { return L("週間予報", "Weekly forecast") }
+        let area = weekTemperature.area.area
+        let enName = stations[area.code]?.enName ?? area.name
+        return L("週間予報（\(area.name)）", "Weekly forecast (\(enName))")
+    }
+
     /// 週間予報。初日は気温と降水確率が空欄で配られる (短期予報で発表されるため)。
     /// 初日は、5 時の発表までは前の日の 17 時に出た週間予報の初日 (今日)、11 時の
     /// 発表からは明日。空欄なら短期予報の値で埋める。
+    ///
+    /// 週間予報の気温が別の地点の予報なら、短期予報 (観測点の予報の気温の地点の値) が
+    /// ある日はそちらを使う。グラフの気温と食い違わないようにするため。
     private var week: [WeekForecast] {
         guard forecast.count > 1 else { return [] }
         let weekly = forecast[1]
         guard let weatherSeries = weekly.timeSeries.first else { return [] }
         // 週間予報の天気は、一次細分区域ごとのことも府県でまとめてのこともある
         let weatherArea = weatherSeries.area(station.class10) ?? weatherSeries.area(station.office) ?? weatherSeries.areas.first
-        // 週間予報の気温の地点は府県に 1 つだけのことがある (神奈川県なら横浜だけ)。
-        // 予報の気温の地点が無ければ先頭の地点を使う。
-        let temperatureAreas = weekly.timeSeries.count > 1 ? weekly.timeSeries[1].areas : []
-        let temperatureArea = temperatureAreas.first { $0.area.code == station.temperaturePoint } ?? temperatureAreas.first
+        let temperatureArea = weekTemperature?.area
+        let prefersShortRange = weekTemperature?.isOwnPoint == false
 
         return weatherSeries.timeDefines.enumerated().map { i, time in
             let date = time.slice(0, 10)
-            let max = filled(temperatureArea?.tempsMax?[safe: i] ?? "") { shortRangeTemperature(on: date, minimum: false) }
-            let min = filled(temperatureArea?.tempsMin?[safe: i] ?? "") { shortRangeTemperature(on: date, minimum: true) }
+            func temperature(_ weeklyValue: String?, minimum: Bool) -> String {
+                let weeklyValue = weeklyValue ?? ""
+                return prefersShortRange
+                    ? filled(shortRangeTemperature(on: date, minimum: minimum)) { weeklyValue }
+                    : filled(weeklyValue) { shortRangeTemperature(on: date, minimum: minimum) }
+            }
+            let max = temperature(temperatureArea?.tempsMax?[safe: i], minimum: false)
+            let min = temperature(temperatureArea?.tempsMin?[safe: i], minimum: true)
             let pop = filled(weatherArea?.pops?[safe: i] ?? "") { highestPrecipitationChance(on: date) }
             let icon = WeatherStyle.icon(forCode: weatherArea?.weatherCodes?[safe: i] ?? "")
             let (label, weekday) = JapanTime.monthDay(time)
