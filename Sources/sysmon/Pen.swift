@@ -8,30 +8,17 @@ struct Pen {
     let context: CGContext
     let colors: CardColors
 
-    /// 文字を、y を上端として描き、描いた大きさを返す。数字は等幅の数字 (tabular figures)
-    /// にする。`align` が `.right` なら x は右端、`.center` なら中央。`maxWidth` を
-    /// 超える分は末尾を「…」で切る。
+    /// 文字を、y を上端として描き、描いた大きさを返す。数字の字形は `digits` で選ぶ
+    /// (Typography.swift)。`align` が `.right` なら x は右端、`.center` なら中央。
+    /// `maxWidth` を超える分は末尾を「…」で切る。
     ///
     /// `@discardableResult` は、戻り値を使わなくても警告を出さないという印。
     @discardableResult
     func text(_ string: String, x: CGFloat, y: CGFloat, size: CGFloat, color: NSColor? = nil,
-              weight: NSFont.Weight = .regular, align: NSTextAlignment = .left, maxWidth: CGFloat? = nil) -> CGSize {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: weight)
-        let style = NSMutableParagraphStyle()
-        style.lineBreakMode = .byTruncatingTail
-        let text = NSAttributedString(string: string, attributes: [
-            .font: font, .foregroundColor: color ?? colors.primary, .paragraphStyle: style,
-        ])
-        var textSize = text.size()
-        if let maxWidth { textSize.width = min(textSize.width, maxWidth) }
-        let dx: CGFloat = switch align {
-        case .center: -textSize.width / 2
-        case .right: -textSize.width
-        default: 0
-        }
-        text.draw(with: CGRect(x: x + dx, y: y, width: textSize.width, height: textSize.height + 2),
-                  options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
-        return textSize
+              weight: NSFont.Weight = .regular, digits: Digits = .proportional,
+              align: NSTextAlignment = .left, maxWidth: CGFloat? = nil) -> CGSize {
+        drawCardText(string, x: x, y: y, font: .card(size: size, weight: weight, digits: digits),
+                     color: color ?? colors.primary, align: align, maxWidth: maxWidth)
     }
 
     /// 横棒のメーター。0〜100 の値を、角の丸い溝の上に色の棒で描く。

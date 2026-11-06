@@ -70,7 +70,7 @@ struct WeatherCard {
         let labels = (humidity: L("湿度", "Humidity"), precip: L("降水量", "Precip."), wind: L("風", "Wind"))
         // 値の書き出し位置は、いちばん長いラベルの後ろにそろえる (言語でラベルの長さが変わる)
         let labelWidth = [labels.humidity, labels.precip, labels.wind]
-            .map { textWidth($0, font: NSFont.systemFont(ofSize: 12)) }.max() ?? 0
+            .map { textWidth($0, font: NSFont.card(size: 12)) }.max() ?? 0
         let labelX: CGFloat = 176
         let valueX = labelX + max(48, ceil(labelWidth) + 12)
         var y = top + 2
@@ -111,8 +111,9 @@ struct WeatherCard {
         for (day, rowHeight) in zip(input.days, dayRowHeights) {
             pen.symbol(day.icon, color: colors.color(day.color), cx: pad + 9, cy: y + 8, size: 14)
             let weekday = weekdayName(day.dow)
-            pen.text(L("\(day.date)(\(weekday))", "\(weekday) \(day.date)"), x: pad + 26, y: y, size: 13,
-                     color: colors.secondary)
+            // 日付は縦に並ぶので、等幅の数字で桁をそろえる
+            pen.text(L("\(day.date)（\(weekday)）", "\(weekday) \(day.date)"), x: pad + 26, y: y, size: 13,
+                     color: colors.secondary, digits: .tabular)
             pen.wrappedText(Typesetting.forecastPhrases(day.text), x: dayTextX, y: y, width: dayTextWidth, size: 13)
             y += rowHeight
         }
@@ -135,7 +136,7 @@ struct WeatherCard {
             }
             let weekday = weekdayName(day.dow)
             pen.text(day.date, x: cx, y: y, size: 11, color: colors.secondary, align: .center)
-            pen.text(L("(\(weekday))", weekday), x: cx, y: y + 13, size: 10, color: weekdayColor, align: .center)
+            pen.text(L("（\(weekday)）", weekday), x: cx, y: y + 13, size: 10, color: weekdayColor, align: .center)
             pen.symbol(day.icon, color: colors.color(day.color), cx: cx, cy: y + 41, size: 17)
             pen.text(day.max.isEmpty ? "-" : "\(day.max)°", x: cx, y: y + 56, size: 13,
                      color: colors.color(day.maxColor), weight: .semibold, align: .center)

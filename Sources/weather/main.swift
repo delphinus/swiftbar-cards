@@ -38,7 +38,7 @@
 // - WeatherCard.swift       カード (観測値・3 日分の予報・週間予報の節)
 // - WeatherCard+Graph.swift カードの気温のグラフの節
 // - WeatherPen.swift        カードの色と、文字・アイコン・線の描き方
-// - Typesetting.swift       日本語の括弧と、予報の文の折り返し
+// - Typesetting.swift       予報の文の折り返し
 // - MonotoneCurve.swift     点を通る滑らかな曲線
 //
 // SwiftBar のプラグインのフォルダには置かない (実行できるファイルは

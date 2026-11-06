@@ -177,7 +177,7 @@ struct WeatherReport {
     private var daysTitle: String {
         let issued = short.reportDatetime.slice(11, 16)
         let areaName = weatherArea?.area.name ?? ""
-        if isJapanese { return "\(areaName)の予報 (\(issued) 発表)" }
+        if isJapanese { return "\(areaName)の予報（\(issued) 発表）" }
         let englishName = station.class10EnName.isEmpty && station.officeEnName.isEmpty
             ? areaName : "\(station.class10EnName), \(station.officeEnName)"
         return "Forecast for \(englishName) (issued \(issued))"

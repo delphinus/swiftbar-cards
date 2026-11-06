@@ -60,16 +60,17 @@ struct SystemCard {
         let cpu = snapshot.cpu
         pen.text("CPU", x: pad, y: top, size: 11, color: colors.secondary)
         pen.text(L("負荷 \(cpu.load)", "Load \(cpu.load)"), x: width - pad, y: top, size: 11,
-                 color: colors.secondary, align: .right)
+                 color: colors.secondary, digits: .tabular, align: .right)
 
         // 大きな数字と、ユーザ・システムの内訳
         let y0 = top + headerHeight
         let color = colors.level(cpu.total, warning: 50, critical: 80)
-        let big = pen.text(formatted(cpu.total), x: pad, y: y0 - 4, size: 34, color: color, weight: .light)
+        let big = pen.text(formatted(cpu.total), x: pad, y: y0 - 4, size: 34, color: color, weight: .light,
+                           digits: .tabular)
         let unit = pen.text("%", x: pad + big.width + 1, y: y0 + 8, size: 16, color: color, weight: .light)
         let breakdown = pen.text(L("ユーザ \(formatted(cpu.user))%  システム \(formatted(cpu.sys))%",
                                    "User \(formatted(cpu.user))%  System \(formatted(cpu.sys))%"),
-                                 x: pad, y: y0 + 38, size: 10, color: colors.secondary)
+                                 x: pad, y: y0 + 38, size: 10, color: colors.secondary, digits: .tabular)
 
         // 推移のグラフは、大きな数字と内訳の文字の右から描く (左端を固定すると、
         // 内訳の文字が長いときに重なる)
@@ -140,7 +141,7 @@ struct SystemCard {
     private func meterRow(_ pen: Pen, _ label: String, value: Double, shown: String, color: NSColor, y: CGFloat) {
         pen.text(label, x: pad, y: y, size: 12, color: colors.secondary)
         pen.meter(x: 74, y: y + 5, width: 200, value: value, color: color)
-        pen.text(shown, x: width - pad, y: y, size: 12, weight: .medium, align: .right)
+        pen.text(shown, x: width - pad, y: y, size: 12, weight: .medium, digits: .tabular, align: .right)
     }
 
     // MARK: - 2. メモリ
@@ -164,14 +165,16 @@ struct SystemCard {
 
         let y0 = top + headerHeight
         let color = colors.level(percent, warning: 70, critical: 85)
-        let big = pen.text(formatted(percent), x: pad, y: y0 - 4, size: 34, color: color, weight: .light)
+        let big = pen.text(formatted(percent), x: pad, y: y0 - 4, size: 34, color: color, weight: .light,
+                           digits: .tabular)
         pen.text("%", x: pad + big.width + 1, y: y0 + 8, size: 16, color: color, weight: .light)
         let barX: CGFloat = 118
         pen.meter(x: barX, y: y0 + 8, width: width - barX - pad, height: 10, value: percent, color: color)
-        pen.text("\(gigabytes(mem.used)) / \(gigabytes(mem.total))", x: barX, y: y0 + 24, size: 12, weight: .medium)
+        pen.text("\(gigabytes(mem.used)) / \(gigabytes(mem.total))", x: barX, y: y0 + 24, size: 12, weight: .medium,
+                 digits: .tabular)
         pen.text(L("圧縮 \(gigabytes(mem.compressed))   スワップ \(mem.swap)",
                    "Compressed \(gigabytes(mem.compressed))   Swap \(mem.swap)"),
-                 x: barX, y: y0 + 40, size: 11, color: colors.secondary)
+                 x: barX, y: y0 + 40, size: 11, color: colors.secondary, digits: .tabular)
     }
 
     private func gigabytes(_ bytes: Double) -> String { String(format: "%.1f GB", bytes / 1_073_741_824) }
@@ -194,7 +197,8 @@ struct SystemCard {
             // ps の %CPU は 1 コアを使い切ると 100%。メーターは 100% で頭打ちにする。
             pen.meter(x: leftX, y: y + 5, width: 18, value: process.value,
                       color: colors.level(process.value, warning: 50, critical: 90))
-            pen.text(formatted(process.value, digits: 1), x: leftX + 56, y: y, size: 11, weight: .medium, align: .right)
+            pen.text(formatted(process.value, digits: 1), x: leftX + 56, y: y, size: 11, weight: .medium,
+                     digits: .tabular, align: .right)
             pen.text(process.shownName, x: leftX + 62, y: y, size: 11, maxWidth: columnWidth - 62)
         }
         for (i, process) in snapshot.procMem.enumerated() {
@@ -207,7 +211,7 @@ struct SystemCard {
             let size = kilobytes >= 1_048_576
                 ? String(format: "%.1f GB", kilobytes / 1_048_576)
                 : String(format: "%d MB", Int(kilobytes / 1024))
-            pen.text(size, x: rightX + 68, y: y, size: 11, weight: .medium, align: .right)
+            pen.text(size, x: rightX + 68, y: y, size: 11, weight: .medium, digits: .tabular, align: .right)
             pen.text(process.shownName, x: rightX + 74, y: y, size: 11, maxWidth: columnWidth - 74)
         }
     }
@@ -228,9 +232,10 @@ struct SystemCard {
             let color = battery.percent < 20 ? colors.red : battery.percent < 40 ? colors.yellow : colors.green
             pen.text(battery.isInternal ? L("この Mac", "This Mac") : battery.name, x: pad, y: y, size: 12, maxWidth: 150)
             pen.meter(x: 160, y: y + 5, width: 130, value: battery.percent, color: color)
-            pen.text("\(formatted(battery.percent))%", x: width - pad, y: y, size: 12, weight: .medium, align: .right)
+            pen.text("\(formatted(battery.percent))%", x: width - pad, y: y, size: 12, weight: .medium,
+                     digits: .tabular, align: .right)
             if let status = battery.statusText {
-                pen.text(status, x: pad, y: y + 16, size: 11, color: colors.secondary)
+                pen.text(status, x: pad, y: y + 16, size: 11, color: colors.secondary, digits: .tabular)
             }
             y += height
         }
