@@ -106,7 +106,7 @@ struct WeatherReport {
             windDir: (values.windDirection?.first ?? nil).flatMap { WeatherStyle.windDirection(Int($0)) })
     }
 
-    /// 気温のグラフ。地域時系列予報と観測点の時系列が揃っていなければ描かない
+    /// 気温のグラフ。地域時系列予報が無ければ描かない (観測点の時系列が無ければ破線を省く)
     private var graph: TemperatureGraph? {
         guard let point = temperaturePointSeries, let area = areaWeatherSeries else { return nil }
 
@@ -116,7 +116,9 @@ struct WeatherReport {
             else { return nil }
             return (t, temperature)
         }.sorted { $0.t < $1.t }
-        guard let current = past.last else { return nil }
+        // 今の値は、上の観測値と同じ全観測点の最新値を使う。時系列の正時の値は最大で
+        // 59 分古く、時系列のファイルが取れなかったときはさらに古くなる
+        let current = currentTemperature ?? past.last?.value
 
         let pointTimes = point.timeDefines ?? topLevelPointTimes
         let forecastPoints = (point.temperature ?? []).enumerated().compactMap { i, temperature -> TimedValue? in
@@ -140,7 +142,7 @@ struct WeatherReport {
             }
         }
 
-        return TemperatureGraph(current: current.value,
+        return TemperatureGraph(current: current,
                                 pastPoints: past.filter { $0.t >= now - 25 * 3600 },
                                 forecastPoints: forecastPoints,
                                 weatherIcons: weatherIcons,

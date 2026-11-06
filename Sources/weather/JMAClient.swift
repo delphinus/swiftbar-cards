@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(Shared)
+import Shared
+#endif
 
 /// 気象庁のサイトからデータを取る。API キーは要らない。
 ///
@@ -17,9 +20,19 @@ struct JMAClient {
 
     /// `path` (base からの相対) を取る。取れなければ (応答が 200 でなければ) nil
     func data(_ path: String) async -> Data? {
-        guard let url = URL(string: path, relativeTo: Self.base),
-              let (data, response) = try? await session.data(from: url),
-              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        guard let url = URL(string: path, relativeTo: Self.base) else { return nil }
+        let data: Data, response: URLResponse
+        do {
+            (data, response) = try await session.data(from: url)
+        } catch {
+            logger.error("取得に失敗: \(path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            logger.error("取得に失敗: \(path, privacy: .public): HTTP \(status)")
+            return nil
+        }
         return data
     }
 

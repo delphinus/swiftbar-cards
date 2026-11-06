@@ -19,6 +19,7 @@
 
 import AppKit
 import CoreLocation
+import os
 
 let args = CommandLine.arguments
 guard args.count >= 2 else {
@@ -29,8 +30,15 @@ let cacheDir = URL(fileURLWithPath: args[1], isDirectory: true)
 let locationFile = cacheDir.appendingPathComponent("location")
 let statusFile = cacheDir.appendingPathComponent("location-status")
 
+/// 失敗したときの記録。Shared を使わないので、Shared の makeLogger と同じ subsystem で作る
+let logger = Logger(subsystem: "dev.delphinus.swiftbar-cards", category: "locate")
+
 func write(_ text: String, to url: URL) {
-    try? (text + "\n").write(to: url, atomically: true, encoding: .utf8)
+    do {
+        try (text + "\n").write(to: url, atomically: true, encoding: .utf8)
+    } catch {
+        logger.error("書けない: \(url.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+    }
 }
 
 final class Locator: NSObject, CLLocationManagerDelegate {
@@ -41,8 +49,14 @@ final class Locator: NSObject, CLLocationManagerDelegate {
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         // 許可のダイアログに答えるまでの時間を含めて 3 分で諦める
-        Timer.scheduledTimer(withTimeInterval: 180, repeats: false) { _ in self.finish("error") }
-        guard CLLocationManager.locationServicesEnabled() else { return finish("disabled") }
+        Timer.scheduledTimer(withTimeInterval: 180, repeats: false) { _ in
+            logger.error("許可の答えを 3 分待っても現在地が取れない")
+            self.finish("error")
+        }
+        guard CLLocationManager.locationServicesEnabled() else {
+            logger.error("位置情報サービスが切ってある")
+            return finish("disabled")
+        }
         // 許可の状態は、delegate を設定したあとに locationManagerDidChangeAuthorization で届く
     }
 
@@ -51,13 +65,17 @@ final class Locator: NSObject, CLLocationManagerDelegate {
         case .notDetermined:
             manager.requestWhenInUseAuthorization()
         case .denied, .restricted:
+            logger.error("位置情報の利用が許可されていない")
             finish("denied")
         default:
             guard !requested else { return }
             requested = true
             manager.requestLocation()
             // 取れるまでに時間がかかりすぎるときは諦める
-            Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { _ in self.finish("error") }
+            Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { _ in
+                logger.error("30 秒待っても現在地が取れない")
+                self.finish("error")
+            }
         }
     }
 
@@ -72,6 +90,7 @@ final class Locator: NSObject, CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         // 許可を求めている最中にも届くことがある。そのときは答えを待つ
         if manager.authorizationStatus == .notDetermined { return }
+        logger.error("現在地が取れない: \(String(describing: error), privacy: .public)")
         if (error as? CLError)?.code == .denied { return finish("denied") }
         finish("error")
     }

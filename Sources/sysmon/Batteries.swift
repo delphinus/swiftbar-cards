@@ -31,7 +31,11 @@ func readBluetoothBatteries(names: [String: String]) -> [Battery] {
     let matching = IOServiceMatching("IOService") as NSMutableDictionary
     matching["IOPropertyExistsMatch"] = "BatteryPercent"
     var iterator: io_iterator_t = 0
-    guard IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iterator) == KERN_SUCCESS else { return [] }
+    let result = IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iterator)
+    guard result == KERN_SUCCESS else {
+        logger.error("Bluetooth 機器の残量を探せない: \(result)")
+        return []
+    }
     defer { IOObjectRelease(iterator) }
 
     var batteries: [Battery] = []
@@ -64,9 +68,12 @@ private func registryProperty(_ entry: io_registry_entry_t, _ key: String, searc
 /// その許可は親の SwiftBar の Info.plist に利用目的 (NSBluetoothAlwaysUsageDescription) が
 /// 無いと得られないので使えない。重いので 1 時間ごとにしか呼ばない。
 func readBluetoothNames() -> [String: String] {
-    guard let output = runCommand("/usr/sbin/system_profiler", ["SPBluetoothDataType", "-json"]),
-          let json = try? JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any],
-          let bluetooth = (json["SPBluetoothDataType"] as? [[String: Any]])?.first else { return [:] }
+    guard let output = runCommand("/usr/sbin/system_profiler", ["SPBluetoothDataType", "-json"]) else { return [:] }
+    guard let json = try? JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any],
+          let bluetooth = (json["SPBluetoothDataType"] as? [[String: Any]])?.first else {
+        logger.error("system_profiler の出力を読めない")
+        return [:]
+    }
     // 形は {"device_connected": [{"名前": {"device_address": "AA:BB:…", …}}, …], …}
     var names: [String: String] = [:]
     for key in ["device_connected", "device_not_connected"] {
