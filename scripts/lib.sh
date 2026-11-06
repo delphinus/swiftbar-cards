@@ -20,6 +20,35 @@ build_helper() {
 	swiftc -O -suppress-warnings -o "$bin.tmp" "${sources[@]}" 2>/dev/null && mv "$bin.tmp" "$bin"
 }
 
+# Swift のプログラムを .app の形にビルドする。Sources/<名前> の *.swift だけを
+# コンパイルし (Sources/Shared は使わない)、同じフォルダの Info.plist と *.lproj を
+# 入れて、アドホック署名する。ソースのどれかが .app より新しいときだけビルドし直す。
+# 位置情報のように、macOS の許可をプログラム自身が持つ必要があるときに使う。
+#   build_app <名前> <.app のパス>
+build_app() {
+	local name=$1 app=$2 src tmp newer=
+	local dir=$cards_root/Sources/$name
+	if [[ -x $app/Contents/MacOS/$name ]]; then
+		while IFS= read -r src; do [[ $src -nt $app/Contents/MacOS/$name ]] && newer=1; done < <(find "$dir" -type f)
+	else
+		newer=1
+	fi
+	[[ -n $newer ]] || return 0
+	tmp=$app.tmp.$$
+	rm -rf "$tmp"
+	mkdir -p "$tmp/Contents/MacOS" "$tmp/Contents/Resources"
+	cp "$dir/Info.plist" "$tmp/Contents/"
+	cp -R "$dir"/*.lproj "$tmp/Contents/Resources/" 2>/dev/null
+	if swiftc -O -suppress-warnings -o "$tmp/Contents/MacOS/$name" "$dir"/*.swift 2>/dev/null &&
+		codesign --force --sign - "$tmp" 2>/dev/null; then
+		rm -rf "$app"
+		mv "$tmp" "$app"
+	else
+		rm -rf "$tmp"
+		return 1
+	fi
+}
+
 # 表示の言語 (ja / en)。SWIFTBAR_CARDS_LANG で決め打ちできる。無ければ OS の優先
 # 言語の先頭が日本語なら ja、それ以外は en。Sources/Shared/Localization.swift と同じ規則。
 cards_lang() {

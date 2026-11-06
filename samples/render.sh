@@ -12,6 +12,8 @@ out=$(mkdir -p "${1:-$repo/docs/images}" && cd "${1:-$repo/docs/images}" && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 export LANG=en_US.UTF-8
+# weather の現在地は、位置情報を読む .app を起動せず、東京駅の座標にする
+export SWIFTBAR_CARDS_LOCATION="35.6812 139.7671"
 
 mkdir -p "$work/bin"
 for h in nowplaying sysmon; do

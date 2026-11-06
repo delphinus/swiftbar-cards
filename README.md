@@ -56,19 +56,24 @@ In English, `weather` uses JMA's English names for stations and areas. JMA publi
 
 ## Configuration
 
-`weather` shows Tokyo unless configured. To change the location, write the name of an AMeDAS station (in Japanese, as listed on the [JMA AMeDAS page](https://www.jma.go.jp/bosai/amedas/)) to `~/.config/swiftbar-cards/weather.conf`:
+`weather` shows the weather at the AMeDAS station (one that observes temperature) nearest to your current location, found through macOS Location Services. SwiftBar itself cannot use Location Services, so the plugin builds a small app that only reads the location (`swiftbar-cards`, which appears neither in the Dock nor in the menu bar) under `~/Library/Caches/swiftbar-weather/`. The first time, macOS asks whether this app may use your location. The location is checked again every 10 minutes. When access is not allowed or the location is unavailable, the plugin shows Tokyo and says why in the menu.
 
-```ini
-place=横浜
-```
-
-The plugin finds the forecast area from the station: it uses the forecast area whose representative temperature point is nearest to the station, within the same region. The **Open Configuration File** item in the menu creates this file with comments if it does not exist.
-
-List more than one station to switch between them: the menu lists them, with a filled pin on the one shown. The plugin remembers the one you chose. After editing the file, choose **Refresh Now** to apply it without waiting for the next update (every 10 minutes).
+To add other locations, write names of AMeDAS stations (in Japanese, as listed on the [JMA AMeDAS page](https://www.jma.go.jp/bosai/amedas/)) to `~/.config/swiftbar-cards/weather.conf`:
 
 ```ini
 place=東京
 place=大阪
+```
+
+The menu lists **My Location (Fuchu)** first (with the station in use in parentheses), followed by the stations you wrote, and you can switch between them. The icon of the one shown is filled, and the plugin remembers the one you chose. After editing the file, choose **Refresh Now** to apply it without waiting for the next update (every 10 minutes). The **Open Configuration File** item in the menu creates this file with comments if it does not exist.
+
+The plugin finds the forecast area from the station: it uses the forecast area whose representative temperature point is nearest to the station, within the same region.
+
+To put your location somewhere other than first, write `place=here` (or `place=現在地`) in that position:
+
+```ini
+place=東京
+place=here
 ```
 
 When more than one station has the same name, the menu lists them with their station numbers. Write the number instead of the name:

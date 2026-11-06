@@ -11,13 +11,20 @@
 # アメダスは 10 分ごと、予報は 1 日 3 回 (5 時・11 時・17 時) 更新される。
 #
 # 地点は設定ファイル (~/.config/swiftbar-cards/weather.conf) に、アメダスの観測点の
-# 名前を書いて決める。無ければ東京。複数書くと、メニューから切り替えられる。
+# 名前を書いて足す。現在地 (いちばん近い、気温を観測している観測点) は常に先頭に
+# あり、足した地点とメニューから切り替えられる。
 #   place=東京
 #   place=横浜
 #   place=44116   # 同じ名前の観測点が複数あるときは番号で書く
+#   place=現在地  # 現在地を先頭以外に置くとき (here とも書ける)
 # 観測点から、予報に要るコード (府県予報区・一次細分区域・予報の気温の地点) を
 # 引く。予報の気温の地点 (forecast_area.json に区域ごとに 1 つある) のうち、
 # 観測点と同じ地域でいちばん近いものの区域を使う。
+#
+# 現在地は、位置情報を読む小さな .app (../Sources/locate/) に調べさせる。SwiftBar
+# から起動したプログラムには位置情報の許可を持たせられないため。.app は待たずに
+# 裏で動かし、結果 (キャッシュの location) は次の実行から使う。取れたら .app が
+# SwiftBar に更新を指示する。取れないあいだは東京を出す。
 #
 # 表示の言語は OS の設定に従う (scripts/lib.sh の cards_lang)。英語のときは、
 # 観測点や区域の名前に気象庁の表の英語名を使い、予報の文 (日本語でしか配られない)
@@ -52,21 +59,27 @@ open-config)
 		mkdir -p "$(dirname "$conf")"
 		if [[ $lang == ja ]]; then
 			cat >"$conf" <<-'EOF'
-				# アメダスの観測点の名前 (https://www.jma.go.jp/bosai/amedas/ で探せる)。
-				# 複数書くと、メニューから選んで切り替えられる。
-				place=東京
+				# 現在地の天気は常に出る。ほかの地点を足すには、アメダスの観測点の名前
+				# (https://www.jma.go.jp/bosai/amedas/ で探せる) を書く。
+				# 足した地点は、メニューから選んで切り替えられる。
+				#place=東京
 				#place=横浜
 				# 同じ名前の観測点が複数あるときは、番号で書く
 				#place=44116
+				# 現在地は先頭に出る。別の位置に置くときは、その位置に書く
+				#place=現在地
 			EOF
 		else
 			cat >"$conf" <<-'EOF'
-				# Names of AMeDAS stations, in Japanese (see https://www.jma.go.jp/bosai/amedas/).
-				# List more than one to switch between them from the menu.
-				place=東京
+				# The weather for your location is always shown. To add other locations,
+				# write names of AMeDAS stations, in Japanese (see https://www.jma.go.jp/bosai/amedas/).
+				# Choose between them from the menu.
+				#place=東京
 				#place=横浜
 				# When more than one station has the same name, use its number
 				#place=44116
+				# Your location comes first. To put it elsewhere, write it in that position
+				#place=here
 			EOF
 		fi
 	fi
@@ -100,7 +113,40 @@ if [[ -f $conf ]]; then
 		esac
 	done <"$conf"
 fi
-[[ ${#places[@]} -gt 0 ]] || places=(東京)
+# 現在地は常に出す。書かれていなければ先頭に足す (書かれていればその位置に置く)。
+is_here() { [[ $1 == 現在地 || $1 == here ]]; }
+uses_here=
+for p in "${places[@]}"; do is_here "$p" && uses_here=1; done
+[[ -n $uses_here ]] || places=(現在地 "${places[@]}")
+
+# 現在地。キャッシュの location (緯度 経度 精度 時刻) を読み、10 分より古ければ
+# .app を裏で起動して取り直させる。地点を選んだ直後・取り直しの直後の実行と、裏で
+# 描くだけの実行では起動しない (どちらもすぐ後に別の実行が控えている)。「今すぐ
+# 更新」のあとの取り直し (update) では、古さによらず起動する。
+# SWIFTBAR_CARDS_LOCATION="<緯度> <経度>" があれば、それを現在地にする (テスト用。
+# none なら取れなかったことにする)。
+here=null here_status=
+if [[ -n ${SWIFTBAR_CARDS_LOCATION:-} ]]; then
+	if [[ $SWIFTBAR_CARDS_LOCATION == none ]]; then here_status=error; else
+		read -r lat lon _ <<<"$SWIFTBAR_CARDS_LOCATION"
+		here="[$lat,$lon]" here_status=ok
+	fi
+else
+	if [[ -z ${prefetch:-} && ( -n ${update:-} || ! ( -f $cache/switched || -f $cache/fresh ) ) ]] &&
+		[[ -n ${update:-} || ! -s $cache/location || -n $(find "$cache/location" -mmin +10) ]]; then
+		app=$cache/Locate.app
+		name=${0##*/}
+		build_app locate "$app" && open -g -a "$app" --args "$cache" "${name%%.*}" 2>/dev/null
+	fi
+	here_status=$(cat "$cache/location-status" 2>/dev/null || true)
+	if [[ -s $cache/location ]]; then
+		read -r lat lon _ <"$cache/location"
+		[[ $lat =~ ^-?[0-9.]+$ && $lon =~ ^-?[0-9.]+$ ]] && here="[$lat,$lon]"
+	fi
+	# 許可を取り消された (か位置情報サービスを切った) ら、前に取れた現在地も使わない。
+	# 一時的に取れなかった (error) だけなら、前に取れた現在地を使い続ける。
+	case $here_status in denied | disabled) here=null ;; esac
+fi
 
 # 観測点の表と、予報区と観測点の対応表。めったに変わらないので週に 1 回取り直す。
 mkdir -p "$cache/const"
@@ -122,24 +168,32 @@ fi
 # { status: ok / notfound / ambiguous, found: [候補] } を返す。
 resolved=$(printf '%s\n' "${places[@]}" | jq -R . | jq -s -c \
 	--slurpfile am "$cache/const/amedastable.json" --slurpfile fa "$cache/const/forecast_area.json" \
-	--slurpfile ar "$cache/const/area.json" '
+	--slurpfile ar "$cache/const/area.json" --argjson here "$here" '
 	def deg: .[0] + .[1] / 60;
+	# 2 点の距離の 2 乗 (緯度の差と、経度の差に cos(緯度) を掛けたもの。近さを比べるだけ)
+	def dist2($la; $lo): ((.lat - $la) | . * .) + ((.lon - $lo) * ($la * 3.14159265 / 180 | cos) | . * .);
 	$am[0] as $am | $ar[0] as $ar
 	# 予報の気温の地点と、それが属する府県予報区・一次細分区域
 	| [$fa[0] | to_entries[] | .key as $o | .value[] | .class10 as $c | .amedas[]
 	   | select($am[.] != null) | { office: $o, class10: $c, temp: ., lat: ($am[.].lat | deg), lon: ($am[.].lon | deg) }] as $points
 	| map(. as $q
-		# 数字だけなら観測点の番号、それ以外は名前
-		| (if test("^[0-9]+$") then [$q | select($am[.] != null)]
+		| ($q == "現在地" or $q == "here") as $isHere
+		# 現在地なら、いちばん近い観測点のうち気温を観測しているもの (elems の 1 文字目が 1)。
+		# 現在地が分からなければ東京。数字だけなら観測点の番号、それ以外は名前。
+		| (if $isHere then
+			(if $here then [$am | to_entries[] | select(.value.elems[0:1] == "1")
+				| { key, lat: (.value.lat | deg), lon: (.value.lon | deg) }]
+				| min_by(dist2($here[0]; $here[1])) | [.key]
+			 else ["44132"] end)
+		   elif test("^[0-9]+$") then [$q | select($am[.] != null)]
 		   else [$am | to_entries[] | select(.value.kjName == $q) | .key] end) as $cands
 		| [$cands[] | . as $c | $am[$c] as $s | ($s.lat | deg) as $la | ($s.lon | deg) as $lo
-		   | ($la * 3.14159265 / 180 | cos) as $k
 		   # 番号の上 2 桁は地域 (おおむね府県予報区) を表すので、同じ地域の地点から
 		   # 選ぶ。近さだけで選ぶと、県境の近くで隣の県の地点を拾う (東京都の府中は
 		   # 東京とさいたまからほぼ同じ距離にある)。
 		   | ([$points[] | select(.temp[0:2] == $c[0:2])] | if length > 0 then . else $points end)
-		   | min_by(((.lat - $la) | . * .) + ((.lon - $lo) * $k | . * .)) as $best
-		   | { amedas: $c, name: $s.kjName, enName: $s.enName, office: $best.office, class10: $best.class10,
+		   | min_by(dist2($la; $lo)) as $best
+		   | { amedas: $c, here: $isHere, name: $s.kjName, enName: $s.enName, office: $best.office, class10: $best.class10,
 		       class10En: $ar.class10s[$best.class10].enName,
 		       temp: $best.temp, tempName: $am[$best.temp].kjName,
 		       officeName: $ar.offices[$best.office].name, officeEn: $ar.offices[$best.office].enName }] as $found
@@ -156,9 +210,27 @@ sel=$(jq -r --arg s "$selected" '
 [[ -n ${prefetch:-} ]] && sel=$prefetch
 place=${places[$sel]}
 # 地点の表示名 (切り替えのメニュー用)。解決できなかった地点は書かれたまま出す。
+# 現在地は「現在地 (府中)」のように、使っている観測点を添えて出す。英語では、
+# macOS の天気・マップと同じ My Location。現在地が分からないあいだは「現在地」だけ。
 place_label() { # <番号>
-	jq -r --argjson i "$1" --arg lang "$lang" \
-		'.[$i] | if .status == "ok" then .found[0] | (if $lang == "ja" then .name else .enName end) else .query end' <<<"$resolved"
+	jq -r --argjson i "$1" --arg lang "$lang" --arg known "$([[ $here != null ]] && echo 1)" '
+		.[$i] | if .status != "ok" then .query
+		elif .found[0].here then (if $lang == "ja" then "現在地" else "My Location" end)
+			+ (if $known == "" then "" else .found[0] | " (\(if $lang == "ja" then .name else .enName end))" end)
+		else .found[0] | (if $lang == "ja" then .name else .enName end) end' <<<"$resolved"
+}
+# 現在地を選んでいて、現在地が分からない (東京を出している) ときに、その理由を出す
+here_note() {
+	is_here "$place" && [[ $here == null ]] || return 0
+	case $here_status in
+	denied) echo "$(T "位置情報の利用が許可されていないので、東京を表示中" "Location access is not allowed. Showing Tokyo") | sfimage=location.slash color=#D70015,#FF6961" \
+		&& echo "$(T "位置情報サービスの設定を開く" "Open Location Services Settings") | sfimage=gearshape.circle href=x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices" ;;
+	disabled) echo "$(T "位置情報サービスが切ってあるので、東京を表示中" "Location Services are off. Showing Tokyo") | sfimage=location.slash color=#D70015,#FF6961" \
+		&& echo "$(T "位置情報サービスの設定を開く" "Open Location Services Settings") | sfimage=gearshape.circle href=x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices" ;;
+	error) echo "$(T "現在地を取得できないので、東京を表示中" "Could not get your location. Showing Tokyo") | sfimage=location.slash" ;;
+	*) echo "$(T "現在地を取得中なので、東京を表示中" "Getting your location. Showing Tokyo") | sfimage=location" ;;
+	esac
+	echo "---"
 }
 # 地点の切り替え。地点が 2 つ以上あるときだけ、選んでいる地点の印を付けて
 # 並べる。サブメニューにしないのは、SwiftBar 2.1.1 では、メニューを差し替えた
@@ -169,8 +241,10 @@ location_menu() {
 	for i in "${!places[@]}"; do
 		# 選んでいる地点は、チェックマークではなく塗りつぶしたピンで示す。チェックマークを
 		# 付けると、macOS がメニュー全体にその欄を取り、カードの左が 14pt 空く。
+		# 現在地はピンではなく、位置情報の矢印で示す
 		icon=mappin.circle
-		[[ $i == "$sel" ]] && icon=mappin.circle.fill
+		is_here "${places[$i]}" && icon=location.circle
+		[[ $i == "$sel" ]] && icon=$icon.fill
 		echo "$(place_label "$i") | sfimage=$icon bash=$0 param1=select param2=${places[$i]} terminal=false refresh=true"
 	done
 	echo "---"
@@ -238,6 +312,7 @@ print_menu() {
 	echo "---"
 	# カードの下には区切り線を引かない (カードの地の縁が境目になる)
 	sed -n 2p "$body"
+	here_note
 	location_menu
 	echo "$(T "設定ファイルを開く" "Open Configuration File") | sfimage=gearshape.circle bash=$0 param1=open-config terminal=false"
 	if [[ ${1:-} == updating ]]; then

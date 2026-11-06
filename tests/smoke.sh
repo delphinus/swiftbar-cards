@@ -25,6 +25,9 @@ unset LC_ALL
 export SWIFTBAR_CARDS_LANG=ja
 # 裏の取り直しが終わったときに、本物の SwiftBar へ更新を指示しない
 export SWIFTBAR_CARDS_NO_REFRESH=1
+# weather の現在地は、位置情報を読む .app を起動せず、東京駅の座標を使う
+# (CI では位置情報を読めず、手元では許可のダイアログが出てしまう)
+export SWIFTBAR_CARDS_LOCATION="35.6812 139.7671"
 mkdir -p "$HOME"
 
 failures=0
@@ -96,10 +99,31 @@ for appearance in Light Dark; do
 		ng "weather $name"
 	fi
 done
+# 設定ファイルが無ければ現在地だけ (切り替えの項目は出ない)。東京駅にいちばん
+# 近い気温の観測点は東京
+if grep -q 'area_code=130000' "$work/weather-default-Light.txt" && ! grep -q 'param1=select' "$work/weather-default-Light.txt"; then
+	ok "weather 既定は現在地"
+else ng "weather 既定は現在地"; fi
+SWIFTBAR_CARDS_LOCATION="43.0618 141.3545" run_weather here-sapporo Light "place=東京"
+if grep -q 'area_code=016000' "$work/weather-here-sapporo.txt" && grep -q '^現在地 (札幌) .*sfimage=location.circle.fill ' "$work/weather-here-sapporo.txt"; then
+	ok "weather 現在地 (札幌)"
+else
+	grep -v ' image=' "$work/weather-here-sapporo.txt"
+	ng "weather 現在地 (札幌)"
+fi
+SWIFTBAR_CARDS_LOCATION=none run_weather here-none Light
+if grep -q 'area_code=130000' "$work/weather-here-none.txt" && grep -q '^現在地を取得できないので、東京を表示中' "$work/weather-here-none.txt"; then
+	ok "weather 現在地が分からなければ東京"
+else
+	grep -v ' image=' "$work/weather-here-none.txt"
+	ng "weather 現在地が分からなければ東京"
+fi
 run_weather yokohama Light "place=横浜"
 if grep -q 'image=' "$work/weather-yokohama.txt" && save_image "$work/weather-yokohama.txt" 3 weather-yokohama; then
 	ok "weather place=横浜"
 else ng "weather place=横浜"; fi
+# 何も選んでいなければ現在地を出すので、設定の不備はその地点を選んでから確かめる
+"$repo/plugins/weather.10m.sh" select 府中
 run_weather fuchu Light "place=府中"
 if grep -q 'place=44116' "$work/weather-fuchu.txt" && grep -q 'place=67326' "$work/weather-fuchu.txt"; then
 	ok "weather place=府中 は候補を出す"
@@ -107,12 +131,21 @@ else
 	cat "$work/weather-fuchu.txt"
 	ng "weather place=府中 は候補を出す"
 fi
+# 現在地は書かなくても先頭に出る。書いてあればその位置に出る
 run_weather multi Light "$(printf 'place=東京\nplace=横浜')"
-if [[ $(grep -c 'param1=select' "$work/weather-multi.txt") == 2 ]] && grep -q '^東京 .*sfimage=mappin.circle.fill ' "$work/weather-multi.txt"; then
-	ok "weather 複数の地点は切り替えのメニューを出す"
+if [[ $(grep -c 'param1=select' "$work/weather-multi.txt") == 3 ]] && grep -q '^現在地 (東京) .*sfimage=location.circle.fill ' "$work/weather-multi.txt" &&
+	[[ $(grep 'param1=select' "$work/weather-multi.txt" | sed 's/ |.*//' | tr '\n' ,) == '現在地 (東京),東京,横浜,' ]]; then
+	ok "weather 現在地と設定した地点を切り替えのメニューに出す"
 else
 	grep -v image= "$work/weather-multi.txt"
-	ng "weather 複数の地点は切り替えのメニューを出す"
+	ng "weather 現在地と設定した地点を切り替えのメニューに出す"
+fi
+run_weather here-last Light "$(printf 'place=東京\nplace=現在地')"
+if [[ $(grep 'param1=select' "$work/weather-here-last.txt" | sed 's/ |.*//' | tr '\n' ,) == '東京,現在地 (東京),' ]]; then
+	ok "weather 現在地を書いた位置に出す"
+else
+	grep -v ' image=' "$work/weather-here-last.txt"
+	ng "weather 現在地を書いた位置に出す"
 fi
 # 選んでいない地点 (横浜) のカードを裏で描いてキャッシュに置く
 for ((i = 0; i < 60; i++)); do
@@ -148,6 +181,8 @@ SWIFTBAR_CARDS_LANG=en run_weather english Light "place=横浜"
 if grep -q 'Open JMA Forecast' "$work/weather-english.txt" && save_image "$work/weather-english.txt" 3 weather-english; then
 	ok "weather 英語"
 else ng "weather 英語"; fi
+# 何も選んでいなければ現在地を出すので、設定の不備はその地点を選んでから確かめる
+"$repo/plugins/weather.10m.sh" select 存在しない地点
 run_weather missing Light "place=存在しない地点"
 if grep -q '見つからない' "$work/weather-missing.txt"; then ok "weather 見つからない地点"; else
 	cat "$work/weather-missing.txt"
