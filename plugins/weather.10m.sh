@@ -202,10 +202,13 @@ resolved=$(printf '%s\n' "${places[@]}" | jq -R . | jq -s -c \
 # 選んでいる地点。覚えている文字列と、書かれた文字列・観測点の名前・番号のどれかが
 # 一致する地点を選ぶ。同名の観測点が複数あって「山口」を選んだあと、設定を
 # place=81286 に書き換えても、山口を選んだままにするため。無ければ先頭にする。
+# 書かれた文字列と一致する地点を先に探し、観測点の名前・番号では現在地を拾わない。
+# 東京にいると現在地の観測点も東京なので、東京を選んでも現在地を選んだことになる。
 selected=$(cat "$cache/selected" 2>/dev/null || true)
 sel=$(jq -r --arg s "$selected" '
-	[to_entries[] | select(.value.query == $s or ([.value.found[] | .name, .amedas] | index($s) != null)) | .key]
-	| first // 0' <<<"$resolved")
+	([to_entries[] | select(.value.query == $s) | .key] | first)
+	// ([to_entries[] | select([.value.found[] | select(.here | not) | .name, .amedas] | index($s) != null) | .key] | first)
+	// 0' <<<"$resolved")
 [[ -n ${update:-} ]] && prefetch=$sel
 [[ -n ${prefetch:-} ]] && sel=$prefetch
 place=${places[$sel]}

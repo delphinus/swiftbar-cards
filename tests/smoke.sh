@@ -147,6 +147,16 @@ else
 	grep -v ' image=' "$work/weather-here-last.txt"
 	ng "weather 現在地を書いた位置に出す"
 fi
+# 東京にいるとき (現在地の観測点も東京) に東京を選んでも、現在地を選んだことにならない
+"$repo/plugins/weather.10m.sh" select 東京
+run_weather here-same Light "$(printf 'place=東京\nplace=横浜')"
+if grep -q '^東京 .*sfimage=mappin.circle.fill ' "$work/weather-here-same.txt" && grep -q '^現在地 (東京) .*sfimage=location.circle ' "$work/weather-here-same.txt"; then
+	ok "weather 現在地と同じ観測点を選んでも区別する"
+else
+	grep 'param1=select' "$work/weather-here-same.txt" | sed 's/ bash=.*//'
+	ng "weather 現在地と同じ観測点を選んでも区別する"
+fi
+"$repo/plugins/weather.10m.sh" select 現在地
 # 選んでいない地点 (横浜) のカードを裏で描いてキャッシュに置く
 for ((i = 0; i < 60; i++)); do
 	compgen -G "$HOME/Library/Caches/swiftbar-weather/body-46106-*" >/dev/null && break
