@@ -90,6 +90,7 @@ place=44116
 - The Swift programs are laid out as a Swift package (`Package.swift`), so `swift build` and editors work as usual. The plugins themselves compile them with `swiftc` directly, without SwiftPM.
 - `tests/smoke.sh` builds the Swift programs, runs each plugin, and checks that the menu bar line and the card image come out. CI runs it on every push.
 - `samples/render.sh` redraws the images in `docs/images/en/` and `docs/images/ja/`. `nowplaying` and `sysmon` can draw a card once from given values with `--render <JSON> <output directory>`; the values are in `samples/`.
+- Releases follow [Semantic Versioning](https://semver.org/) and are tagged `vX.Y.Z`. All plugins share the version in their `<xbar.version>` header (shown in SwiftBar's plugin settings); `tests/smoke.sh` checks that they match.
 - `scripts/update-telops.sh` regenerates `data/jma-telops.json`, the English names of the weather codes, from the table embedded in the JMA forecast page.
 
 ## Acknowledgements
