@@ -9,7 +9,7 @@ import Foundation
 /// - プロセスごとの CPU とメモリ: ps (20 秒ごと)
 /// - 温度: SMC のセンサーの平均
 /// - 本体のバッテリー: IOKit の電源の情報 (毎回。API を呼ぶだけで軽い)
-/// - Bluetooth 機器のバッテリー: ioreg (60 秒ごと)。名前は system_profiler (1 時間ごと)
+/// - Bluetooth 機器のバッテリー: IOKit のレジストリ (60 秒ごと)。名前は system_profiler (1 時間ごと)
 final class SystemMonitor {
     /// 何秒ごとに集めるか
     let interval: TimeInterval
@@ -17,7 +17,7 @@ final class SystemMonitor {
     private let cpuMeter = CPUUsageMeter()
     private let cpuHistory: CPUHistory
     private let smc = SMC()
-    // 外部のコマンドを起動する重い値は、間隔を空けて取り直す
+    // 重い値 (外部のコマンドを起動する・レジストリを探す) は、間隔を空けて取り直す
     private var processes = Throttled<(byCPU: [ProcessUsage], byMemory: [ProcessUsage])>(interval: 20, initial: ([], []))
     private var bluetoothNames = Throttled<[String: String]>(interval: 3600, initial: [:])
     private var bluetoothBatteries = Throttled<[Battery]>(interval: 60, initial: [])
