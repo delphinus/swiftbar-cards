@@ -14,7 +14,12 @@ import Shared
 /// 時間が分からないとき (計算中・充電済み) は電池だけを出す。Bluetooth 機器の残量は
 /// メニューのカードにだけ出し、20% を切ったときだけ警告のアイコンを足す。
 ///
-/// 明るいメニューバー用と暗いメニューバー用の 2 枚を描く (SwiftBar.menuBarImageLine)。
+/// 白や黒で描く部分を持たず、アイコン・電池の枠・数字もすべて使用率や残量の色で描く。
+/// SwiftBar は明るい用と暗い用の 2 枚 (SwiftBar.menuBarImageLine) から、メインの
+/// モニタのメニューバーに合うほうを選び、その 1 枚をほかのモニタにも出す。モニタごとに
+/// 壁紙が違うと、明るいメニューバーに暗い用の画像が載る (白いアイコンが消えて見えた)。
+/// どちらの 1 枚もどちらの地で読めるよう、色は中くらいの明るさの鮮やかな色にし、
+/// 2 枚の違いは明るさを少し寄せるだけにする。地の灰色も、白や黒でなく中間の灰色にする。
 /// 数字は等幅の数字で描くので、値が変わっても項目の幅が変わらない。
 struct SystemMenuBar {
     let snapshot: Snapshot
@@ -41,12 +46,11 @@ struct SystemMenuBar {
     private let chartSamples = 18
 
     func render(dark: Bool) -> PNGImage {
-        // メニューバーの色は、カードの色 (CardColors) より明るい
-        let primary = dark ? NSColor(white: 1, alpha: 0.92) : NSColor(white: 0, alpha: 0.85)
-        let track = dark ? NSColor(white: 1, alpha: 0.22) : NSColor(white: 0, alpha: 0.18)
-        let green = NSColor(rgb: dark ? 0x30D158 : 0x248A3D)
-        let yellow = NSColor(rgb: dark ? 0xFFD60A : 0xB07800)
-        let red = NSColor(rgb: dark ? 0xFF453A : 0xD70015)
+        // 黄色は明るい地で見えなくなるので、注意の色は橙にする
+        let green = NSColor(rgb: dark ? 0x34C759 : 0x28A745)
+        let yellow = NSColor(rgb: dark ? 0xFF9500 : 0xE08000)
+        let red = NSColor(rgb: dark ? 0xFF3B30 : 0xE0352B)
+        let track = NSColor(white: 0.55, alpha: 0.4)
         func level(_ value: Double, warning: Double, critical: Double) -> NSColor {
             value >= critical ? red : value >= warning ? yellow : green
         }
@@ -58,16 +62,19 @@ struct SystemMenuBar {
         let cpuPercent = snapshot.cpu.total
         let memoryPercent = snapshot.memoryPercent
         // アイコンが無い OS では文字に戻す
-        let cpuIcon = NSImage.symbol("cpu", pointSize: iconPointSize, color: primary)
-        let memoryIcon = NSImage.symbol("memorychip", pointSize: iconPointSize, color: primary)
-        let cpuLabel = label("CPU", primary)
-        let memoryLabel = label("MEM", primary)
+        let cpuColor = level(cpuPercent, warning: 50, critical: 80)
+        let memoryColor = level(memoryPercent, warning: 70, critical: 85)
+        let cpuIcon = NSImage.symbol("cpu", pointSize: iconPointSize, color: cpuColor)
+        let memoryIcon = NSImage.symbol("memorychip", pointSize: iconPointSize, color: memoryColor)
+        let cpuLabel = label("CPU", cpuColor)
+        let memoryLabel = label("MEM", memoryColor)
         let cpuHeadWidth = cpuIcon?.size.width ?? cpuLabel.size().width
         let memoryHeadWidth = memoryIcon?.size.width ?? memoryLabel.size().width
         let tempValue = snapshot.cpu.temp.map { label(String(format: "%.0f°C", $0), level($0, warning: 70, critical: 85)) }
         let internalBattery = snapshot.battery.first { $0.isInternal }
+        let batteryColor = internalBattery.map { $0.percent < 20 ? red : $0.percent < 40 ? yellow : green } ?? green
         let batteryTime = internalBattery?.minutes.map {
-            label(String(format: "%d:%02d", $0 / 60, $0 % 60), primary)
+            label(String(format: "%d:%02d", $0 / 60, $0 % 60), batteryColor)
         }
         let bluetoothIsLow = snapshot.battery.contains { !$0.isInternal && $0.percent < 20 }
 
@@ -100,8 +107,7 @@ struct SystemMenuBar {
             x += spacing
             drawCPUChart(context, in: CGRect(x: x, y: (height - chartSize.height) / 2,
                                              width: chartSize.width, height: chartSize.height),
-                         background: track.withAlphaComponent(dark ? 0.12 : 0.08),
-                         color: level(cpuPercent, warning: 50, critical: 80))
+                         background: track.withAlphaComponent(0.2), color: cpuColor)
             x += chartSize.width + itemGap
 
             put(memoryIcon, or: memoryLabel)
@@ -112,13 +118,12 @@ struct SystemMenuBar {
             context.fillRoundedRect(CGRect(x: bar.minX, y: bar.minY,
                                            width: max(barSize.height, barSize.width * CGFloat(memoryPercent / 100)),
                                            height: barSize.height),
-                                    radius: radius, color: level(memoryPercent, warning: 70, critical: 85))
+                                    radius: radius, color: memoryColor)
             x += barSize.width
 
             if let internalBattery {
                 x += itemGap
-                drawBattery(context, internalBattery, at: x, outline: primary,
-                            fill: internalBattery.percent < 20 ? red : internalBattery.percent < 40 ? yellow : green)
+                drawBattery(context, internalBattery, at: x, color: batteryColor)
                 x += batterySize.width + batteryNubWidth
                 if let batteryTime {
                     x += spacing
@@ -148,33 +153,42 @@ struct SystemMenuBar {
             CGPoint(x: box.maxX - box.width * CGFloat(history.count - 1 - i) / CGFloat(chartSamples - 1),
                     y: box.maxY - (box.height - 1) * CGFloat(min(history[i], 100) / 100) - 0.5)
         }
-        context.drawFilledLine(through: points, bottom: box.maxY, color: color, fillAlpha: 0.35, lineWidth: 1.25)
+        context.drawFilledLine(through: points, bottom: box.maxY, color: color, fillAlpha: 0.45, lineWidth: 1.5)
     }
 
     /// 電池の形。枠の中を残量の割合だけ塗る。macOS の標準の表示に合わせて、充電中は
     /// 稲妻を、電源につながっているが充電していないとき (充電済み、バッテリー充電の
-    /// 最適化や充電上限で止めているとき) はプラグを重ねる。
-    private func drawBattery(_ context: CGContext, _ battery: Battery, at x: CGFloat, outline: NSColor, fill: NSColor) {
+    /// 最適化や充電上限で止めているとき) はプラグを重ねる。枠も塗りも残量の色で描く。
+    private func drawBattery(_ context: CGContext, _ battery: Battery, at x: CGFloat, color: NSColor) {
         let body = CGRect(x: x, y: (height - batterySize.height) / 2,
                           width: batterySize.width, height: batterySize.height)
-        context.setStrokeColor(outline.withAlphaComponent(0.5).cgColor)
+        context.setStrokeColor(color.withAlphaComponent(0.7).cgColor)
         context.setLineWidth(1)
         context.addPath(CGPath(roundedRect: body.insetBy(dx: 0.5, dy: 0.5), cornerWidth: 3, cornerHeight: 3, transform: nil))
         context.strokePath()
         context.fillRoundedRect(CGRect(x: body.maxX, y: body.midY - 2, width: batteryNubWidth, height: 4),
-                                radius: 0.75, color: outline.withAlphaComponent(0.5))
+                                radius: 0.75, color: color.withAlphaComponent(0.7))
 
         let inner = body.insetBy(dx: 2, dy: 2)
         let level = CGFloat(min(max(battery.percent, 0), 100) / 100)
         if level > 0 {
             context.fillRoundedRect(CGRect(x: inner.minX, y: inner.minY,
                                            width: max(1.5, inner.width * level), height: inner.height),
-                                    radius: 1.5, color: fill)
+                                    radius: 1.5, color: color)
         }
         guard battery.external == true else { return }
+        // 印も同じ色なので、塗りの上でも見えるよう、周りを 1pt くり抜いてから描く
+        // (くり抜いたところはメニューバーの地が透ける)
         let mark = battery.charging == true ? "bolt.fill" : "powerplug.fill"
-        if let icon = NSImage.symbol(mark, pointSize: 9, color: outline) {
-            icon.drawUpright(centeredAt: CGPoint(x: body.midX, y: body.midY))
+        guard let icon = NSImage.symbol(mark, pointSize: 9, color: color) else { return }
+        let center = CGPoint(x: body.midX, y: body.midY)
+        for dx in [-1, 0, 1] as [CGFloat] {
+            for dy in [-1, 0, 1] as [CGFloat] where dx != 0 || dy != 0 {
+                icon.draw(in: CGRect(x: center.x + dx - icon.size.width / 2, y: center.y + dy - icon.size.height / 2,
+                                     width: icon.size.width, height: icon.size.height),
+                          from: .zero, operation: .destinationOut, fraction: 1, respectFlipped: true, hints: nil)
+            }
         }
+        icon.drawUpright(centeredAt: center)
     }
 }
