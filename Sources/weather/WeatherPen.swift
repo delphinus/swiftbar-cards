@@ -39,21 +39,14 @@ struct WeatherPen {
     let context: CGContext
     let colors: CardColors
 
-    /// 文字を、y を上端として描き、描いた大きさを返す。数字は等幅の数字 (tabular figures)
-    /// にする。`align` が `.right` なら x は右端、`.center` なら中央。
+    /// 文字を、y を上端として描き、描いた大きさを返す。数字の字形は `digits` で選ぶ
+    /// (Typography.swift)。`align` が `.right` なら x は右端、`.center` なら中央。
     @discardableResult
     func text(_ string: String, x: CGFloat, y: CGFloat, size: CGFloat, color: NSColor? = nil,
-              weight: NSFont.Weight = .regular, align: NSTextAlignment = .left) -> CGSize {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: weight)
-        let text = Typesetting.attributedString(string, font: font, color: color ?? colors.primary, size: size, weight: weight)
-        let textSize = text.size()
-        let dx: CGFloat = switch align {
-        case .center: -textSize.width / 2
-        case .right: -textSize.width
-        default: 0
-        }
-        text.draw(at: CGPoint(x: x + dx, y: y))
-        return textSize
+              weight: NSFont.Weight = .regular, digits: Digits = .proportional,
+              align: NSTextAlignment = .left) -> CGSize {
+        drawCardText(string, x: x, y: y, font: .card(size: size, weight: weight, digits: digits),
+                     color: color ?? colors.primary, align: align)
     }
 
     /// 幅を決めて折り返して描く文。高さは `Self.wrappedTextHeight` で測れる。
@@ -72,13 +65,11 @@ struct WeatherPen {
     }
 
     private static func wrappedString(_ string: String, size: CGFloat, color: NSColor) -> NSAttributedString {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .regular)
-        let text = NSMutableAttributedString(attributedString:
-            Typesetting.attributedString(string, font: font, color: color, size: size, weight: .regular))
         let style = NSMutableParagraphStyle()
         style.lineBreakMode = .byWordWrapping
-        text.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: text.length))
-        return text
+        return NSAttributedString(string: string, attributes: [
+            .font: NSFont.card(size: size), .foregroundColor: color, .paragraphStyle: style,
+        ])
     }
 
     /// SF Symbols のアイコンを、中心が (cx, cy) に来るよう描く

@@ -110,11 +110,11 @@ if grep -q 'area_code=130000' "$work/weather-default-light.txt" && ! grep -q 'pa
 	ok "weather 既定は現在地"
 else ng "weather 既定は現在地"; fi
 SWIFTBAR_CARDS_LOCATION="43.0618 141.3545" run_weather here-sapporo light "place=東京"
-if grep -q 'area_code=016000' "$work/weather-here-sapporo.txt" && grep -q '^現在地 (札幌) .*sfimage=location.circle.fill ' "$work/weather-here-sapporo.txt"; then
-	ok "weather 現在地 (札幌)"
+if grep -q 'area_code=016000' "$work/weather-here-sapporo.txt" && grep -q '^現在地（札幌） .*sfimage=location.circle.fill ' "$work/weather-here-sapporo.txt"; then
+	ok "weather 現在地（札幌）"
 else
 	grep -v ' image=' "$work/weather-here-sapporo.txt"
-	ng "weather 現在地 (札幌)"
+	ng "weather 現在地（札幌）"
 fi
 SWIFTBAR_CARDS_LOCATION=none run_weather here-none light
 if grep -q 'area_code=130000' "$work/weather-here-none.txt" && grep -q '^現在地を取得できないので、東京を表示中' "$work/weather-here-none.txt"; then
@@ -141,8 +141,8 @@ fi
 place_labels() { grep 'param1=select' "$1" | sed 's/ |.*//; s/   .*//' | tr '\n' ,; }
 # 現在地は書かなくても先頭に出る。書いてあればその位置に出る
 run_weather multi light "$(printf 'place=東京\nplace=横浜')"
-if [[ $(grep -c 'param1=select' "$work/weather-multi.txt") == 3 ]] && grep -q '^現在地 (東京) .*sfimage=location.circle.fill ' "$work/weather-multi.txt" &&
-	[[ $(place_labels "$work/weather-multi.txt") == '現在地 (東京),東京,横浜,' ]]; then
+if [[ $(grep -c 'param1=select' "$work/weather-multi.txt") == 3 ]] && grep -q '^現在地（東京） .*sfimage=location.circle.fill ' "$work/weather-multi.txt" &&
+	[[ $(place_labels "$work/weather-multi.txt") == '現在地（東京）,東京,横浜,' ]]; then
 	ok "weather 現在地と設定した地点を切り替えのメニューに出す"
 else
 	grep -v image= "$work/weather-multi.txt"
@@ -151,15 +151,15 @@ fi
 # 地点の項目には、キャッシュにあるその地点のメニューバーの行 (気温と色の指定) を添える。
 # 色はメニューの地に合わせたもので、明るい外観ではメニューバーの色と違う。
 bar_color=$(head -1 "$work/weather-multi.txt" | grep -o 'sfcolor=[^ ]*')
-if grep -q '^現在地 (東京)   :[a-z.]*: [0-9-]*°.* | sfimage=location.circle.fill sfcolor=' "$work/weather-multi.txt" &&
-	! grep '^現在地 (東京)' "$work/weather-multi.txt" | grep -qF " $bar_color "; then
+if grep -q '^現在地（東京）   :[a-z.]*: [0-9-]*°.* | sfimage=location.circle.fill sfcolor=' "$work/weather-multi.txt" &&
+	! grep '^現在地（東京）' "$work/weather-multi.txt" | grep -qF " $bar_color "; then
 	ok "weather 地点の項目に天気を添える"
 else
 	grep -v ' image=' "$work/weather-multi.txt"
 	ng "weather 地点の項目に天気を添える"
 fi
 run_weather here-last light "$(printf 'place=東京\nplace=現在地')"
-if [[ $(place_labels "$work/weather-here-last.txt") == '東京,現在地 (東京),' ]]; then
+if [[ $(place_labels "$work/weather-here-last.txt") == '東京,現在地（東京）,' ]]; then
 	ok "weather 現在地を書いた位置に出す"
 else
 	grep -v ' image=' "$work/weather-here-last.txt"
@@ -168,7 +168,7 @@ fi
 # 東京にいるとき (現在地の観測点も東京) に東京を選んでも、現在地を選んだことにならない
 "$repo/plugins/weather.sh" select 東京
 run_weather here-same light "$(printf 'place=東京\nplace=横浜')"
-if grep -q '^東京 .*sfimage=mappin.circle.fill ' "$work/weather-here-same.txt" && grep -q '^現在地 (東京) .*sfimage=location.circle ' "$work/weather-here-same.txt"; then
+if grep -q '^東京 .*sfimage=mappin.circle.fill ' "$work/weather-here-same.txt" && grep -q '^現在地（東京） .*sfimage=location.circle ' "$work/weather-here-same.txt"; then
 	ok "weather 現在地と同じ観測点を選んでも区別する"
 else
 	grep 'param1=select' "$work/weather-here-same.txt" | sed 's/ bash=.*//'

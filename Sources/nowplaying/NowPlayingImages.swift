@@ -78,7 +78,7 @@ struct NowPlayingImages {
             // 右側の文字
             let textX = artSize + 16
             let textAreaWidth = width - textX - 2
-            let titleFont = NSFont.systemFont(ofSize: 15, weight: .semibold)
+            let titleFont = NSFont.card(size: 15, weight: .semibold)
             drawText(track.name, in: CGRect(x: textX, y: 6, width: textAreaWidth, height: 40),
                      font: titleFont, color: primary, lines: 2)
             // 曲名が 1 行に収まるときは、アーティストとアルバムを上に詰める
@@ -86,15 +86,15 @@ struct NowPlayingImages {
                 .boundingRect(with: CGSize(width: textAreaWidth, height: 40), options: [.usesLineFragmentOrigin]).height
             var y = 6 + min(ceil(titleHeight), 40) + 6
             drawText(track.artist, in: CGRect(x: textX, y: y, width: textAreaWidth, height: 18),
-                     font: .systemFont(ofSize: 13), color: primary)
+                     font: .card(size: 13), color: primary)
             y += 19
             if !track.album.isEmpty {
                 drawText(track.album, in: CGRect(x: textX, y: y, width: textAreaWidth, height: 18),
-                         font: .systemFont(ofSize: 12), color: secondary)
+                         font: .card(size: 12), color: secondary)
             }
             if !track.isPlaying {
                 drawText(L("一時停止中", "Paused"), in: CGRect(x: textX, y: artSize - 14, width: textAreaWidth, height: 16),
-                         font: .systemFont(ofSize: 11), color: secondary)
+                         font: .card(size: 11), color: secondary)
             }
 
             // 下の再生位置
@@ -115,7 +115,7 @@ struct NowPlayingImages {
         context.fillRoundedRect(filled, radius: 2, color: colors.bar)
 
         func minutesAndSeconds(_ t: Double) -> String { String(format: "%d:%02d", Int(t) / 60, Int(t) % 60) }
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .regular)
+        let font = NSFont.card(size: 10, digits: .tabular)
         drawText(minutesAndSeconds(position), in: CGRect(x: 2, y: top + 6, width: 60, height: 14),
                  font: font, color: colors.text)
         let remaining = "-" + minutesAndSeconds(duration - position)

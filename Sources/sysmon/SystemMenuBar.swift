@@ -26,7 +26,7 @@ struct SystemMenuBar {
     let snapshot: Snapshot
 
     private let height: CGFloat = 22
-    private let font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
+    private let font = NSFont.card(size: 13, digits: .tabular)
     private let chartSize = CGSize(width: 40, height: 14)
     private let barSize = CGSize(width: 26, height: 6)
     /// 見出しとグラフ・値の間
