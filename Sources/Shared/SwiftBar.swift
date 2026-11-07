@@ -15,6 +15,12 @@ public enum SwiftBar {
         " | image=\(light.base64),\(dark.base64) \(sizeParameters(light.size))"
     }
 
+    /// テンプレート画像だけのメニューバーの行。画像の色は使わず、形 (不透明なところ) を
+    /// メニューバーの地に合わせた色で描く。モニタごとの地にも合う。
+    public static func menuBarTemplateImageLine(_ image: PNGImage) -> String {
+        " | templateImage=\(image.base64) \(sizeParameters(image.size))"
+    }
+
     /// 画像と文字を並べたメニューバーの行。文字は SwiftBar がメニューバーの文字として
     /// 描くので、色がモニタごとのメニューバーの地に合う (画像に描いた白や黒の文字は、
     /// メインのモニタに合わせた 1 枚がほかのモニタにも出るので、地によって消える)。
