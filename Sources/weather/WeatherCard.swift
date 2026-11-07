@@ -110,10 +110,13 @@ struct WeatherCard {
         var y = top + headerHeight
         for (day, rowHeight) in zip(input.days, dayRowHeights) {
             pen.symbol(day.icon, color: colors.color(day.color), cx: pad + 9, cy: y + 8, size: 14)
-            let weekday = weekdayName(day.dow)
+            // 週間予報と同じく、曜日だけを土曜は青、日曜は赤にする。
             // 日付は縦に並ぶので、等幅の数字で桁をそろえる
-            pen.text(L("\(day.date)（\(weekday)）", "\(weekday) \(day.date)"), x: pad + 26, y: y, size: 13,
-                     color: colors.secondary, digits: .tabular)
+            let weekday = weekdayName(day.dow)
+            let pieces = isJapanese
+                ? [(day.date, colors.secondary), ("（\(weekday)）", colors.weekday(day.dow))]
+                : [(weekday, colors.weekday(day.dow)), (" \(day.date)", colors.secondary)]
+            pen.text(pieces, x: pad + 26, y: y, size: 13, digits: .tabular)
             pen.wrappedText(Typesetting.forecastPhrases(day.text), x: dayTextX, y: y, width: dayTextWidth, size: 13)
             y += rowHeight
         }
@@ -128,15 +131,10 @@ struct WeatherCard {
         let y = top + headerHeight
         for (i, day) in input.week.enumerated() {
             let cx = pad + columnWidth * (CGFloat(i) + 0.5)
-            // 土曜は青、日曜は赤
-            let weekdayColor = switch day.dow {
-            case 6: colors.blue
-            case 0: colors.red
-            default: colors.secondary
-            }
             let weekday = weekdayName(day.dow)
             pen.text(day.date, x: cx, y: y, size: 11, color: colors.secondary, align: .center)
-            pen.text(L("（\(weekday)）", weekday), x: cx, y: y + 13, size: 10, color: weekdayColor, align: .center)
+            pen.text(L("（\(weekday)）", weekday), x: cx, y: y + 13, size: 10, color: colors.weekday(day.dow),
+                     align: .center)
             pen.symbol(day.icon, color: colors.color(day.color), cx: cx, cy: y + 41, size: 17)
             pen.text(day.max.isEmpty ? "-" : "\(day.max)°", x: cx, y: y + 56, size: 13,
                      color: colors.color(day.maxColor), weight: .semibold, align: .center)

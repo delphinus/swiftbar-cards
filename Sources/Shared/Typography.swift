@@ -37,11 +37,23 @@ public extension NSFont {
 @discardableResult
 public func drawCardText(_ string: String, x: CGFloat, y: CGFloat, font: NSFont, color: NSColor,
                          align: NSTextAlignment = .left, maxWidth: CGFloat? = nil) -> CGSize {
+    drawCardText([(string, color)], x: x, y: y, font: font, align: align, maxWidth: maxWidth)
+}
+
+/// 色の違う文字列をつないで 1 行に描く。1 つの文字列として組むので、つなぎ目の字の
+/// 間隔は 1 色で描いたときと同じになる (別々に描くと、2 つめが「（」で始まるときに
+/// 行頭の括弧として前の空きが詰められる)。
+@discardableResult
+public func drawCardText(_ pieces: [(String, NSColor)], x: CGFloat, y: CGFloat, font: NSFont,
+                         align: NSTextAlignment = .left, maxWidth: CGFloat? = nil) -> CGSize {
     let style = NSMutableParagraphStyle()
     style.lineBreakMode = .byTruncatingTail
-    let text = NSAttributedString(string: string, attributes: [
-        .font: font, .foregroundColor: color, .paragraphStyle: style,
-    ])
+    let text = NSMutableAttributedString()
+    for (string, color) in pieces {
+        text.append(NSAttributedString(string: string, attributes: [
+            .font: font, .foregroundColor: color, .paragraphStyle: style,
+        ]))
+    }
     var textSize = text.size()
     if let maxWidth { textSize.width = min(textSize.width, maxWidth) }
     let dx: CGFloat = switch align {
