@@ -53,7 +53,7 @@ final class WeatherPlugin {
     private var folderWatcher: DispatchSourceFileSystemObject?
     private var timer: Timer?
 
-    init(cache: CacheFolder, pluginPath: String, telops: [String: String]) {
+    init(cache: CacheFolder, pluginPath: String, telops: [String: Telop]) {
         self.cache = cache
         self.pluginPath = pluginPath
         self.maker = CardMaker(cache: cache, telops: telops)

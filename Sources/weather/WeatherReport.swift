@@ -21,7 +21,7 @@ struct WeatherReport {
     /// 観測点の時系列 (時刻 "20261104210000" → 値)
     let series: [String: AmedasObservation]
     /// 天気コード → 英語名 (data/jma-telops.json)
-    let telops: [String: String]
+    let telops: [String: Telop]
     /// 観測点の番号 → 観測点 (週間予報の気温の地点の英語名を引く)
     let stations: [String: AmedasStation]
     /// 取得に失敗して、前に取れたデータを出しているか
@@ -60,7 +60,7 @@ struct WeatherReport {
     var menuItemSummary: String { summary(colors: \.menuItem) }
 
     private func summary(colors: KeyPath<ColorSet, String>) -> String {
-        let icon = WeatherStyle.icon(forCode: weatherArea?.weatherCodes?.first ?? "")
+        let icon = weatherIcon(weatherArea?.weatherCodes?.first ?? "")
         let pop = currentPrecipitationChance
         var text = ":\(icon): " + (currentTemperature.map { "\(Int($0.rounded()))°" } ?? "")
         var parameters = " | sfcolor=\(WeatherStyle.colors(forIcon: icon)[keyPath: colors])"
@@ -193,7 +193,7 @@ struct WeatherReport {
         return series.timeDefines.enumerated().compactMap { i, time in
             guard time.slice(0, 10) >= today else { return nil }
             let code = area.weatherCodes?[safe: i] ?? ""
-            let icon = WeatherStyle.icon(forCode: code)
+            let icon = weatherIcon(code)
             // 「今日」「明日」は日付をまたぐと指す日が変わって分かりにくいので、日付で出す
             let (date, weekday) = JapanTime.monthDay(time)
             // 全角の空白 (語の区切り) は残し、カードの側で折り返しの位置に使う
@@ -202,9 +202,14 @@ struct WeatherReport {
         }
     }
 
+    /// 天気コードのアイコン
+    private func weatherIcon(_ code: String) -> String {
+        WeatherStyle.icon(forCode: code, telop: telops[code])
+    }
+
     /// 予報の文。英語のときは、日本語でしか配られない文の代わりに天気コードの英語名を使う
     private func forecastText(_ text: String, code: String) -> String {
-        isJapanese ? text : (telops[code] ?? text)
+        isJapanese ? text : (telops[code]?.en ?? text)
     }
 
     // MARK: 週間予報
@@ -255,7 +260,7 @@ struct WeatherReport {
             let max = temperature(temperatureArea?.tempsMax?[safe: i], minimum: false)
             let min = temperature(temperatureArea?.tempsMin?[safe: i], minimum: true)
             let pop = filled(weatherArea?.pops?[safe: i] ?? "") { highestPrecipitationChance(on: date) }
-            let icon = WeatherStyle.icon(forCode: weatherArea?.weatherCodes?[safe: i] ?? "")
+            let icon = weatherIcon(weatherArea?.weatherCodes?[safe: i] ?? "")
             let (label, weekday) = JapanTime.monthDay(time)
             return WeekForecast(
                 date: label, dow: weekday, icon: icon, color: WeatherStyle.colors(forIcon: icon).card(dark: dark),

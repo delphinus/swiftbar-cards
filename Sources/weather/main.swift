@@ -60,11 +60,12 @@ let pluginPath = ProcessInfo.processInfo.environment["SWIFTBAR_CARDS_PLUGIN"] ??
 let telopsFile = URL(fileURLWithPath: pluginPath)
     .deletingLastPathComponent().deletingLastPathComponent()
     .appendingPathComponent("data/jma-telops.json")
-let telops: [String: String] = {
+let telops: [String: Telop] = {
     do {
-        return try JSONDecoder().decode([String: String].self, from: Data(contentsOf: telopsFile))
+        return try JSONDecoder().decode([String: Telop].self, from: Data(contentsOf: telopsFile))
     } catch {
-        // 読めなくても動く (英語の表示で、天気の文が日本語のままになるだけ)
+        // 読めなくても動く (英語の表示で天気の文が日本語のままになり、天気のアイコンは
+        // コードの百の位だけで決める)
         logger.error("読めない: \(telopsFile.path, privacy: .public): \(String(describing: error), privacy: .public)")
         return [:]
     }
