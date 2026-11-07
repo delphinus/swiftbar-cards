@@ -1,120 +1,592 @@
 {
-  "100": "Clear",
-  "101": "Partly cloudy",
-  "102": "Clear, occasional scattered showers",
-  "103": "Clear, frequent scattered showers",
-  "104": "Clear, snow flurries",
-  "105": "Clear, frequent snow flurries",
-  "106": "Clear, occasional scattered showers or snow flurries",
-  "107": "Clear, frequent scattered showers or snow flurries",
-  "108": "Clear, occasional scattered showers and/or thunder",
-  "110": "Clear, partly cloudy later",
-  "111": "Clear, cloudy later",
-  "112": "Clear, occasional scattered showers later",
-  "113": "Clear, frequent scattered showers later",
-  "114": "Clear, rain later",
-  "115": "Clear, occasional snow flurries later",
-  "116": "Clear, frequent snow flurries later",
-  "117": "Clear, snow later",
-  "118": "Clear, rain or snow later",
-  "119": "Clear, rain and/or thunder later",
-  "120": "Occasional scattered showers in the morning and evening, clear during the day",
-  "121": "Occasional scattered showers in the morning, clear during the day",
-  "122": "Clear, occasional scattered showers in the evening",
-  "123": "Clear in the plains, rain and thunder near moutainous areas",
-  "124": "Clear in the plains, snow near moutainous areas",
-  "125": "Clear, rain and thunder in the afternoon",
-  "126": "Clear, rain in the afternoon",
-  "127": "Clear, rain in the evening",
-  "128": "Clear, rain in the night",
-  "130": "Fog in the morning, clear later",
-  "131": "Fog around dawn, clear later",
-  "132": "Cloudy in the morning and evening, clear during the day",
-  "140": "Clear, frequent scattered showers and thunder",
-  "160": "Clear, snow flurries or occasional scattered showers",
-  "170": "Clear, frequent snow flurries or scattered showers",
-  "181": "Clear, snow or rain later",
-  "200": "Cloudy",
-  "201": "Mostly cloudy",
-  "202": "Cloudy, occasional scattered showers",
-  "203": "Cloudy, frequent scattered showers",
-  "204": "Cloudy, occasional snow flurries",
-  "205": "Cloudy frequent snow flurries",
-  "206": "Cloudy, occasional scattered showers or snow flurries",
-  "207": "Cloudy, frequent sccatered showers or snow flurries",
-  "208": "Cloudy, occasional scattered showers and/or thunder",
-  "209": "Fog",
-  "210": "Cloudy, partly cloudy later",
-  "211": "Cloudy, clear later",
-  "212": "Cloudy, occasional scattered showers later",
-  "213": "Cloudy, frequent scattered showers later",
-  "214": "Cloudy, rain later",
-  "215": "Cloudy, snow flurries later",
-  "216": "Cloudy, frequent snow flurries later",
-  "217": "Cloudy, snow later",
-  "218": "Cloudy, rain or snow later",
-  "219": "Cloudy, rain and/or thunder later",
-  "220": "Occasional sccatered showers in the morning and evening, cloudy during the day",
-  "221": "Cloudy occasional sccatered showers in the morning",
-  "222": "Cloudy, occasional sccatered showers in the evening",
-  "223": "Cloudy in the morning and evening, partly cloudy during the day, ",
-  "224": "Cloudy, rain in the afternoon",
-  "225": "Cloudy, rain in the evening",
-  "226": "Cloudy, rain in the night",
-  "228": "Cloudy, snow in the afternoon",
-  "229": "Cloudy, snow in the evening",
-  "230": "Cloudy, snow in the night",
-  "231": "Cloudy, fog or drizzling on the sea and near seashore",
-  "240": "Cloudy, frequent sccatered showers and thunder",
-  "250": "Cloudy, frequent snow and thunder",
-  "260": "Cloudy, snow flurries or occasional scattered showers",
-  "270": "Cloudy, frequent snow flurries or scattered showers",
-  "281": "Cloudy, snow or rain later",
-  "300": "Rain",
-  "301": "Rain, partly cloudy",
-  "302": "Showers throughout the day",
-  "303": "Rain, frequent snow flurries",
-  "304": "Rainorsnow",
-  "306": "Heavyrain",
-  "308": "Rainstorm",
-  "309": "Rain, occasional snow",
-  "311": "Rain, clear later",
-  "313": "Rain, cloudy later",
-  "314": "Rain, frequent snow flurries later",
-  "315": "Rain, snow later",
-  "316": "Rain or snow, clear later",
-  "317": "Rain or snow, cloudy later",
-  "320": "Rain in the morning, clear later",
-  "321": "Rain in the morning, cloudy later",
-  "322": "Occasional snow in the morning and evening, rain during the day",
-  "323": "Rain, clear in the afternoon",
-  "324": "Rain, clear in the evening",
-  "325": "Rain, clear in the night",
-  "326": "Rain, snow in the evening",
-  "327": "Rain, snow in the night",
-  "328": "Rain, expect occasional heavy rainfall",
-  "329": "Rain, occasional sleet",
-  "340": "Snoworrain",
-  "350": "Rain and thunder",
-  "361": "Snow or rain, clear later",
-  "371": "Snow or rain, cloudy later",
-  "400": "Snow",
-  "401": "Snow, frequent clear",
-  "402": "Snowthroughout the day",
-  "403": "Snow, frequent sccatered showers",
-  "405": "Heavysnow",
-  "406": "Snowstorm",
-  "407": "Heavysnowstorm",
-  "409": "Snow, occasional sccatered showers",
-  "411": "Snow, clear later",
-  "413": "Snow, cloudy later",
-  "414": "Snow, rain later",
-  "420": "Snow in the morning, clear later",
-  "421": "Snow in the morning, cloudy later",
-  "422": "Snow, rain in the afternoon",
-  "423": "Snow, rain in the evening",
-  "425": "Snow, expect occasional heavy snowfall",
-  "426": "Snow, sleet later",
-  "427": "Snow, occasional sleet",
-  "450": "Snow and thunder"
+  "100": {
+    "base": "100",
+    "en": "Clear",
+    "ja": "晴"
+  },
+  "101": {
+    "base": "100",
+    "en": "Partly cloudy",
+    "ja": "晴時々曇"
+  },
+  "102": {
+    "base": "300",
+    "en": "Clear, occasional scattered showers",
+    "ja": "晴一時雨"
+  },
+  "103": {
+    "base": "300",
+    "en": "Clear, frequent scattered showers",
+    "ja": "晴時々雨"
+  },
+  "104": {
+    "base": "400",
+    "en": "Clear, snow flurries",
+    "ja": "晴一時雪"
+  },
+  "105": {
+    "base": "400",
+    "en": "Clear, frequent snow flurries",
+    "ja": "晴時々雪"
+  },
+  "106": {
+    "base": "300",
+    "en": "Clear, occasional scattered showers or snow flurries",
+    "ja": "晴一時雨か雪"
+  },
+  "107": {
+    "base": "300",
+    "en": "Clear, frequent scattered showers or snow flurries",
+    "ja": "晴時々雨か雪"
+  },
+  "108": {
+    "base": "300",
+    "en": "Clear, occasional scattered showers and/or thunder",
+    "ja": "晴一時雨か雷雨"
+  },
+  "110": {
+    "base": "100",
+    "en": "Clear, partly cloudy later",
+    "ja": "晴後時々曇"
+  },
+  "111": {
+    "base": "100",
+    "en": "Clear, cloudy later",
+    "ja": "晴後曇"
+  },
+  "112": {
+    "base": "300",
+    "en": "Clear, occasional scattered showers later",
+    "ja": "晴後一時雨"
+  },
+  "113": {
+    "base": "300",
+    "en": "Clear, frequent scattered showers later",
+    "ja": "晴後時々雨"
+  },
+  "114": {
+    "base": "300",
+    "en": "Clear, rain later",
+    "ja": "晴後雨"
+  },
+  "115": {
+    "base": "400",
+    "en": "Clear, occasional snow flurries later",
+    "ja": "晴後一時雪"
+  },
+  "116": {
+    "base": "400",
+    "en": "Clear, frequent snow flurries later",
+    "ja": "晴後時々雪"
+  },
+  "117": {
+    "base": "400",
+    "en": "Clear, snow later",
+    "ja": "晴後雪"
+  },
+  "118": {
+    "base": "300",
+    "en": "Clear, rain or snow later",
+    "ja": "晴後雨か雪"
+  },
+  "119": {
+    "base": "300",
+    "en": "Clear, rain and/or thunder later",
+    "ja": "晴後雨か雷雨"
+  },
+  "120": {
+    "base": "300",
+    "en": "Occasional scattered showers in the morning and evening, clear during the day",
+    "ja": "晴朝夕一時雨"
+  },
+  "121": {
+    "base": "300",
+    "en": "Occasional scattered showers in the morning, clear during the day",
+    "ja": "晴朝の内一時雨"
+  },
+  "122": {
+    "base": "300",
+    "en": "Clear, occasional scattered showers in the evening",
+    "ja": "晴夕方一時雨"
+  },
+  "123": {
+    "base": "100",
+    "en": "Clear in the plains, rain and thunder near moutainous areas",
+    "ja": "晴山沿い雷雨"
+  },
+  "124": {
+    "base": "100",
+    "en": "Clear in the plains, snow near moutainous areas",
+    "ja": "晴山沿い雪"
+  },
+  "125": {
+    "base": "300",
+    "en": "Clear, rain and thunder in the afternoon",
+    "ja": "晴午後は雷雨"
+  },
+  "126": {
+    "base": "300",
+    "en": "Clear, rain in the afternoon",
+    "ja": "晴昼頃から雨"
+  },
+  "127": {
+    "base": "300",
+    "en": "Clear, rain in the evening",
+    "ja": "晴夕方から雨"
+  },
+  "128": {
+    "base": "300",
+    "en": "Clear, rain in the night",
+    "ja": "晴夜は雨"
+  },
+  "130": {
+    "base": "100",
+    "en": "Fog in the morning, clear later",
+    "ja": "朝の内霧後晴"
+  },
+  "131": {
+    "base": "100",
+    "en": "Fog around dawn, clear later",
+    "ja": "晴明け方霧"
+  },
+  "132": {
+    "base": "100",
+    "en": "Cloudy in the morning and evening, clear during the day",
+    "ja": "晴朝夕曇"
+  },
+  "140": {
+    "base": "300",
+    "en": "Clear, frequent scattered showers and thunder",
+    "ja": "晴時々雨で雷を伴う"
+  },
+  "160": {
+    "base": "400",
+    "en": "Clear, snow flurries or occasional scattered showers",
+    "ja": "晴一時雪か雨"
+  },
+  "170": {
+    "base": "400",
+    "en": "Clear, frequent snow flurries or scattered showers",
+    "ja": "晴時々雪か雨"
+  },
+  "181": {
+    "base": "400",
+    "en": "Clear, snow or rain later",
+    "ja": "晴後雪か雨"
+  },
+  "200": {
+    "base": "200",
+    "en": "Cloudy",
+    "ja": "曇"
+  },
+  "201": {
+    "base": "200",
+    "en": "Mostly cloudy",
+    "ja": "曇時々晴"
+  },
+  "202": {
+    "base": "300",
+    "en": "Cloudy, occasional scattered showers",
+    "ja": "曇一時雨"
+  },
+  "203": {
+    "base": "300",
+    "en": "Cloudy, frequent scattered showers",
+    "ja": "曇時々雨"
+  },
+  "204": {
+    "base": "400",
+    "en": "Cloudy, occasional snow flurries",
+    "ja": "曇一時雪"
+  },
+  "205": {
+    "base": "400",
+    "en": "Cloudy frequent snow flurries",
+    "ja": "曇時々雪"
+  },
+  "206": {
+    "base": "300",
+    "en": "Cloudy, occasional scattered showers or snow flurries",
+    "ja": "曇一時雨か雪"
+  },
+  "207": {
+    "base": "300",
+    "en": "Cloudy, frequent sccatered showers or snow flurries",
+    "ja": "曇時々雨か雪"
+  },
+  "208": {
+    "base": "300",
+    "en": "Cloudy, occasional scattered showers and/or thunder",
+    "ja": "曇一時雨か雷雨"
+  },
+  "209": {
+    "base": "200",
+    "en": "Fog",
+    "ja": "霧"
+  },
+  "210": {
+    "base": "200",
+    "en": "Cloudy, partly cloudy later",
+    "ja": "曇後時々晴"
+  },
+  "211": {
+    "base": "200",
+    "en": "Cloudy, clear later",
+    "ja": "曇後晴"
+  },
+  "212": {
+    "base": "300",
+    "en": "Cloudy, occasional scattered showers later",
+    "ja": "曇後一時雨"
+  },
+  "213": {
+    "base": "300",
+    "en": "Cloudy, frequent scattered showers later",
+    "ja": "曇後時々雨"
+  },
+  "214": {
+    "base": "300",
+    "en": "Cloudy, rain later",
+    "ja": "曇後雨"
+  },
+  "215": {
+    "base": "400",
+    "en": "Cloudy, snow flurries later",
+    "ja": "曇後一時雪"
+  },
+  "216": {
+    "base": "400",
+    "en": "Cloudy, frequent snow flurries later",
+    "ja": "曇後時々雪"
+  },
+  "217": {
+    "base": "400",
+    "en": "Cloudy, snow later",
+    "ja": "曇後雪"
+  },
+  "218": {
+    "base": "300",
+    "en": "Cloudy, rain or snow later",
+    "ja": "曇後雨か雪"
+  },
+  "219": {
+    "base": "300",
+    "en": "Cloudy, rain and/or thunder later",
+    "ja": "曇後雨か雷雨"
+  },
+  "220": {
+    "base": "300",
+    "en": "Occasional sccatered showers in the morning and evening, cloudy during the day",
+    "ja": "曇朝夕一時雨"
+  },
+  "221": {
+    "base": "300",
+    "en": "Cloudy occasional sccatered showers in the morning",
+    "ja": "曇朝の内一時雨"
+  },
+  "222": {
+    "base": "300",
+    "en": "Cloudy, occasional sccatered showers in the evening",
+    "ja": "曇夕方一時雨"
+  },
+  "223": {
+    "base": "200",
+    "en": "Cloudy in the morning and evening, partly cloudy during the day, ",
+    "ja": "曇日中時々晴"
+  },
+  "224": {
+    "base": "300",
+    "en": "Cloudy, rain in the afternoon",
+    "ja": "曇昼頃から雨"
+  },
+  "225": {
+    "base": "300",
+    "en": "Cloudy, rain in the evening",
+    "ja": "曇夕方から雨"
+  },
+  "226": {
+    "base": "300",
+    "en": "Cloudy, rain in the night",
+    "ja": "曇夜は雨"
+  },
+  "228": {
+    "base": "400",
+    "en": "Cloudy, snow in the afternoon",
+    "ja": "曇昼頃から雪"
+  },
+  "229": {
+    "base": "400",
+    "en": "Cloudy, snow in the evening",
+    "ja": "曇夕方から雪"
+  },
+  "230": {
+    "base": "400",
+    "en": "Cloudy, snow in the night",
+    "ja": "曇夜は雪"
+  },
+  "231": {
+    "base": "200",
+    "en": "Cloudy, fog or drizzling on the sea and near seashore",
+    "ja": "曇海上海岸は霧か霧雨"
+  },
+  "240": {
+    "base": "300",
+    "en": "Cloudy, frequent sccatered showers and thunder",
+    "ja": "曇時々雨で雷を伴う"
+  },
+  "250": {
+    "base": "400",
+    "en": "Cloudy, frequent snow and thunder",
+    "ja": "曇時々雪で雷を伴う"
+  },
+  "260": {
+    "base": "400",
+    "en": "Cloudy, snow flurries or occasional scattered showers",
+    "ja": "曇一時雪か雨"
+  },
+  "270": {
+    "base": "400",
+    "en": "Cloudy, frequent snow flurries or scattered showers",
+    "ja": "曇時々雪か雨"
+  },
+  "281": {
+    "base": "400",
+    "en": "Cloudy, snow or rain later",
+    "ja": "曇後雪か雨"
+  },
+  "300": {
+    "base": "300",
+    "en": "Rain",
+    "ja": "雨"
+  },
+  "301": {
+    "base": "300",
+    "en": "Rain, partly cloudy",
+    "ja": "雨時々晴"
+  },
+  "302": {
+    "base": "300",
+    "en": "Showers throughout the day",
+    "ja": "雨時々止む"
+  },
+  "303": {
+    "base": "400",
+    "en": "Rain, frequent snow flurries",
+    "ja": "雨時々雪"
+  },
+  "304": {
+    "base": "300",
+    "en": "Rainorsnow",
+    "ja": "雨か雪"
+  },
+  "306": {
+    "base": "300",
+    "en": "Heavyrain",
+    "ja": "大雨"
+  },
+  "308": {
+    "base": "300",
+    "en": "Rainstorm",
+    "ja": "雨で暴風を伴う"
+  },
+  "309": {
+    "base": "400",
+    "en": "Rain, occasional snow",
+    "ja": "雨一時雪"
+  },
+  "311": {
+    "base": "300",
+    "en": "Rain, clear later",
+    "ja": "雨後晴"
+  },
+  "313": {
+    "base": "300",
+    "en": "Rain, cloudy later",
+    "ja": "雨後曇"
+  },
+  "314": {
+    "base": "400",
+    "en": "Rain, frequent snow flurries later",
+    "ja": "雨後時々雪"
+  },
+  "315": {
+    "base": "400",
+    "en": "Rain, snow later",
+    "ja": "雨後雪"
+  },
+  "316": {
+    "base": "300",
+    "en": "Rain or snow, clear later",
+    "ja": "雨か雪後晴"
+  },
+  "317": {
+    "base": "300",
+    "en": "Rain or snow, cloudy later",
+    "ja": "雨か雪後曇"
+  },
+  "320": {
+    "base": "300",
+    "en": "Rain in the morning, clear later",
+    "ja": "朝の内雨後晴"
+  },
+  "321": {
+    "base": "300",
+    "en": "Rain in the morning, cloudy later",
+    "ja": "朝の内雨後曇"
+  },
+  "322": {
+    "base": "400",
+    "en": "Occasional snow in the morning and evening, rain during the day",
+    "ja": "雨朝晩一時雪"
+  },
+  "323": {
+    "base": "300",
+    "en": "Rain, clear in the afternoon",
+    "ja": "雨昼頃から晴"
+  },
+  "324": {
+    "base": "300",
+    "en": "Rain, clear in the evening",
+    "ja": "雨夕方から晴"
+  },
+  "325": {
+    "base": "300",
+    "en": "Rain, clear in the night",
+    "ja": "雨夜は晴"
+  },
+  "326": {
+    "base": "400",
+    "en": "Rain, snow in the evening",
+    "ja": "雨夕方から雪"
+  },
+  "327": {
+    "base": "400",
+    "en": "Rain, snow in the night",
+    "ja": "雨夜は雪"
+  },
+  "328": {
+    "base": "300",
+    "en": "Rain, expect occasional heavy rainfall",
+    "ja": "雨一時強く降る"
+  },
+  "329": {
+    "base": "300",
+    "en": "Rain, occasional sleet",
+    "ja": "雨一時みぞれ"
+  },
+  "340": {
+    "base": "400",
+    "en": "Snoworrain",
+    "ja": "雪か雨"
+  },
+  "350": {
+    "base": "300",
+    "en": "Rain and thunder",
+    "ja": "雨で雷を伴う"
+  },
+  "361": {
+    "base": "400",
+    "en": "Snow or rain, clear later",
+    "ja": "雪か雨後晴"
+  },
+  "371": {
+    "base": "400",
+    "en": "Snow or rain, cloudy later",
+    "ja": "雪か雨後曇"
+  },
+  "400": {
+    "base": "400",
+    "en": "Snow",
+    "ja": "雪"
+  },
+  "401": {
+    "base": "400",
+    "en": "Snow, frequent clear",
+    "ja": "雪時々晴"
+  },
+  "402": {
+    "base": "400",
+    "en": "Snowthroughout the day",
+    "ja": "雪時々止む"
+  },
+  "403": {
+    "base": "400",
+    "en": "Snow, frequent sccatered showers",
+    "ja": "雪時々雨"
+  },
+  "405": {
+    "base": "400",
+    "en": "Heavysnow",
+    "ja": "大雪"
+  },
+  "406": {
+    "base": "400",
+    "en": "Snowstorm",
+    "ja": "風雪強い"
+  },
+  "407": {
+    "base": "400",
+    "en": "Heavysnowstorm",
+    "ja": "暴風雪"
+  },
+  "409": {
+    "base": "400",
+    "en": "Snow, occasional sccatered showers",
+    "ja": "雪一時雨"
+  },
+  "411": {
+    "base": "400",
+    "en": "Snow, clear later",
+    "ja": "雪後晴"
+  },
+  "413": {
+    "base": "400",
+    "en": "Snow, cloudy later",
+    "ja": "雪後曇"
+  },
+  "414": {
+    "base": "400",
+    "en": "Snow, rain later",
+    "ja": "雪後雨"
+  },
+  "420": {
+    "base": "400",
+    "en": "Snow in the morning, clear later",
+    "ja": "朝の内雪後晴"
+  },
+  "421": {
+    "base": "400",
+    "en": "Snow in the morning, cloudy later",
+    "ja": "朝の内雪後曇"
+  },
+  "422": {
+    "base": "400",
+    "en": "Snow, rain in the afternoon",
+    "ja": "雪昼頃から雨"
+  },
+  "423": {
+    "base": "400",
+    "en": "Snow, rain in the evening",
+    "ja": "雪夕方から雨"
+  },
+  "425": {
+    "base": "400",
+    "en": "Snow, expect occasional heavy snowfall",
+    "ja": "雪一時強く降る"
+  },
+  "426": {
+    "base": "400",
+    "en": "Snow, sleet later",
+    "ja": "雪後みぞれ"
+  },
+  "427": {
+    "base": "400",
+    "en": "Snow, occasional sleet",
+    "ja": "雪一時みぞれ"
+  },
+  "450": {
+    "base": "400",
+    "en": "Snow and thunder",
+    "ja": "雪で雷を伴う"
+  }
 }

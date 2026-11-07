@@ -23,17 +23,33 @@ struct ColorSet {
 
 /// 天気・降水確率・気温・風向から、アイコンと色を決める
 enum WeatherStyle {
-    /// 天気コードのアイコン。百の位で大まかに分ける (1 晴れ・2 くもり・3 雨・4 雪)。
-    /// 十の位以下は「時々」「のち」などの組み合わせ。
-    static func icon(forCode code: String) -> String {
-        let c = Int(code) ?? 0
-        switch c {
-        case 400...: return "cloud.snow"
-        case 300...: return "cloud.rain"
-        // 201〜209 (くもり時々晴れなど) は晴れ間のあるくもり
-        case 200...: return (2..<10).contains(c % 100) ? "cloud.sun" : "cloud"
-        case 100: return "sun.max"
-        case 101...: return "cloud.sun"
+    /// 天気コードのアイコン。気象庁の表 (`telop`) にある代表の天気 (晴・曇・雨・雪) で
+    /// 大まかに分け、晴と曇は日本語の名前で晴れ間・曇り間のあるものを分ける。
+    ///
+    /// - 雨・雪: 「曇時々雨」(203) や「晴一時雨」(102) も、気象庁の代表の天気に従って
+    ///   雨にする (降水確率が高いのに晴れ間のアイコンが出ていた)。
+    /// - 曇: 「曇時々晴」「曇後晴」のように晴を含めば晴れ間のあるくもり。「霧」(209) は霧。
+    /// - 晴: 「晴時々曇」「晴後曇」のように曇を含めば晴れ間のあるくもり。
+    ///
+    /// 表が無いとき (data/jma-telops.json を読めないとき) は、コードの百の位で分ける。
+    static func icon(forCode code: String, telop: Telop?) -> String {
+        guard let telop else {
+            switch Int(code) ?? 0 {
+            case 400...: return "cloud.snow"
+            case 300...: return "cloud.rain"
+            case 200...: return "cloud"
+            case 100: return "sun.max"
+            case 101...: return "cloud.sun"
+            default: return "questionmark"
+            }
+        }
+        switch telop.base {
+        case "400": return "cloud.snow"
+        case "300": return "cloud.rain"
+        case "200":
+            if telop.ja.contains("晴") { return "cloud.sun" }
+            return telop.ja.hasPrefix("霧") ? "cloud.fog" : "cloud"
+        case "100": return telop.ja.contains("曇") ? "cloud.sun" : "sun.max"
         default: return "questionmark"
         }
     }

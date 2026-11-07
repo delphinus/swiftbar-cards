@@ -6,6 +6,17 @@ import Foundation
 // MARK: - 観測点と予報区の表 (めったに変わらない)
 
 /// アメダスの観測点 (amedas/const/amedastable.json の 1 件)。キーは観測点の番号
+/// 天気コードの表 (data/jma-telops.json) の 1 件。scripts/update-telops.sh が気象庁の
+/// 予報のページの表から作る
+struct Telop: Decodable {
+    /// 英語の名前。例: "Cloudy, frequent scattered showers"
+    let en: String
+    /// 日本語の名前 (気象庁の表記)。例: "曇時々雨"
+    let ja: String
+    /// 気象庁が天気を大まかに分けたコード。"100" (晴)・"200" (曇)・"300" (雨)・"400" (雪)
+    let base: String
+}
+
 struct AmedasStation: Decodable {
     /// 観測している要素。1 文字目が 1 なら気温を観測している
     let elems: String
