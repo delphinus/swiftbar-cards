@@ -12,13 +12,20 @@ struct NowPlayingImages {
 
     /// メニューバーの曲名を切る幅
     static let menuBarTitleWidth: CGFloat = 220
+    /// メニューバーのアートワークの右に足す余白
+    static let menuBarArtworkGap: CGFloat = 3
 
     /// メニューバーのアートワーク (18pt)。曲名は画像に描かず、SwiftBar の文字として
     /// 並べる (SwiftBar.menuBarLine)。アートワークが無いときの音符は、明るい地にも
     /// 暗い地にも見える中間の灰色で描く。
+    ///
+    /// 右に透明な余白 (`menuBarArtworkGap`) を足す。画像と文字の間はメニューバーの
+    /// ボタンが決める 3pt しか空かず、sysmon や weather のアイコンと数字の間 (5〜6pt)
+    /// より狭く見えた。SwiftBar には大きさを整数の pt で渡すので、余白も整数にする
+    /// (端数にすると、切り上げた幅に画像が引き伸ばされる)。
     func menuBarArtwork() -> PNGImage {
         let artSize: CGFloat = 18
-        return PNGImage.draw(width: artSize, height: artSize) { context in
+        return PNGImage.draw(width: artSize + Self.menuBarArtworkGap, height: artSize) { context in
             drawArtwork(context, in: CGRect(x: 0, y: 0, width: artSize, height: artSize),
                         radius: 3, placeholderColor: NSColor(white: 0.55, alpha: 1), shadow: false)
         }
@@ -44,14 +51,17 @@ struct NowPlayingImages {
         let font = NSFont.menuBarFont(ofSize: 0)
         let title = menuBarTitle()
         let titleWidth = ceil(textWidth(title, font: font))
-        let width = artSize + 5 + titleWidth + 1
+        // アートワークと曲名の間は、メニューバーのボタンが空ける 3pt と、アートワークの
+        // 画像の右の余白を足したもの
+        let titleX = artSize + 3 + Self.menuBarArtworkGap
+        let width = titleX + titleWidth + 1
         let color = dark ? NSColor(white: 1, alpha: 0.92) : NSColor(white: 0, alpha: 0.85)
 
         return PNGImage.draw(width: width, height: height) { context in
             drawArtwork(context, in: CGRect(x: 0, y: (height - artSize) / 2, width: artSize, height: artSize),
                         radius: 3, placeholderColor: NSColor(white: 0.55, alpha: 1), shadow: false)
             let lineHeight = ceil(font.ascender - font.descender + font.leading)
-            drawText(title, in: CGRect(x: artSize + 5, y: (height - lineHeight) / 2 - 1, width: titleWidth + 1, height: lineHeight),
+            drawText(title, in: CGRect(x: titleX, y: (height - lineHeight) / 2 - 1, width: titleWidth + 1, height: lineHeight),
                      font: font, color: color)
         }
     }
