@@ -123,7 +123,7 @@ struct WeatherCard {
 
     private func drawWeek(in context: CGContext, top: CGFloat) {
         let pen = WeatherPen(context: context, colors: colors)
-        pen.text(L("週間予報", "Weekly forecast"), x: pad, y: top, size: 11, color: colors.secondary)
+        pen.text(input.weekTitle, x: pad, y: top, size: 11, color: colors.secondary)
         let columnWidth = (width - pad * 2) / CGFloat(input.week.count)
         let y = top + headerHeight
         for (i, day) in input.week.enumerated() {

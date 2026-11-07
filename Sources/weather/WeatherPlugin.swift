@@ -230,6 +230,7 @@ final class WeatherPlugin {
             if let loaded = await StationTables.load(cache: cache, client: maker.client) {
                 tables = loaded
                 tablesLoadedAt = Date()
+                maker.stations = loaded.stations
             }
         }
         guard let tables else { return nil }

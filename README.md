@@ -71,6 +71,8 @@ The menu lists **My Location (Fuchu)** first (with the station in use in parenth
 
 The plugin finds the forecast area from the station: it uses the forecast area whose representative temperature point is nearest to the station, within the same region.
 
+The weekly forecast may give temperatures for only one point in the prefecture (only Shimonoseki in Yamaguchi). When that point is not the representative temperature point, the heading names it, as in "Weekly forecast (Shimonoseki)", and the days covered by the short-range forecast (today and tomorrow) show the short-range values for the representative point instead.
+
 To put your location somewhere other than first, write `place=here` (or `place=現在地`) in that position:
 
 ```ini
