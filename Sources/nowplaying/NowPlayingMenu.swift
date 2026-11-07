@@ -60,14 +60,20 @@ struct NowPlayingMenu {
     // メニューのアイコンは幅 15pt のもの (円で囲んだ系統など) でそろえる。SF Symbols は
     // アイコンごとに幅が違い、その差だけ文字の書き出し位置がずれる。
 
-    /// メニューバーの音符。SwiftBar の sfimage は大きさ (scale) を large で描くので、
-    /// そのままではほかのアイコンより一回り大きい (14×20pt)。sfconfig で medium にして、
-    /// sysmon の見出しのアイコン (13pt) と同じ 11×15pt にする。sfconfig は次の JSON を
-    /// Base64 にしたもの。色を指定しないので、テンプレート画像のまま (メニューバーの
-    /// 地に合わせた色で描かれる) になる。
+    /// メニューバーの音符。sysmon のアイコンと同じ大きさ (13pt) で、同じ高さ (文字の
+    /// ベースラインに乗せる。MenuBarLayout) に描き、テンプレート画像として渡す。色は
+    /// メニューバーの地に合わせて描かれる。
     ///
-    ///     {"renderingMode":"Hierarchical","colors":[],"scale":"medium"}
-    private static let musicNoteIcon = " | sfimage=music.note sfconfig=eyJyZW5kZXJpbmdNb2RlIjoiSGllcmFyY2hpY2FsIiwiY29sb3JzIjpbXSwic2NhbGUiOiJtZWRpdW0ifQ=="
+    /// SwiftBar の sfimage で渡すと、メニューバーの真ん中に置かれ、v1.1.3 で文字の高さに
+    /// そろえた sysmon や weather のアイコンより 1pt ほど下に出た。
+    private static let musicNoteIcon: String = {
+        guard let icon = NSImage.symbol("music.note", pointSize: MenuBarLayout.iconPointSize, color: .black)
+        else { return " | sfimage=music.note" }
+        let image = PNGImage.draw(width: ceil(icon.size.width), height: MenuBarLayout.height) { _ in
+            icon.drawUpright(in: MenuBarLayout.iconRect(icon, x: 0))
+        }
+        return SwiftBar.menuBarTemplateImageLine(image)
+    }()
 
     /// .app の場所を href に渡すと、SwiftBar がそれを開く (Music.app を起動する)
     private static let openMusic = L("Music を開く", "Open Music")
