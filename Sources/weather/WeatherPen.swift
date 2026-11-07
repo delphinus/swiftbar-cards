@@ -28,6 +28,15 @@ struct CardColors {
     /// 日曜日の赤
     var red: NSColor { NSColor(hex: dark ? "#FF6961" : "#A3000F")! }
 
+    /// 曜日の文字の色。土曜は青、日曜は赤、ほかは控えめな文字色 (0 が日曜)
+    func weekday(_ dayOfWeek: Int) -> NSColor {
+        switch (dayOfWeek % 7 + 7) % 7 {
+        case 6: blue
+        case 0: red
+        default: secondary
+        }
+    }
+
     /// WeatherStyle で選んだ色。無ければ (空文字列や null なら) 標準の文字色
     func color(_ hex: String?) -> NSColor {
         NSColor(hex: hex) ?? primary
@@ -47,6 +56,13 @@ struct WeatherPen {
               align: NSTextAlignment = .left) -> CGSize {
         drawCardText(string, x: x, y: y, font: .card(size: size, weight: weight, digits: digits),
                      color: color ?? colors.primary, align: align)
+    }
+
+    /// 色の違う文字列をつないで 1 行に描く (Typography.swift の drawCardText)
+    @discardableResult
+    func text(_ pieces: [(String, NSColor)], x: CGFloat, y: CGFloat, size: CGFloat,
+              digits: Digits = .proportional) -> CGSize {
+        drawCardText(pieces, x: x, y: y, font: .card(size: size, digits: digits))
     }
 
     /// 幅を決めて折り返して描く文。高さは `Self.wrappedTextHeight` で測れる。
