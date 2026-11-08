@@ -92,7 +92,8 @@ place=44116
 
 - Swift のプログラムは Swift のパッケージの形 (`Package.swift`) にしてあるので、`swift build` やエディタの補完がそのまま使えます。プラグイン自身は SwiftPM を通さず、`swiftc` で直接コンパイルします。
 - `tests/smoke.sh` は、Swift のプログラムをビルドし、各プラグインを動かして、メニューバーの行とカードの画像が出るかを確かめます。CI が push のたびに流します。
-- `samples/render.sh` は `docs/images/en/` と `docs/images/ja/` の画像を描き直します。`nowplaying` と `sysmon` は `--render <JSON> <出力先>` で、与えた値から 1 回だけカードを描けます。値は `samples/` にあります。`weather` は `--once` で、メニューを 1 回だけ出して終わります。
+- `samples/render.sh` は `docs/images/en/` と `docs/images/ja/` の画像を描き直します。どのプラグインも `--render <JSON> <出力先>` で、与えた値から 1 回だけカードを描けます。値は `samples/` にあります。`weather` は `samples/weather/cache/` に写した気象庁のデータを、`sample.json` に書いた時刻で描きます (データは `samples/weather/capture.sh` で取り直せます)。`weather` は `--once` で、メニューを 1 回だけ出して終わることもできます。
+- **画像のリグレッションテスト**: `tests/smoke.sh` は `--render` で描いたカード (と `weather` のメニューバーの行) を、比べる元 `tests/baseline/` と比べ、違えば失敗にします。違う画素を赤く塗った画像は CI の artifact (`cards`) の `visual-diff/` に入ります。文字の描き方は macOS のバージョンで変わるので、比べる元は CI (`macos-26` の runner) で描いたものを使い、手元で macOS のバージョンが違えば比べずに飛ばします。見た目を意図して変えたときや runner のイメージが更新されたときは、push して CI が終わってから `scripts/update-baseline.sh` を流し、差分を見てからコミットします。
 - リリースは [Semantic Versioning](https://semver.org/lang/ja/) に従い、`vX.Y.Z` のタグを打ちます。版はすべてのプラグインで共通で、ヘッダの `<xbar.version>` に書きます (SwiftBar のプラグインの設定画面に出ます)。そろっているかは `tests/smoke.sh` が確かめます。
 - 取得や読み込みに失敗したときは、理由を macOS の統合ログに書きます (SwiftBar は常駐型のプラグインの標準エラーを見せないため)。subsystem は `dev.delphinus.swiftbar-cards`、category はプラグインの名前 (`weather`・`sysmon`・`nowplaying`・`locate`) です。`/usr/bin/log show --last 1h --predicate 'subsystem == "dev.delphinus.swiftbar-cards"'` で見られます (zsh では `log` が組み込みコマンドとぶつかるので、フルパスで書きます)。
 - `scripts/update-telops.sh` は、天気コードの表 `data/jma-telops.json` (英語名・日本語名・代表の天気) を、気象庁の予報のページに埋め込まれた表から作り直します。天気のアイコンは、この表の代表の天気 (晴・曇・雨・雪) で決めます。

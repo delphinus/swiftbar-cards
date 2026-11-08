@@ -41,6 +41,7 @@
 // - WeatherPen.swift        カードの色と、文字・アイコン・線の描き方
 // - Typesetting.swift       予報の文の折り返し
 // - MonotoneCurve.swift     点を通る滑らかな曲線
+// - SampleRender.swift      --render (手元のデータで描く)
 //
 // SwiftBar のプラグインのフォルダには置かない (実行できるファイルは
 // プラグインとして読まれる)。weather.sh が初回 (とソースを変えたとき) にコンパイルする。
@@ -71,6 +72,10 @@ let telops: [String: Telop] = {
         return [:]
     }
 }()
+
+if arguments.count == 4, arguments[1] == "--render" {
+    SampleRender.run(jsonPath: arguments[2], outputDirectory: arguments[3], telops: telops)
+}
 
 SwiftBar.beginStreaming()
 let runsOnce = arguments.contains("--once")
