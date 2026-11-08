@@ -1,0 +1,1 @@
+:cloud.sun: 17° :umbrella.fill: 0% | sfcolor=#E09A00,#FFC75A sfcolor2=#8E8E93,#7C7C80
