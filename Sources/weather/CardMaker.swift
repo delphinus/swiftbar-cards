@@ -15,6 +15,8 @@ final class CardMaker {
     /// 観測点の番号 → 観測点。週間予報の気温の地点の英語名を引くのに使う。観測点の表を
     /// 読んだら WeatherPlugin が入れる
     var stations: [String: AmedasStation] = [:]
+    /// 祝日・休日。曜日を日曜と同じ赤にするのに使う。WeatherPlugin が入れる
+    var holidays = Holidays(dates: [])
     /// 前回の取り直しで取得に失敗した観測点 (描き直すときも古いデータの印を付ける)
     private var staleStations: Set<String> = []
 
@@ -100,7 +102,7 @@ final class CardMaker {
             timeSeries: decode(TimeSeriesForecast.self, cache.timeSeriesForecast(class10: station.class10)),
             latest: decode([String: AmedasObservation].self, cache.latestObservations) ?? [:],
             latestTime: CacheFolder.readText(cache.latestObservationsTime) ?? "",
-            series: series, telops: telops, stations: stations, stale: staleStations.contains(station.code),
+            series: series, telops: telops, stations: stations, holidays: holidays, stale: staleStations.contains(station.code),
             now: now, dark: dark, minHeight: minHeight)
 
         let (image, naturalHeight) = WeatherCard(input: report.card).render()

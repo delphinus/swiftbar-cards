@@ -73,6 +73,8 @@ The plugin finds the forecast area from the station: it uses the forecast area w
 
 The weekly forecast may give temperatures for only one point in the prefecture (only Shimonoseki in Yamaguchi). When that point is not the representative temperature point, the heading names it, as in "Weekly forecast (Shimonoseki)", and the days covered by the short-range forecast (today and tomorrow) show the short-range values for the representative point instead.
 
+The weekdays of the forecast dates are blue for Saturdays and red for Sundays and national holidays. Holidays come from the CSV of the [Cabinet Office list of national holidays](https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html), fetched once a week (substitute holidays and citizens' holidays included).
+
 To put your location somewhere other than first, write `place=here` (or `place=現在地`) in that position:
 
 ```ini

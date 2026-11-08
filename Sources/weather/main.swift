@@ -29,6 +29,7 @@
 // - JMAData.swift           取ったデータ (JSON) の形
 // - CacheFolder.swift       キャッシュのフォルダの中のファイル
 // - JapanTime.swift         日本時間の日付と時刻
+// - Holidays.swift          祝日・休日 (内閣府の一覧)
 // カード:
 // - CardMaker.swift         地点のデータを取り直してカードを描き、キャッシュに置く
 // - WeatherReport.swift     データから、メニューバーの行とカードに描く値を組み立てる

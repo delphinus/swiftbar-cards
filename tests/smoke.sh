@@ -104,6 +104,21 @@ for appearance in light dark; do
 		ng "weather $name"
 	fi
 done
+# 祝日の一覧 (内閣府、Shift_JIS) を取ってキャッシュに置く。取れていなければ、
+# 内閣府のサイトにこの環境から届くかを curl で確かめ、届かなければ飛ばす
+# (届かないときは、プラグインは曜日だけで色を決める)。
+# 中身はパイプで grep -q に渡さず、変数に読んでから調べる (grep -q が先に終わると、
+# 書き込み中の iconv が SIGPIPE で失敗し、pipefail で全体が失敗になる)
+holidays=$HOME/Library/Caches/swiftbar-weather/const/syukujitsu.csv
+holiday_text=$(iconv -f SHIFT_JIS -t UTF-8 "$holidays" 2>/dev/null || true)
+if [[ $holiday_text == *',元日'* ]]; then
+	ok "weather 祝日の一覧"
+elif status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv 2>&1) &&
+	[[ $status == 200 ]]; then
+	ng "weather 祝日の一覧"
+else
+	echo "skip - 内閣府のサイトに届かない: $status"
+fi
 # 設定ファイルが無ければ現在地だけ (切り替えの項目は出ない)。東京駅にいちばん
 # 近い気温の観測点は東京
 if grep -q 'area_code=130000' "$work/weather-default-light.txt" && ! grep -q 'param1=select' "$work/weather-default-light.txt"; then

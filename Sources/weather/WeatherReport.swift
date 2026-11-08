@@ -24,6 +24,8 @@ struct WeatherReport {
     let telops: [String: Telop]
     /// 観測点の番号 → 観測点 (週間予報の気温の地点の英語名を引く)
     let stations: [String: AmedasStation]
+    /// 祝日・休日 (曜日を日曜と同じ赤にする)
+    let holidays: Holidays
     /// 取得に失敗して、前に取れたデータを出しているか
     let stale: Bool
     let now: Double
@@ -197,7 +199,7 @@ struct WeatherReport {
             // 「今日」「明日」は日付をまたぐと指す日が変わって分かりにくいので、日付で出す
             let (date, weekday) = JapanTime.monthDay(time)
             // 全角の空白 (語の区切り) は残し、カードの側で折り返しの位置に使う
-            return DayForecast(date: date, dow: weekday, text: forecastText(area.weathers?[safe: i] ?? "", code: code),
+            return DayForecast(date: date, dow: weekday, holiday: holidays.contains(time.slice(0, 10)), text: forecastText(area.weathers?[safe: i] ?? "", code: code),
                                icon: icon, color: WeatherStyle.colors(forIcon: icon).card(dark: dark))
         }
     }
@@ -263,7 +265,7 @@ struct WeatherReport {
             let icon = weatherIcon(weatherArea?.weatherCodes?[safe: i] ?? "")
             let (label, weekday) = JapanTime.monthDay(time)
             return WeekForecast(
-                date: label, dow: weekday, icon: icon, color: WeatherStyle.colors(forIcon: icon).card(dark: dark),
+                date: label, dow: weekday, holiday: holidays.contains(date), icon: icon, color: WeatherStyle.colors(forIcon: icon).card(dark: dark),
                 max: max, maxColor: WeatherStyle.color(forTemperature: max, dark: dark),
                 min: min, minColor: WeatherStyle.color(forTemperature: min, dark: dark),
                 pop: pop, popColor: pop.isEmpty ? nil : WeatherStyle.colors(forPrecipitationChance: pop).card(dark: dark))
