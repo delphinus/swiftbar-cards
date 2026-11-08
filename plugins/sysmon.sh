@@ -1,7 +1,7 @@
 #!/bin/bash
 # <xbar.title>System Monitor</xbar.title>
 # <xbar.desc>CPU・メモリ・温度・本体のバッテリーをメニューバーに出し、上位のプロセスと Bluetooth 機器のバッテリーをメニューに出す</xbar.desc>
-# <xbar.version>v1.1.8</xbar.version>
+# <xbar.version>v1.1.9</xbar.version>
 # <xbar.author>delphinus</xbar.author>
 # <xbar.author.github>delphinus</xbar.author.github>
 # <xbar.abouturl>https://github.com/delphinus/swiftbar-cards</xbar.abouturl>
