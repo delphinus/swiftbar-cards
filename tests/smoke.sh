@@ -45,7 +45,7 @@ save_image() { # <出力のファイル> <行番号> <名前>
 
 echo "# shellcheck"
 if command -v shellcheck >/dev/null; then
-	if shellcheck -x "$repo"/plugins/*.sh "$repo"/tests/*.sh "$repo"/samples/*.sh "$repo"/scripts/*.sh; then ok shellcheck; else ng shellcheck; fi
+	if shellcheck -x "$repo"/plugins/*.sh "$repo"/tests/*.sh "$repo"/samples/*.sh "$repo"/samples/weather/*.sh "$repo"/scripts/*.sh; then ok shellcheck; else ng shellcheck; fi
 else
 	echo "skip - shellcheck が無い"
 fi
@@ -67,24 +67,60 @@ for main in "$repo"/Sources/*/main.swift; do
 done
 
 echo "# サンプルの値で描く (--render)"
-# nowplaying は曲の入ったカードを、CI でも描けるのはこの方法だけ (再生中の曲が無い)
+# nowplaying は曲の入ったカードを、CI でも描けるのはこの方法だけ (再生中の曲が無い)。
+# weather は samples/weather/ に写した気象庁のデータを、時刻を決めて描く (取りに行かない)。
+# 描いたものは $out/visual に置き、比べる元 (tests/baseline/) と比べる。
+visual=$out/visual
+rm -rf "$visual" "$out/visual-diff"
+mkdir -p "$visual"
 swift "$repo/samples/artwork.swift" "$work/artwork.png"
 sed "s#\"artwork.png\"#\"$work/artwork.png\"#" "$repo/samples/nowplaying.json" >"$work/nowplaying.json"
-for h in nowplaying sysmon; do
+for h in nowplaying sysmon weather; do
 	json=$repo/samples/$h.json
-	[[ $h == nowplaying ]] && json=$work/nowplaying.json
+	files="menubar-light.png menubar-dark.png card-light.png card-dark.png"
+	case $h in
+	nowplaying) json=$work/nowplaying.json ;;
+	weather)
+		json=$repo/samples/weather/sample.json
+		files="menubar.txt card-light.png card-dark.png"
+		;;
+	esac
 	for l in ja en; do
 		ok_all=1
-		if SWIFTBAR_CARDS_LANG=$l "$work/$h" --render "$json" "$work/render-$h-$l"; then
-			for f in menubar-light menubar-dark card-light card-dark; do
-				if file -b "$work/render-$h-$l/$f.png" | grep -q '^PNG image'; then
-					cp "$work/render-$h-$l/$f.png" "$out/render-$h-$l-$f.png"
+		# weather は天気コードの英語名 (data/jma-telops.json) をプラグインの場所からたどる
+		if SWIFTBAR_CARDS_LANG=$l SWIFTBAR_CARDS_PLUGIN=$repo/plugins/$h.sh "$work/$h" --render "$json" "$work/render-$h-$l"; then
+			for f in $files; do
+				if [[ -s $work/render-$h-$l/$f ]]; then
+					cp "$work/render-$h-$l/$f" "$visual/$h-$l-$f"
 				else ok_all=; fi
 			done
 		else ok_all=; fi
 		if [[ -n $ok_all ]]; then ok "render $h ($l)"; else ng "render $h ($l)"; fi
 	done
 done
+sw_vers -productVersion >"$out/macos-version.txt"
+
+echo "# 比べる元の画像 (tests/baseline/) と比べる"
+# 文字の描き方は macOS のバージョンで変わるので、比べる元は CI と同じバージョンで描いたものでしか
+# 比べられない。手元でバージョンが違えば飛ばす (CI では、バージョンが違っても比べて失敗にする。
+# runner のイメージが更新されたら、比べる元を作り直す)。
+baseline_version=$(cat "$repo/tests/baseline-macos-version.txt" 2>/dev/null || true)
+if [[ -z ${CI:-} && $(cat "$out/macos-version.txt") != "$baseline_version" ]]; then
+	echo "skip - 比べる元は macOS $baseline_version で描いたもの (ここは $(cat "$out/macos-version.txt"))"
+else
+	[[ $(cat "$out/macos-version.txt") == "$baseline_version" ]] ||
+		echo "# 比べる元は macOS $baseline_version で描いたもの (ここは $(cat "$out/macos-version.txt"))"
+	swiftc -O -o "$work/compare-images" "$repo/tests/compare-images.swift"
+	# 失敗の数は出力の not ok から数えるので、終了コードは見ない
+	"$work/compare-images" "$repo/tests/baseline" "$visual" "$out/visual-diff" |
+		sed 's/^ok - /ok - visual /; s/^not ok - /not ok - visual /' >"$work/compare.txt" || true
+	cat "$work/compare.txt"
+	failures=$((failures + $(grep -c '^not ok' "$work/compare.txt" || true)))
+	if [[ -d $out/visual-diff ]]; then
+		echo "# 違う画素を赤く塗った画像: $out/visual-diff"
+		echo "# 意図した変更なら、CI の artifact から比べる元を作り直す: scripts/update-baseline.sh"
+	fi
+fi
 
 echo "# weather"
 conf=$XDG_CONFIG_HOME/swiftbar-cards/weather.conf

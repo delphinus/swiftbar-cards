@@ -77,6 +77,18 @@ final class CardMaker {
     /// キャッシュのデータからカードを描き、キャッシュに置く。予報が無ければ nil
     @discardableResult
     func draw(_ station: Place.Station, now: Double, dark: Bool, minHeight: Double) -> PlaceCard? {
+        guard let report = report(station, now: now, dark: dark, minHeight: minHeight) else { return nil }
+        let (image, naturalHeight) = WeatherCard(input: report.card).render()
+        let card = PlaceCard(menuBarLine: report.menuBarLine, cardLine: SwiftBar.imageLine(image),
+                             naturalHeight: Int(ceil(naturalHeight)), menuItemSummary: report.menuItemSummary)
+        card.write(to: cache.card(station: station.code, dark: dark))
+        cache.deleteOldFiles(days: 2) { $0.hasPrefix("body-") }
+        return card
+    }
+
+    /// キャッシュのデータから、メニューバーの行とカードに描く値を組み立てる。予報が
+    /// 無ければ nil。キャッシュには何も書かない (--render もこれを使う)
+    func report(_ station: Place.Station, now: Double, dark: Bool, minHeight: Double) -> WeatherReport? {
         let decoder = JSONDecoder()
         let office = JMAClient.forecastOffice(for: station.office)
         // ファイルが無いのは、まだ取れていないだけ。中身を読めないときだけ記録する
@@ -97,19 +109,12 @@ final class CardMaker {
             series.merge(values ?? [:]) { _, new in new }
         }
 
-        let report = WeatherReport(
+        return WeatherReport(
             station: station, forecast: forecast,
             timeSeries: decode(TimeSeriesForecast.self, cache.timeSeriesForecast(class10: station.class10)),
             latest: decode([String: AmedasObservation].self, cache.latestObservations) ?? [:],
             latestTime: CacheFolder.readText(cache.latestObservationsTime) ?? "",
             series: series, telops: telops, stations: stations, holidays: holidays, stale: staleStations.contains(station.code),
             now: now, dark: dark, minHeight: minHeight)
-
-        let (image, naturalHeight) = WeatherCard(input: report.card).render()
-        let card = PlaceCard(menuBarLine: report.menuBarLine, cardLine: SwiftBar.imageLine(image),
-                             naturalHeight: Int(ceil(naturalHeight)), menuItemSummary: report.menuItemSummary)
-        card.write(to: cache.card(station: station.code, dark: dark))
-        cache.deleteOldFiles(days: 2) { $0.hasPrefix("body-") }
-        return card
     }
 }

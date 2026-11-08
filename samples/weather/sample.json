@@ -1,0 +1,21 @@
+{
+  "note": "weather --render に渡す値。cache/ は気象庁のデータを capture.sh で写したもの。holidays の 2026-11-12 は祝日ではないが、週間予報の曜日を祝日の赤で描くのを確かめるために入れている",
+  "now": "2026-11-08T14:20:00+09:00",
+  "station": {
+    "code": "44132",
+    "name": "東京",
+    "enName": "Tokyo",
+    "office": "130000",
+    "officeName": "東京都",
+    "officeEnName": "Tokyo",
+    "class10": "130010",
+    "class10EnName": "Tokyo Region",
+    "temperaturePoint": "44132",
+    "temperaturePointName": "東京"
+  },
+  "holidays": [
+    "2026-11-03",
+    "2026-11-12",
+    "2026-11-23"
+  ]
+}
