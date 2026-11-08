@@ -232,6 +232,7 @@ final class WeatherPlugin {
                 tablesLoadedAt = Date()
                 maker.stations = loaded.stations
             }
+            maker.holidays = await Holidays.load(cache: cache, client: maker.client)
         }
         guard let tables else { return nil }
         let here = CurrentLocation.read(from: cache)

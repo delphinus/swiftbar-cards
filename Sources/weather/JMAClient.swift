@@ -18,7 +18,8 @@ struct JMAClient {
         return URLSession(configuration: configuration)
     }()
 
-    /// `path` (base からの相対) を取る。取れなければ (応答が 200 でなければ) nil
+    /// `path` (base からの相対) を取る。取れなければ (応答が 200 でなければ) nil。
+    /// 気象庁以外のファイル (内閣府の祝日の一覧) は、`path` に URL をそのまま渡す
     func data(_ path: String) async -> Data? {
         guard let url = URL(string: path, relativeTo: Self.base) else { return nil }
         let data: Data, response: URLResponse

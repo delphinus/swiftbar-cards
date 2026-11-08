@@ -59,6 +59,8 @@ struct DayForecast {
     let date: String
     /// 曜日 (0 が日曜)
     let dow: Int
+    /// 祝日・休日か
+    let holiday: Bool
     let text: String
     let icon: String
     let color: String
@@ -68,6 +70,8 @@ struct DayForecast {
 struct WeekForecast {
     let date: String
     let dow: Int
+    /// 祝日・休日か
+    let holiday: Bool
     let icon: String
     let color: String
     let max: String

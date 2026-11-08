@@ -28,9 +28,11 @@ struct CardColors {
     /// 日曜日の赤
     var red: NSColor { NSColor(hex: dark ? "#FF6961" : "#A3000F")! }
 
-    /// 曜日の文字の色。土曜は青、日曜は赤、ほかは控えめな文字色 (0 が日曜)
-    func weekday(_ dayOfWeek: Int) -> NSColor {
-        switch (dayOfWeek % 7 + 7) % 7 {
+    /// 曜日の文字の色。日曜と祝日・休日は赤、土曜は青、ほかは控えめな文字色 (0 が日曜)。
+    /// 土曜の祝日も赤にする (カレンダーの多くと同じ)
+    func weekday(_ dayOfWeek: Int, holiday: Bool) -> NSColor {
+        if holiday { return red }
+        return switch (dayOfWeek % 7 + 7) % 7 {
         case 6: blue
         case 0: red
         default: secondary

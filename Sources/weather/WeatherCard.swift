@@ -110,12 +110,12 @@ struct WeatherCard {
         var y = top + headerHeight
         for (day, rowHeight) in zip(input.days, dayRowHeights) {
             pen.symbol(day.icon, color: colors.color(day.color), cx: pad + 9, cy: y + 8, size: 14)
-            // 週間予報と同じく、曜日だけを土曜は青、日曜は赤にする。
+            // 週間予報と同じく、曜日だけを土曜は青、日曜と祝日は赤にする。
             // 日付は縦に並ぶので、等幅の数字で桁をそろえる
             let weekday = weekdayName(day.dow)
             let pieces = isJapanese
-                ? [(day.date, colors.secondary), ("（\(weekday)）", colors.weekday(day.dow))]
-                : [(weekday, colors.weekday(day.dow)), (" \(day.date)", colors.secondary)]
+                ? [(day.date, colors.secondary), ("（\(weekday)）", colors.weekday(day.dow, holiday: day.holiday))]
+                : [(weekday, colors.weekday(day.dow, holiday: day.holiday)), (" \(day.date)", colors.secondary)]
             pen.text(pieces, x: pad + 26, y: y, size: 13, digits: .tabular)
             pen.wrappedText(Typesetting.forecastPhrases(day.text), x: dayTextX, y: y, width: dayTextWidth, size: 13)
             y += rowHeight
@@ -133,7 +133,7 @@ struct WeatherCard {
             let cx = pad + columnWidth * (CGFloat(i) + 0.5)
             let weekday = weekdayName(day.dow)
             pen.text(day.date, x: cx, y: y, size: 11, color: colors.secondary, align: .center)
-            pen.text(L("（\(weekday)）", weekday), x: cx, y: y + 13, size: 10, color: colors.weekday(day.dow),
+            pen.text(L("（\(weekday)）", weekday), x: cx, y: y + 13, size: 10, color: colors.weekday(day.dow, holiday: day.holiday),
                      align: .center)
             pen.symbol(day.icon, color: colors.color(day.color), cx: cx, cy: y + 41, size: 17)
             pen.text(day.max.isEmpty ? "-" : "\(day.max)°", x: cx, y: y + 56, size: 13,

@@ -104,6 +104,11 @@ for appearance in light dark; do
 		ng "weather $name"
 	fi
 done
+# 祝日の一覧 (内閣府、Shift_JIS) を取ってキャッシュに置く
+holidays=$HOME/Library/Caches/swiftbar-weather/const/syukujitsu.csv
+if [[ -s $holidays ]] && iconv -f SHIFT_JIS -t UTF-8 "$holidays" | grep -q ',元日'; then
+	ok "weather 祝日の一覧"
+else ng "weather 祝日の一覧"; fi
 # 設定ファイルが無ければ現在地だけ (切り替えの項目は出ない)。東京駅にいちばん
 # 近い気温の観測点は東京
 if grep -q 'area_code=130000' "$work/weather-default-light.txt" && ! grep -q 'param1=select' "$work/weather-default-light.txt"; then
