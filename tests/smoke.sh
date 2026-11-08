@@ -113,6 +113,8 @@ if [[ -s $holidays ]] && iconv -f SHIFT_JIS -t UTF-8 "$holidays" | grep -q ',元
 elif status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv 2>&1) &&
 	[[ $status == 200 ]]; then
 	curl -sS -o /dev/null -w 'curl: %{http_code} %{time_total}s\n' --max-time 30 https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv || true
+	/usr/bin/log show --last 10m --predicate 'subsystem == "dev.delphinus.swiftbar-cards"' 2>/dev/null | grep -E 'cao|syukujitsu|取得に失敗' | tail -5 || true
+	ls -la "$(dirname "$holidays")" || true
 	ng "weather 祝日の一覧"
 else
 	echo "skip - 内閣府のサイトに届かない: $status"
