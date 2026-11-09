@@ -54,6 +54,9 @@ struct WeatherReport {
     /// アイコンは :name: の形で文中に書く (SwiftBar の symbolize)。sfimage と違って
     /// 1 行に複数置けて、どれも同じ大きさで描かれる。sfcolor と sfcolor2 が 1 個目と
     /// 2 個目のアイコンの色になる。
+    ///
+    /// 雨のアイコンは塗りつぶしの形 (cloud.rain.fill) にする。線だけの形はメニューバーの
+    /// 小ささでは細く、青い壁紙の上で見失いやすかった。
     var menuBarLine: String { summary(colors: \.menuBar) }
 
     /// 地点の切り替えの項目に添える行。中身はメニューバーの行と同じ。項目はメニュー
@@ -64,7 +67,8 @@ struct WeatherReport {
     private func summary(colors: KeyPath<ColorSet, String>) -> String {
         let icon = weatherIcon(weatherArea?.weatherCodes?.first ?? "")
         let pop = currentPrecipitationChance
-        var text = ":\(icon): " + (currentTemperature.map { "\(Int($0.rounded()))°" } ?? "")
+        let symbol = icon == "cloud.rain" ? "cloud.rain.fill" : icon
+        var text = ":\(symbol): " + (currentTemperature.map { "\(Int($0.rounded()))°" } ?? "")
         var parameters = " | sfcolor=\(WeatherStyle.colors(forIcon: icon)[keyPath: colors])"
         var iconCount = 1
         if !pop.isEmpty {
