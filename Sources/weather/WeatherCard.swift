@@ -5,9 +5,9 @@ import Shared
 
 /// 天気のカード。上から次の 4 つの節を積む (無い節は飛ばす)。
 /// 1. 今の観測値 (アメダス): 気温を大きく、湿度・降水量・風を横に
-/// 2. 今後 24 時間の気温のグラフ (WeatherCard+Graph.swift)
+/// 2. 今後 24 時間の気温のグラフ (WeatherCard+Graph.swift)。下に天気・降水確率・風
 /// 3. 3 日分の予報の文
-/// 4. 週間予報: 7 日を横に並べる
+/// 4. 週間予報: 7 日を横に並べる。見出しの右に平年の最高・最低気温
 struct WeatherCard {
     let input: CardInput
     let colors: CardColors
@@ -32,8 +32,8 @@ struct WeatherCard {
         if input.obs != nil {
             sections.append(CardSection(height: 52, draw: drawObservation(in:top:)))
         }
-        if input.graph != nil {
-            sections.append(CardSection(height: 178, draw: drawGraph(in:top:)))
+        if let graph = input.graph {
+            sections.append(CardSection(height: graph.winds.isEmpty ? 178 : 194, draw: drawGraph(in:top:)))
         }
         if !input.days.isEmpty {
             sections.append(CardSection(height: headerHeight + dayRowHeights.reduce(0, +), draw: drawDays(in:top:)))
@@ -127,6 +127,7 @@ struct WeatherCard {
     private func drawWeek(in context: CGContext, top: CGFloat) {
         let pen = WeatherPen(context: context, colors: colors)
         pen.text(input.weekTitle, x: pad, y: top, size: 11, color: colors.secondary)
+        drawWeekNormal(pen, top: top)
         let columnWidth = (width - pad * 2) / CGFloat(input.week.count)
         let y = top + headerHeight
         for (i, day) in input.week.enumerated() {
@@ -145,5 +146,18 @@ struct WeatherCard {
                      color: day.popColor == nil ? colors.secondary : colors.color(day.popColor),
                      weight: .semibold, align: .center)
         }
+    }
+
+    /// 見出しの右端に、週間予報の期間の平年の最高気温と最低気温を出す。週間予報の
+    /// 期間で 1 組だけ配られる値なので、日ごとの列には入れない
+    private func drawWeekNormal(_ pen: WeatherPen, top: CGFloat) {
+        guard let normal = input.weekNormal else { return }
+        let pieces: [(String, NSColor)] = [
+            (L("平年  最高 ", "Normal  high "), colors.secondary), ("\(normal.max)°", colors.color(normal.maxColor)),
+            (L("  最低 ", "  low "), colors.secondary), ("\(normal.min)°", colors.color(normal.minColor)),
+        ]
+        let font = NSFont.card(size: 11)
+        let width = pieces.map { textWidth($0.0, font: font) }.reduce(0, +)
+        pen.text(pieces, x: self.width - pad - ceil(width), y: top, size: 11)
     }
 }

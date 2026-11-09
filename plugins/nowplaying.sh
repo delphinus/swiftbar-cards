@@ -1,7 +1,7 @@
 #!/bin/bash
 # <xbar.title>Now Playing (Music.app)</xbar.title>
 # <xbar.desc>Music.app で再生中の曲をメニューバーに出す</xbar.desc>
-# <xbar.version>v1.1.11</xbar.version>
+# <xbar.version>v1.1.12</xbar.version>
 # <xbar.author>delphinus</xbar.author>
 # <xbar.author.github>delphinus</xbar.author.github>
 # <xbar.abouturl>https://github.com/delphinus/swiftbar-cards</xbar.abouturl>

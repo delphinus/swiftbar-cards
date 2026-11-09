@@ -104,7 +104,7 @@ struct WeatherReport {
 
     var card: CardInput {
         CardInput(dark: dark, now: now, obs: observation, graph: graph, daysTitle: daysTitle,
-                  days: days, weekTitle: weekTitle, week: week, minHeight: minHeight)
+                  days: days, weekTitle: weekTitle, week: week, weekNormal: weekNormal, minHeight: minHeight)
     }
 
     private var observation: Observation? {
@@ -156,11 +156,24 @@ struct WeatherReport {
             }
         }
 
+        // 風は地域時系列予報の 3 時間ごとの値 (天気と同じ時刻)
+        let winds = zip(area.timeDefines, area.wind ?? []).compactMap { time, wind -> WindForecast? in
+            guard let t = JapanTime.epoch(time.dateTime), let range = wind.range, !range.isEmpty else { return nil }
+            // 風速は階級の範囲 ("3 5") で配られる。範囲のままでは読みにくいので、
+            // 真ん中の値を整数に丸めて出す (0〜2 → 1、3〜5 → 4、6〜9 → 8)
+            let bounds = range.split(separator: " ").compactMap { Double($0) }
+            guard let low = bounds.first, let high = bounds.last else { return nil }
+            return WindForecast(t: t, heading: wind.direction.flatMap(WeatherStyle.windHeading),
+                                speed: String(Int(((low + high) / 2).rounded())),
+                                strong: low >= 10)
+        }
+
         return TemperatureGraph(current: current,
                                 pastPoints: past.filter { $0.t >= now - 25 * 3600 },
                                 forecastPoints: forecastPoints,
                                 weatherIcons: weatherIcons,
-                                precipitationChances: chances)
+                                precipitationChances: chances,
+                                winds: winds)
     }
 
     /// 予報の気温の地点の時系列。地点が複数あれば、予報の気温の地点の名前で選ぶ
@@ -244,6 +257,15 @@ struct WeatherReport {
         let area = weekTemperature.area.area
         let enName = stations[area.code]?.enName ?? area.name
         return L("週間予報（\(area.name)）", "Weekly forecast (\(enName))")
+    }
+
+    /// 週間予報の期間の平年の最高気温と最低気温。週間予報の気温の地点のもの
+    private var weekNormal: WeekNormal? {
+        guard forecast.count > 1, let code = weekTemperature?.area.area.code,
+              let normal = forecast[1].tempAverage?.areas.first(where: { $0.area.code == code }),
+              !normal.max.isEmpty, !normal.min.isEmpty else { return nil }
+        return WeekNormal(max: normal.max, maxColor: WeatherStyle.color(forTemperature: normal.max, dark: dark),
+                          min: normal.min, minColor: WeatherStyle.color(forTemperature: normal.min, dark: dark))
     }
 
     /// 週間予報。初日は気温と降水確率が空欄で配られる (短期予報で発表されるため)。

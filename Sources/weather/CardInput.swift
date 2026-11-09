@@ -16,6 +16,8 @@ struct CardInput {
     /// 週間予報の節の見出し。気温が観測点とは別の地点の予報なら、その地点の名前を含む
     let weekTitle: String
     let week: [WeekForecast]
+    /// 週間予報の期間の平年値。週間予報の気温の地点のもの
+    let weekNormal: WeekNormal?
     /// カードの高さをこれ以上にする (下を空ける)。地点を切り替えたときに高さが
     /// 変わらないよう、設定した地点のカードの高さをそろえるのに使う。
     let minHeight: Double
@@ -51,6 +53,28 @@ struct TemperatureGraph {
     let weatherIcons: [(t: Double, symbol: String, color: String)]
     /// 6 時間ごとの降水確率
     let precipitationChances: [(t: Double, percent: String, color: String)]
+    /// 3 時間ごとの風
+    let winds: [WindForecast]
+}
+
+/// 3 時間ごとの風の予報
+struct WindForecast {
+    /// その時間帯の始まり (UNIX 時刻)
+    let t: Double
+    /// 風が吹いていく向き (北が 0 度で時計回り)。風向が分からなければ nil
+    let heading: Double?
+    /// 風速 (m/s)。気象庁の階級の範囲の真ん中を整数に丸めたもの。例: "4"
+    let speed: String
+    /// 強い風 (10 m/s 以上) か
+    let strong: Bool
+}
+
+/// 週間予報の期間の平年値 (°C)。値は数を書いた文字列
+struct WeekNormal {
+    let max: String
+    let maxColor: String?
+    let min: String
+    let minColor: String?
 }
 
 /// 3 日分の予報の 1 日

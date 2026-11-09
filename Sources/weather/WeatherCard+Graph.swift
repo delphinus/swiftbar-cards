@@ -4,7 +4,7 @@ import Shared
 #endif
 
 // 2. 今後 24 時間の気温のグラフ。実線は今の観測値から予報をつなぎ、破線は同じ時刻の
-// 前日の観測値 (= 過去 24 時間)。下に時刻・天気のアイコン・降水確率。
+// 前日の観測値 (= 過去 24 時間)。下に時刻・天気のアイコン・降水確率・風。
 // Weathernews のウィジェットの気温のグラフにならった。
 //
 // `extension` で、WeatherCard の続きを別のファイルに書いている。
@@ -54,7 +54,7 @@ extension WeatherCard {
         drawLines(context, scale, solid: solid, dotted: dotted)
         drawMarks(pen, scale, solid: solid, hasCurrent: graph.current != nil)
 
-        // 下に時刻・天気のアイコン・降水確率
+        // 下に時刻・天気のアイコン・降水確率・風
         let hourY = plot.maxY + 8
         drawHours(pen, scale, y: hourY)
         let iconCY = hourY + 32
@@ -71,6 +71,56 @@ extension WeatherCard {
             pen.text("\(chance.percent)%", x: scale.x(middle), y: iconCY + 14, size: 10,
                      color: colors.color(chance.color), weight: .semibold, align: .center)
         }
+        drawWinds(pen, scale, winds: graph.winds, y: iconCY + 32)
+    }
+
+    /// 風: 3 時間ごとの予報を、天気のアイコンの下に置く。風が吹いていく向きの矢印と、
+    /// 風速 (気象庁の階級の範囲の真ん中)。単位は右の余白に 1 つだけ書く
+    private func drawWinds(_ pen: WeatherPen, _ scale: GraphScale, winds: [WindForecast], y: CGFloat) {
+        guard !winds.isEmpty else { return }
+        let arrowSize: CGFloat = 8, spacing: CGFloat = 2
+        var drewAny = false
+        for wind in winds {
+            let middle = wind.t + 1.5 * hour
+            guard middle > scale.start, middle < scale.end else { continue }
+            let color = wind.strong ? colors.primary : colors.secondary
+            let weight: NSFont.Weight = wind.strong ? .semibold : .medium
+            let speedWidth = ceil(textWidth(wind.speed, font: .card(size: 10, weight: weight)))
+            let arrowWidth = wind.heading == nil ? 0 : arrowSize + spacing
+            let left = scale.x(middle) - (arrowWidth + speedWidth) / 2
+            if let heading = wind.heading {
+                drawArrow(pen.context, heading: heading, center: CGPoint(x: left + arrowSize / 2, y: y + 7),
+                          length: arrowSize, color: color)
+            }
+            pen.text(wind.speed, x: left + arrowWidth, y: y, size: 10, color: color, weight: weight)
+            drewAny = true
+        }
+        if drewAny {
+            pen.text("m/s", x: scale.plot.maxX + 4, y: y + 1, size: 9, color: colors.secondary)
+        }
+    }
+
+    /// `heading` (北が 0 度で時計回り) を向いた矢印。描画先は y が下向き
+    private func drawArrow(_ context: CGContext, heading: Double, center: CGPoint, length: CGFloat, color: NSColor) {
+        context.saveGState()
+        context.translateBy(x: center.x, y: center.y)
+        // y が下向きなので、正の角度で回すと画面では時計回りになる
+        context.rotate(by: CGFloat(heading * .pi / 180))
+        let half = length / 2
+        context.setStrokeColor(color.cgColor)
+        context.setFillColor(color.cgColor)
+        context.setLineWidth(1.3)
+        context.setLineCap(.round)
+        context.setLineDash(phase: 0, lengths: [])
+        context.move(to: CGPoint(x: 0, y: half))
+        context.addLine(to: CGPoint(x: 0, y: -half + 2))
+        context.strokePath()
+        context.move(to: CGPoint(x: 0, y: -half))
+        context.addLine(to: CGPoint(x: 3, y: -half + 3.5))
+        context.addLine(to: CGPoint(x: -3, y: -half + 3.5))
+        context.closePath()
+        context.fillPath()
+        context.restoreGState()
     }
 
     /// 縦軸の範囲を決める。描く値すべてが入るよう、2°C 刻みに広げる。狭すぎると
