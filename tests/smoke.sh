@@ -97,7 +97,7 @@ run_weather() { # <名前> <外観 (light / dark)> [設定ファイルの中身]
 for appearance in light dark; do
 	name=default-$appearance
 	run_weather "$name" "$appearance"
-	if head -1 "$work/weather-$name.txt" | grep -q '°' && save_image "$work/weather-$name.txt" 3 "weather-$name"; then
+	if save_image "$work/weather-$name.txt" 1 "weather-$name-menubar" && save_image "$work/weather-$name.txt" 3 "weather-$name"; then
 		ok "weather $name"
 	else
 		cut -c1-200 "$work/weather-$name.txt"
@@ -163,11 +163,10 @@ else
 	grep -v image= "$work/weather-multi.txt"
 	ng "weather 現在地と設定した地点を切り替えのメニューに出す"
 fi
-# 地点の項目には、キャッシュにあるその地点のメニューバーの行 (気温と色の指定) を添える。
-# 色はメニューの地に合わせたもので、明るい外観ではメニューバーの色と違う。
-bar_color=$(head -1 "$work/weather-multi.txt" | grep -o 'sfcolor=[^ ]*')
-if grep -q '^現在地（東京）   :[a-z.]*: [0-9-]*°.* | sfimage=location.circle.fill sfcolor=' "$work/weather-multi.txt" &&
-	! grep '^現在地（東京）' "$work/weather-multi.txt" | grep -qF " $bar_color "; then
+# 地点の項目には、キャッシュにあるその地点の天気 (気温と色の指定) を添える。
+# メニューバーの行は明るい用と暗い用の 2 枚の画像で、項目は文中のアイコンで書く。
+if head -1 "$work/weather-multi.txt" | grep -qE '^ \| image=[^ ,]+,[^ ,]+ ' &&
+	grep -q '^現在地（東京）   :[a-z.]*: [0-9-]*°.* | sfimage=location.circle.fill sfcolor=' "$work/weather-multi.txt"; then
 	ok "weather 地点の項目に天気を添える"
 else
 	grep -v ' image=' "$work/weather-multi.txt"
@@ -199,7 +198,7 @@ if grep -q '^横浜 .*sfimage=mappin.circle.fill ' "$work/weather-multi-selected
 # 同名の観測点がある地点を選んだあと、番号に書き換えても選んだままになる
 "$repo/plugins/weather.sh" select 府中
 run_weather renumbered light "$(printf 'place=東京\nplace=44116 # 府中')"
-if grep -q '^府中 .*sfimage=mappin.circle.fill ' "$work/weather-renumbered.txt" && head -1 "$work/weather-renumbered.txt" | grep -q '°'; then
+if grep -q '^府中 .*sfimage=mappin.circle.fill ' "$work/weather-renumbered.txt" && head -1 "$work/weather-renumbered.txt" | grep -q ' | image='; then
 	ok "weather 番号に書き換えても選んだ地点のまま"
 else ng "weather 番号に書き換えても選んだ地点のまま"; fi
 "$repo/plugins/weather.sh" select 東京
