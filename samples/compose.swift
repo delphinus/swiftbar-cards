@@ -1,8 +1,9 @@
 // README 用に、メニューバーの項目とカードを、メニューを開いたときの見た目に組む。
 //   swift samples/compose.swift <light|dark> <メニューバー> <カードの PNG> <出力の PNG> [項目 ...]
-// メニューバーは PNG のパスか、「text:」に続けて SwiftBar の行 (weather のように
-// :symbol: を埋め込んだ文字と sfcolor=明るい用,暗い用) を渡す。
-// 項目は「SF Symbols の名前:文字」の形で、カードの下に並べる。末尾に「:checked」を
+// メニューバーは PNG のパスか、「text:」に続けて SwiftBar の行 (:symbol: を埋め込んだ
+// 文字と sfcolor=明るい用,暗い用) を渡す。
+// 項目は「SF Symbols の名前:文字」の形で、カードの下に並べる。文字は SwiftBar の行の
+// ままでもよい (weather の地点の項目のように :symbol: と sfcolor を含むもの)。末尾に「:checked」を
 // 付けるとチェックマークを付ける。「-」だけの項目は区切り線にする。
 // 実物の見た目を写し取るものではなく、カードがどう使われるかを伝えるための絵。
 import AppKit
@@ -31,7 +32,7 @@ func hex(_ s: String) -> NSColor {
     return NSColor(red: CGFloat((v >> 16) & 0xff) / 255, green: CGFloat((v >> 8) & 0xff) / 255,
                    blue: CGFloat(v & 0xff) / 255, alpha: 1)
 }
-func barText(_ line: String) -> NSAttributedString {
+func barText(_ line: String, font: NSFont = .systemFont(ofSize: 13), foreground: NSColor? = nil) -> NSAttributedString {
     let parts = line.components(separatedBy: " | ")
     var colors: [Int: NSColor] = [:]
     for kv in (parts.count > 1 ? parts[1] : "").split(separator: " ") {
@@ -41,8 +42,7 @@ func barText(_ line: String) -> NSAttributedString {
         let pair = f[1].split(separator: ",").map(String.init)
         colors[n] = hex(dark && pair.count > 1 ? pair[1] : pair[0])
     }
-    let font = NSFont.systemFont(ofSize: 13)
-    let barFG = dark ? NSColor(white: 1, alpha: 0.92) : NSColor(white: 0, alpha: 0.85)
+    let barFG = foreground ?? (dark ? NSColor(white: 1, alpha: 0.92) : NSColor(white: 0, alpha: 0.85))
     let out = NSMutableAttributedString()
     var n = 0
     for (i, piece) in parts[0].components(separatedBy: ":").enumerated() {
@@ -163,7 +163,7 @@ if !items.isEmpty {
             img.draw(in: CGRect(x: popX + popPad + 8 - s.width / 2 + 7, y: y + (rowH - s.height) / 2, width: s.width, height: s.height),
                      from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
         }
-        let str = NSAttributedString(string: label, attributes: [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: fg])
+        let str = barText(label, foreground: fg)
         str.draw(at: CGPoint(x: popX + popPad + 30, y: y + (rowH - str.size().height) / 2))
         y += rowH
     }
