@@ -7,13 +7,24 @@ import Shared
 ///
 /// 明るい外観では、メニューバーとカードで別の色を使う。カードを出すポップアップは背後の
 /// 壁紙を透かして灰色に見えるので、白地を前提にしたメニューバーの色では読めなかった。
+///
+/// 暗い外観のメニューバーも壁紙を透かすので、青い壁紙では青い色が地に沈む。沈む色には
+/// メニューバー用に白寄りの色 (darkMenuBar) を別に持たせる。指定が無ければ dark を使う。
 struct ColorSet {
     let lightMenuBar: String
     let dark: String
     let lightCard: String
+    let darkMenuBar: String
+
+    init(lightMenuBar: String, dark: String, lightCard: String, darkMenuBar: String? = nil) {
+        self.lightMenuBar = lightMenuBar
+        self.dark = dark
+        self.lightCard = lightCard
+        self.darkMenuBar = darkMenuBar ?? dark
+    }
 
     /// メニューバーの行の sfcolor に渡す「明るい用,暗い用」
-    var menuBar: String { "\(lightMenuBar),\(dark)" }
+    var menuBar: String { "\(lightMenuBar),\(darkMenuBar)" }
     /// メニューの項目 (背後の壁紙を透かす地) の sfcolor に渡す「明るい用,暗い用」。
     /// 明るい外観ではカードと同じ濃い色にする
     var menuItem: String { "\(lightCard),\(dark)" }
@@ -68,17 +79,20 @@ enum WeatherStyle {
         switch icon {
         case "sun.max": ColorSet(lightMenuBar: "#F08A00", dark: "#FFB340", lightCard: "#A85400")
         case "cloud.sun": ColorSet(lightMenuBar: "#E09A00", dark: "#FFC75A", lightCard: "#8A5C00")
-        case "cloud.rain": ColorSet(lightMenuBar: "#0A6FD8", dark: "#64B5FF", lightCard: "#0050C0")
+        case "cloud.rain":
+            ColorSet(lightMenuBar: "#0A6FD8", dark: "#64B5FF", lightCard: "#0050C0", darkMenuBar: "#A8D4FF")
         case "cloud.snow": ColorSet(lightMenuBar: "#3A9BC1", dark: "#9EDCF5", lightCard: "#14668A")
         default: ColorSet(lightMenuBar: "#6E6E73", dark: "#AEAEB2", lightCard: "#47474D")
         }
     }
 
     /// 降水確率の色。青の鮮やかさだけで段階を付け、高いほど目立たせる。
-    /// 0〜20% は灰、30〜50% はくすんだ青、60% 以上は鮮やかな青。
+    /// 0〜20% は灰、30〜50% はくすんだ青、60% 以上は鮮やかな青 (暗い外観のメニューバーでは
+    /// 青い壁紙に沈まないよう、白寄りの水色)。
     static func colors(forPrecipitationChance percent: String) -> ColorSet {
         switch Int(percent) ?? 0 {
-        case 60...: ColorSet(lightMenuBar: "#0A6FD8", dark: "#64B5FF", lightCard: "#0047B3")
+        case 60...:
+            ColorSet(lightMenuBar: "#0A6FD8", dark: "#64B5FF", lightCard: "#0047B3", darkMenuBar: "#A8D4FF")
         case 30...: ColorSet(lightMenuBar: "#5B7FA6", dark: "#7895B8", lightCard: "#2F5480")
         default: ColorSet(lightMenuBar: "#8E8E93", dark: "#7C7C80", lightCard: "#5A5A60")
         }

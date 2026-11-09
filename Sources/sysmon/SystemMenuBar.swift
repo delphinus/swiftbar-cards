@@ -45,8 +45,10 @@ struct SystemMenuBar {
     private let chartSamples = 18
 
     func render(dark: Bool) -> PNGImage {
-        // 黄色は明るい地で見えなくなるので、注意の色は橙にする
-        let green = NSColor(rgb: dark ? 0x34C759 : 0x28A745)
+        // 黄色は明るい地で見えなくなるので、注意の色は橙にする。
+        // 暗い用の緑は、青い壁紙を透かしたメニューバーでも沈まないよう明るめにする
+        // (システムの緑 #34C759 では地に紛れた)
+        let green = NSColor(rgb: dark ? 0x5EE07A : 0x28A745)
         let yellow = NSColor(rgb: dark ? 0xFF9500 : 0xE08000)
         let red = NSColor(rgb: dark ? 0xFF3B30 : 0xE0352B)
         let track = NSColor(white: 0.55, alpha: 0.4)
