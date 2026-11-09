@@ -32,7 +32,8 @@ for l in ja en; do
 	"$work/bin/nowplaying" --render "$work/nowplaying-$l.json" "$work/$l/nowplaying"
 	"$work/bin/sysmon" --render "$repo/samples/sysmon.json" "$work/$l/sysmon"
 
-	# weather: プラグインを 1 回だけ動かし (--once)、メニューバーの行とカードを取り出す。
+	# weather: プラグインを 1 回だけ動かし (--once)、メニューバーの画像とカードを取り出す。
+	# メニューバーの行は「image=明るい用,暗い用」の 2 枚の画像なので、外観に合う方を取る。
 	# 地点を 2 つ設定して、切り替えの項目も見せる。
 	mkdir -p "$work/home/.config/swiftbar-cards" "$work/$l/weather"
 	printf 'place=東京\nplace=大阪\n' >"$work/home/.config/swiftbar-cards/weather.conf"
@@ -41,12 +42,16 @@ for l in ja en; do
 		HOME=$work/home XDG_CONFIG_HOME=$work/home/.config SWIFTBAR_CARDS_APPEARANCE=$appearance \
 			"$repo/plugins/weather.sh" --once >"$o"
 		sed -n 3p "$o" | sed -nE 's/.*image=([^ ]+).*/\1/p' | base64 -d >"$work/$l/weather/card-$appearance.png"
+		i=1
+		[[ $appearance == dark ]] && i=2
+		sed -n 1p "$o" | sed -nE 's/.*image=([^ ]+).*/\1/p' | cut -d, -f$i | base64 -d >"$work/$l/weather/menubar-$appearance.png"
 	done
-	# 地点の項目 (選んでいる地点は塗りつぶしたピン)。compose の項目の形にする。
+	# 地点の項目 (選んでいる地点は塗りつぶしたピン)。compose の項目の形にする。添えた天気の
+	# アイコン (:symbol:) の色を compose が読めるよう、sfcolor を含む行のまま渡す
 	locations=()
 	while IFS= read -r line; do
-		item="mappin.circle:${line%% |*}"
-		[[ $line == *sfimage=mappin.circle.fill* ]] && item="mappin.circle.fill:${line%% |*}"
+		item="mappin.circle:$line"
+		[[ $line == *sfimage=mappin.circle.fill* ]] && item="mappin.circle.fill:$line"
 		locations+=("$item")
 	done < <(grep 'param1=select' "$work/$l/weather/out-light.txt")
 
@@ -57,7 +62,7 @@ for l in ja en; do
 			"arrow.up.forward.circle:$(T 'Music を開く' 'Open Music')"
 		"$work/bin/compose" "$appearance" "$work/$l/sysmon/menubar-$appearance.png" "$work/$l/sysmon/card-$appearance.png" \
 			"$out/$l/sysmon-$appearance.png" "arrow.up.forward.circle:$(T アクティビティモニタを開く 'Open Activity Monitor')"
-		"$work/bin/compose" "$appearance" "text:$(head -1 "$work/$l/weather/out-$appearance.txt")" "$work/$l/weather/card-$appearance.png" \
+		"$work/bin/compose" "$appearance" "$work/$l/weather/menubar-$appearance.png" "$work/$l/weather/card-$appearance.png" \
 			"$out/$l/weather-$appearance.png" "${locations[@]}" - "gearshape.circle:$(T 設定ファイルを開く 'Open Configuration File')" \
 			"arrow.clockwise.circle:$(T 今すぐ更新 'Refresh Now')" \
 			"arrow.up.forward.circle:$(T 気象庁の天気予報を開く 'Open JMA Forecast')"
