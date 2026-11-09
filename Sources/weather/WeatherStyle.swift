@@ -23,8 +23,8 @@ struct ColorSet {
         self.darkMenuBar = darkMenuBar ?? dark
     }
 
-    /// メニューバーの行の sfcolor に渡す「明るい用,暗い用」
-    var menuBar: String { "\(lightMenuBar),\(darkMenuBar)" }
+    /// メニューバーの画像に描く色。外観に合うほう
+    func menuBar(dark: Bool) -> String { dark ? darkMenuBar : lightMenuBar }
     /// メニューの項目 (背後の壁紙を透かす地) の sfcolor に渡す「明るい用,暗い用」。
     /// 明るい外観ではカードと同じ濃い色にする
     var menuItem: String { "\(lightCard),\(dark)" }
@@ -128,5 +128,7 @@ enum WeatherStyle {
     }
 
     /// メニューバーの「古いデータを出している」印の色
-    static let staleColors = "#D70015,#FF6961"
+    static let staleColorSet = ColorSet(lightMenuBar: "#D70015", dark: "#FF6961", lightCard: "#D70015")
+    /// メニューの項目の sfcolor に渡す「古いデータを出している」印の色
+    static let staleColors = staleColorSet.menuItem
 }

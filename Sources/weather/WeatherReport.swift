@@ -51,30 +51,33 @@ struct WeatherReport {
 
     /// メニューバーの行: 今日の天気のアイコン、現在の気温、いまの時間帯の降水確率。
     ///
-    /// アイコンは :name: の形で文中に書く (SwiftBar の symbolize)。sfimage と違って
-    /// 1 行に複数置けて、どれも同じ大きさで描かれる。sfcolor と sfcolor2 が 1 個目と
-    /// 2 個目のアイコンの色になる。
-    ///
-    /// 雨のアイコンは塗りつぶしの形 (cloud.rain.fill) にする。線だけの形はメニューバーの
-    /// 小ささでは細く、青い壁紙の上で見失いやすかった。
-    var menuBarLine: String { summary(colors: \.menuBar) }
+    /// 明るい用と暗い用の 2 枚の画像で描く (WeatherMenuBar)。SwiftBar は画像の 2 枚を
+    /// メニューバーの見た目で選ぶが、文中のアイコンの色 (sfcolor の「明るい用,暗い用」) は
+    /// システムの外観で選ぶ。ライトモードで暗い壁紙を透かしたメニューバー (文字は白) では、
+    /// 白地向けの濃い青が暗い地に出て、雨のアイコンが見にくかった。
+    var menuBarLine: String {
+        let menuBar = WeatherMenuBar(icon: todayIcon, temperature: currentTemperatureText,
+                                     precipitationChance: currentPrecipitationChance, stale: stale)
+        return SwiftBar.menuBarImageLine(light: menuBar.render(dark: false), dark: menuBar.render(dark: true))
+    }
 
     /// 地点の切り替えの項目に添える行。中身はメニューバーの行と同じ。項目はメニュー
     /// (背後の壁紙を透かす) の上に描かれるので、色はメニューバー用ではなく、明るい
     /// 外観ではカードと同じ濃い色を使う (メニューバー用の色では読みにくかった)。
-    var menuItemSummary: String { summary(colors: \.menuItem) }
-
-    private func summary(colors: KeyPath<ColorSet, String>) -> String {
-        let icon = weatherIcon(weatherArea?.weatherCodes?.first ?? "")
+    ///
+    /// アイコンは :name: の形で文中に書く (SwiftBar の symbolize)。sfimage と違って
+    /// 1 行に複数置けて、どれも同じ大きさで描かれる。sfcolor と sfcolor2 が 1 個目と
+    /// 2 個目のアイコンの色になる。
+    var menuItemSummary: String {
+        let icon = todayIcon
         let pop = currentPrecipitationChance
-        let symbol = icon == "cloud.rain" ? "cloud.rain.fill" : icon
-        var text = ":\(symbol): " + (currentTemperature.map { "\(Int($0.rounded()))°" } ?? "")
-        var parameters = " | sfcolor=\(WeatherStyle.colors(forIcon: icon)[keyPath: colors])"
+        var text = ":\(icon): " + currentTemperatureText
+        var parameters = " | sfcolor=\(WeatherStyle.colors(forIcon: icon).menuItem)"
         var iconCount = 1
         if !pop.isEmpty {
             text += " :umbrella.fill: \(pop)%"
             iconCount += 1
-            parameters += " sfcolor\(iconCount)=\(WeatherStyle.colors(forPrecipitationChance: pop)[keyPath: colors])"
+            parameters += " sfcolor\(iconCount)=\(WeatherStyle.colors(forPrecipitationChance: pop).menuItem)"
         }
         if stale {
             text += " :exclamationmark.triangle:"
@@ -83,6 +86,9 @@ struct WeatherReport {
         }
         return text + parameters
     }
+
+    private var todayIcon: String { weatherIcon(weatherArea?.weatherCodes?.first ?? "") }
+    private var currentTemperatureText: String { currentTemperature.map { "\(Int($0.rounded()))°" } ?? "" }
 
     /// いまの時間帯の降水確率。今より前に始まった時間帯のうち最後のもの (無ければ最初のもの)
     private var currentPrecipitationChance: String {
