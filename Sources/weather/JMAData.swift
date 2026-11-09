@@ -58,6 +58,19 @@ struct AreaNames: Decodable {
 struct ForecastReport: Decodable {
     let reportDatetime: String
     let timeSeries: [TimeSeries]
+    /// 週間予報の期間の平年値 (週間予報にだけある)。地点ごとの最低気温と最高気温
+    let tempAverage: Average?
+
+    /// 平年値。値は数を書いた文字列
+    struct Average: Decodable {
+        struct Point: Decodable {
+            let area: AreaValues.Area
+            let min: String
+            let max: String
+        }
+
+        let areas: [Point]
+    }
 
     /// 時刻の並びと、区域ごとの値
     struct TimeSeries: Decodable {
@@ -103,10 +116,18 @@ struct TimeSeriesForecast: Decodable {
         let temperature: [LooseNumber]?
     }
 
-    /// 区域の 3 時間ごとの天気 (文字で配られる)
+    /// 区域の 3 時間ごとの天気 (文字で配られる) と風
     struct AreaSeries: Decodable {
         let timeDefines: [TimeDefine]
         let weather: [String]
+        let wind: [Wind]?
+    }
+
+    /// 風。風向は 8 方位の名前 ("北東")、風速は階級 (1 が 0〜2 m/s、2 が 3〜5 m/s、
+    /// 3 が 6〜9 m/s …) で、その範囲を "3 5" の形で添えて配られる
+    struct Wind: Decodable {
+        let direction: String?
+        let range: String?
     }
 }
 

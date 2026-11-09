@@ -127,6 +127,15 @@ enum WeatherStyle {
         return names.indices.contains(index) ? names[index] : nil
     }
 
+    /// 地域時系列予報の風向 (風が吹いてくる方角の名前) から、風が吹いていく向き
+    /// (北が 0 度で時計回り) を返す。知らない名前なら nil
+    static func windHeading(_ direction: String) -> Double? {
+        let names = ["北", "北北東", "北東", "東北東", "東", "東南東", "南東", "南南東",
+                     "南", "南南西", "南西", "西南西", "西", "西北西", "北西", "北北西"]
+        guard let index = names.firstIndex(of: direction) else { return nil }
+        return (Double(index) * 22.5 + 180).truncatingRemainder(dividingBy: 360)
+    }
+
     /// メニューバーの「古いデータを出している」印の色
     static let staleColorSet = ColorSet(lightMenuBar: "#D70015", dark: "#FF6961", lightCard: "#D70015")
     /// メニューの項目の sfcolor に渡す「古いデータを出している」印の色
