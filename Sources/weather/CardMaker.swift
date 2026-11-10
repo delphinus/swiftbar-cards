@@ -17,8 +17,14 @@ final class CardMaker {
     var stations: [String: AmedasStation] = [:]
     /// 祝日・休日。曜日を日曜と同じ赤にするのに使う。WeatherPlugin が入れる
     var holidays = Holidays(dates: [])
-    /// 前回の取り直しで取得に失敗した観測点 (描き直すときも古いデータの印を付ける)
+    /// 予報区の名前と親子関係。警報・注意報の市町村の名前と府県予報区を引くのに使う。
+    /// WeatherPlugin が入れる
+    var areaNames: AreaNames?
+    /// 前回の取り直しで取得に失敗した地点 (`Place.Station.cacheKey`)。描き直すときも
+    /// 古いデータの印を付ける
     private var staleStations: Set<String> = []
+    /// 地点 (`Place.Station.cacheKey`) → 警報・注意報の市町村 (class20)
+    private var class20s: [String: String] = [:]
 
     init(cache: CacheFolder, telops: [String: Telop]) {
         self.cache = cache
@@ -36,10 +42,42 @@ final class CardMaker {
         await client.download("jmatile/data/wdist/VPFD/\(station.class10).json",
                               to: cache.timeSeriesForecast(class10: station.class10))
         await fetchObservationSeries(station: station.code, now: now)
+        if !(await fetchWarnings(station)) { stale = true }
 
-        if stale { staleStations.insert(station.code) } else { staleStations.remove(station.code) }
-        cache.deleteOldFiles(days: 2) { $0.hasPrefix("forecast-") || $0.hasPrefix("vpfd-") }
+        if stale { staleStations.insert(station.cacheKey) } else { staleStations.remove(station.cacheKey) }
+        cache.deleteOldFiles(days: 2) { $0.hasPrefix("forecast-") || $0.hasPrefix("vpfd-") || $0.hasPrefix("warning-") }
         cache.deleteOldFiles(in: "amedas", days: 2) { $0.hasSuffix(".json") }
+    }
+
+    /// 地点の市町村を (まだ決めていなければ) 決め、その府県予報区の警報・注意報を取る。
+    /// 市町村を決められないか、取得に失敗したら false
+    private func fetchWarnings(_ station: Place.Station) async -> Bool {
+        if needsLocating(station) {
+            let locator = Class20Locator(cache: cache, client: client)
+            guard let code = await locator.locate(latitude: station.latitude, longitude: station.longitude) else { return false }
+            class20s[station.cacheKey] = code
+            located[station.cacheKey] = (station.latitude, station.longitude)
+        }
+        guard let class20 = class20s[station.cacheKey], let office = areaNames?.office(ofClass20: class20) else { return false }
+        return await client.download("warning/data/r8/\(office).json", to: cache.warnings(office: office))
+    }
+
+    /// 市町村を決めたときの座標 (現在地は動くので、動いたら決め直す)
+    private var located: [String: (Double, Double)] = [:]
+
+    private func needsLocating(_ station: Place.Station) -> Bool {
+        guard let (latitude, longitude) = located[station.cacheKey] else { return true }
+        return latitude != station.latitude || longitude != station.longitude
+    }
+
+    /// 地点の市町村と、そこに出ている警報・注意報。市町村が決まっていないか、
+    /// 警報・注意報のファイルを読めなければ nil
+    private func warningArea(_ station: Place.Station, decode: ([WarningReport].Type, URL) -> [WarningReport]?) -> WarningArea? {
+        guard let code = class20s[station.cacheKey], let names = areaNames, let area = names.class20s[code],
+              let office = names.office(ofClass20: code),
+              let reports = decode([WarningReport].self, cache.warnings(office: office)) else { return nil }
+        return WarningArea(code: code, name: area.name, enName: area.enName,
+                           warnings: WarningReport.warnings(in: reports, class20: code))
     }
 
     /// 全観測点の最新値。最新の時刻を問い合わせてから、その時刻のファイルを取る
@@ -102,13 +140,15 @@ final class CardMaker {
             timeSeries: decode(TimeSeriesForecast.self, cache.timeSeriesForecast(class10: station.class10)),
             latest: decode([String: AmedasObservation].self, cache.latestObservations) ?? [:],
             latestTime: CacheFolder.readText(cache.latestObservationsTime) ?? "",
-            series: series, telops: telops, stations: stations, holidays: holidays, stale: staleStations.contains(station.code),
+            series: series, telops: telops, stations: stations, holidays: holidays,
+            warningArea: warningArea(station, decode: decode), stale: staleStations.contains(station.cacheKey),
             now: now, dark: dark, minHeight: minHeight)
 
         let (image, naturalHeight) = WeatherCard(input: report.card).render()
         let card = PlaceCard(menuBarLine: report.menuBarLine, cardLine: SwiftBar.imageLine(image),
-                             naturalHeight: Int(ceil(naturalHeight)), menuItemSummary: report.menuItemSummary)
-        card.write(to: cache.card(station: station.code, dark: dark))
+                             naturalHeight: Int(ceil(naturalHeight)), menuItemSummary: report.menuItemSummary,
+                             notices: report.notices)
+        card.write(to: cache.card(station: station, dark: dark))
         cache.deleteOldFiles(days: 2) { $0.hasPrefix("body-") }
         return card
     }

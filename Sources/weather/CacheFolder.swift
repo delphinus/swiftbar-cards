@@ -40,6 +40,8 @@ struct CacheFolder {
     /// ファイル名に地域の番号を入れる
     func forecast(office: String) -> URL { file("forecast-\(office).json") }
     func timeSeriesForecast(class10: String) -> URL { file("vpfd-\(class10).json") }
+    /// 警報・注意報。府県予報区ごと
+    func warnings(office: String) -> URL { file("warning-\(office).json") }
     /// アメダスの全観測点の最新値
     var latestObservations: URL { file("amedas.json") }
     /// その観測の時刻 ("2026-11-04T20:30:00+09:00")
@@ -47,8 +49,8 @@ struct CacheFolder {
     /// 観測点の 3 時間ごとの時系列
     func observationSeries(station: String, block: String) -> URL { file("amedas/\(station)_\(block).json") }
     /// 地点ごとに描いたカード (`PlaceCard`)
-    func card(station: String, dark: Bool) -> URL {
-        file("body-\(station)-\(isJapaneseCode)-\(dark).txt")
+    func card(station: Place.Station, dark: Bool) -> URL {
+        file("body-\(station.cacheKey)-\(isJapaneseCode)-\(dark).txt")
     }
 
     private var isJapaneseCode: String { isJapanese ? "ja" : "en" }
@@ -56,7 +58,7 @@ struct CacheFolder {
     // MARK: - ファイルの扱い
 
     func prepare() {
-        for dir in [url, file("const"), file("amedas")] {
+        for dir in [url, file("const"), file("const/class20s"), file("amedas")] {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         }
     }

@@ -43,12 +43,25 @@ struct AreaNames: Decodable {
     struct Name: Decodable {
         let name: String
         let enName: String
+        /// 1 つ上の区域の番号
+        let parent: String?
     }
 
     /// 府県予報区
     let offices: [String: Name]
     /// 一次細分区域
     let class10s: [String: Name]
+    /// 市町村等をまとめた地域
+    let class15s: [String: Name]
+    /// 市町村等 (警報・注意報を発表する区域)
+    let class20s: [String: Name]
+
+    /// 市町村の属する府県予報区。市町村 → 市町村等をまとめた地域 → 一次細分区域 →
+    /// 府県予報区と辿る
+    func office(ofClass20 code: String) -> String? {
+        guard let class15 = class20s[code]?.parent, let class10 = class15s[class15]?.parent else { return nil }
+        return class10s[class10]?.parent
+    }
 }
 
 // MARK: - 予報

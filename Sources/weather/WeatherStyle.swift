@@ -136,8 +136,28 @@ enum WeatherStyle {
         return (Double(index) * 22.5 + 180).truncatingRemainder(dividingBy: 360)
     }
 
-    /// メニューバーの「古いデータを出している」印の色
-    static let staleColorSet = ColorSet(lightMenuBar: "#D70015", dark: "#FF6961", lightCard: "#D70015")
-    /// メニューの項目の sfcolor に渡す「古いデータを出している」印の色
-    static let staleColors = staleColorSet.menuItem
+    /// 「取り直せなかったので古いデータを出している」印。以前は赤い三角
+    /// (exclamationmark.triangle) にしていたが、警報の印に見えた。気象庁のデータを
+    /// まったく取れないときのメニューバー (WeatherMenu.noDataLines) と同じ形にする
+    static let staleSymbol = "exclamationmark.icloud"
+    /// その色。警報の色と紛れないよう、天気の分からないときと同じ灰色
+    static let staleColors = colors(forIcon: "")
+
+    /// 警報・注意報の印。特別警報は八角形にする (色が黒で、暗い外観では白にするので、
+    /// 色だけではほかの段階と見分けにくい)
+    static func symbol(forWarningLevel level: Int) -> String {
+        level >= 5 ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill"
+    }
+
+    /// 警報・注意報の色。気象庁の段階の色 (注意報は黄、警報は赤、危険警報は紫、
+    /// 特別警報は黒) に寄せる。黄は白地で読めないので、明るい外観では暗い黄土色にする。
+    /// 黒は暗い地で見えないので、暗い外観では白にする
+    static func colors(forWarningLevel level: Int) -> ColorSet {
+        switch level {
+        case 5...: ColorSet(lightMenuBar: "#0C000C", dark: "#FFFFFF", lightCard: "#0C000C")
+        case 4: ColorSet(lightMenuBar: "#AA00AA", dark: "#E57EE5", lightCard: "#8A008A")
+        case 3: ColorSet(lightMenuBar: "#E62200", dark: "#FF6347", lightCard: "#C41E00")
+        default: ColorSet(lightMenuBar: "#B39A00", dark: "#F2E700", lightCard: "#7A6500")
+        }
+    }
 }

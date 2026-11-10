@@ -124,6 +124,15 @@ fi
 if grep -q 'area_code=130000' "$work/weather-default-light.txt" && ! grep -q 'param1=select' "$work/weather-default-light.txt"; then
 	ok "weather 既定は現在地"
 else ng "weather 既定は現在地"; fi
+# 警報・注意報は、現在地 (東京駅) の市町村を境界のデータで決め、その府県予報区の
+# ファイルを取る。出ているかどうかは日によるので、取れたかだけを確かめる
+weather_cache=$HOME/Library/Caches/swiftbar-weather
+if [[ -s $weather_cache/warning-130000.json ]] && compgen -G "$weather_cache/const/class20s/13*.json" >/dev/null; then
+	ok "weather 警報・注意報を取る"
+else
+	ls "$weather_cache" "$weather_cache/const"
+	ng "weather 警報・注意報を取る"
+fi
 SWIFTBAR_CARDS_LOCATION="43.0618 141.3545" run_weather here-sapporo light "place=東京"
 if grep -q 'area_code=016000' "$work/weather-here-sapporo.txt" && grep -q '^現在地（札幌） .*sfimage=location.circle.fill ' "$work/weather-here-sapporo.txt"; then
 	ok "weather 現在地（札幌）"
