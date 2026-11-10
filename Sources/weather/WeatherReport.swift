@@ -160,12 +160,14 @@ struct WeatherReport {
         let winds = zip(area.timeDefines, area.wind ?? []).compactMap { time, wind -> WindForecast? in
             guard let t = JapanTime.epoch(time.dateTime), let range = wind.range, !range.isEmpty else { return nil }
             // 風速は階級の範囲 ("3 5") で配られる。範囲のままでは読みにくいので、
-            // 真ん中の値を整数に丸めて出す (0〜2 → 1、3〜5 → 4、6〜9 → 8)
+            // 真ん中の値を整数に丸めて出す (0〜2 → 1、3〜5 → 4、6〜9 → 8)。いちばん上の
+            // 階級は上限が無く ("20 INF")、Double にすると無限大になるので「20+」と出す
+            // (無限大のまま Int にして、プラグインごと落ちていた)
             let bounds = range.split(separator: " ").compactMap { Double($0) }
-            guard let low = bounds.first, let high = bounds.last else { return nil }
+            guard let low = bounds.first, let high = bounds.last, low.isFinite else { return nil }
+            let speed = high.isFinite ? String(Int(((low + high) / 2).rounded())) : "\(Int(low))+"
             return WindForecast(t: t, heading: wind.direction.flatMap(WeatherStyle.windHeading),
-                                speed: String(Int(((low + high) / 2).rounded())),
-                                strong: low >= 10)
+                                speed: speed, strong: low >= 10)
         }
 
         return TemperatureGraph(current: current,
