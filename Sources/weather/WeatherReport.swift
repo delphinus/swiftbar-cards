@@ -26,6 +26,8 @@ struct WeatherReport {
     let stations: [String: AmedasStation]
     /// 祝日・休日 (曜日を日曜と同じ赤にする)
     let holidays: Holidays
+    /// 観測点 (現在地なら現在地) のある市町村と、そこに出ている警報・注意報
+    let warningArea: WarningArea?
     /// 取得に失敗して、前に取れたデータを出しているか
     let stale: Bool
     let now: Double
@@ -50,6 +52,7 @@ struct WeatherReport {
     // MARK: - メニューバーの行
 
     /// メニューバーの行: 今日の天気のアイコン、現在の気温、いまの時間帯の降水確率。
+    /// 警報以上が出ていればその印、取り直せなかったときはその印を後ろに添える。
     ///
     /// 明るい用と暗い用の 2 枚の画像で描く (WeatherMenuBar)。SwiftBar は画像の 2 枚を
     /// メニューバーの見た目で選ぶが、文中のアイコンの色 (sfcolor の「明るい用,暗い用」) は
@@ -57,7 +60,8 @@ struct WeatherReport {
     /// 白地向けの濃い青が暗い地に出て、雨のアイコンが見にくかった。
     var menuBarLine: String {
         let menuBar = WeatherMenuBar(icon: todayIcon, temperature: currentTemperatureText,
-                                     precipitationChance: currentPrecipitationChance, stale: stale)
+                                     precipitationChance: currentPrecipitationChance,
+                                     warning: menuBarWarning, stale: stale)
         return SwiftBar.menuBarImageLine(light: menuBar.render(dark: false), dark: menuBar.render(dark: true))
     }
 
@@ -79,12 +83,48 @@ struct WeatherReport {
             iconCount += 1
             parameters += " sfcolor\(iconCount)=\(WeatherStyle.colors(forPrecipitationChance: pop).menuItem)"
         }
-        if stale {
-            text += " :exclamationmark.triangle:"
+        if let warning = menuBarWarning {
+            text += " :\(WeatherStyle.symbol(forWarningLevel: warning.level)):"
             iconCount += 1
-            parameters += " sfcolor\(iconCount)=\(WeatherStyle.staleColors)"
+            parameters += " sfcolor\(iconCount)=\(WeatherStyle.colors(forWarningLevel: warning.level).menuItem)"
+        }
+        if stale {
+            text += " :\(WeatherStyle.staleSymbol):"
+            iconCount += 1
+            parameters += " sfcolor\(iconCount)=\(WeatherStyle.staleColors.menuItem)"
         }
         return text + parameters
+    }
+
+    /// メニューバーに印を出す警報・注意報 (警報以上のうち段階のいちばん高いもの)。
+    /// 注意報は雷や乾燥などで出ていることが多く、いつも印が出てしまうので、メニューを
+    /// 開いたときだけ見せる
+    private var menuBarWarning: WeatherWarning? {
+        warningArea?.warnings.first { $0.level >= 3 }
+    }
+
+    // MARK: - カードの上の知らせ
+
+    /// カードの上に出すメニューの項目: 取り直せなかったことと、警報・注意報。
+    /// 警報・注意報の項目を押すと、気象庁のページがその市町村で開く。
+    ///
+    /// アイコンは文中に書く (sfimage には色を付けられない)
+    var notices: [String] {
+        var lines: [String] = []
+        if stale {
+            lines.append(":\(WeatherStyle.staleSymbol): "
+                + L("気象庁のデータを取り直せなかったので、前に取れたものを表示中",
+                    "Could not update the data from JMA. Showing the data from before")
+                + " | sfcolor=\(WeatherStyle.staleColors.menuItem)")
+        }
+        if let area = warningArea, !area.warnings.isEmpty {
+            lines.append(L("\(area.name)の警報・注意報", "Warnings and Advisories for \(area.enName)"))
+            for warning in area.warnings {
+                lines.append(":\(WeatherStyle.symbol(forWarningLevel: warning.level)): \(warning.name)"
+                    + " | sfcolor=\(WeatherStyle.colors(forWarningLevel: warning.level).menuItem) href=\(area.url)")
+            }
+        }
+        return lines
     }
 
     private var todayIcon: String { weatherIcon(weatherArea?.weatherCodes?.first ?? "") }
@@ -160,12 +200,14 @@ struct WeatherReport {
         let winds = zip(area.timeDefines, area.wind ?? []).compactMap { time, wind -> WindForecast? in
             guard let t = JapanTime.epoch(time.dateTime), let range = wind.range, !range.isEmpty else { return nil }
             // 風速は階級の範囲 ("3 5") で配られる。範囲のままでは読みにくいので、
-            // 真ん中の値を整数に丸めて出す (0〜2 → 1、3〜5 → 4、6〜9 → 8)
+            // 真ん中の値を整数に丸めて出す (0〜2 → 1、3〜5 → 4、6〜9 → 8)。いちばん上の
+            // 階級は上限が無く ("20 INF")、Double にすると無限大になるので「20+」と出す
+            // (無限大のまま Int にして、プラグインごと落ちていた)
             let bounds = range.split(separator: " ").compactMap { Double($0) }
-            guard let low = bounds.first, let high = bounds.last else { return nil }
+            guard let low = bounds.first, let high = bounds.last, low.isFinite else { return nil }
+            let speed = high.isFinite ? String(Int(((low + high) / 2).rounded())) : "\(Int(low))+"
             return WindForecast(t: t, heading: wind.direction.flatMap(WeatherStyle.windHeading),
-                                speed: String(Int(((low + high) / 2).rounded())),
-                                strong: low >= 10)
+                                speed: speed, strong: low >= 10)
         }
 
         return TemperatureGraph(current: current,

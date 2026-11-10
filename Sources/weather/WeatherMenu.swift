@@ -34,9 +34,11 @@ struct WeatherMenu {
     /// 選んでいる地点のカードを出すメニュー。`updating` なら、「今すぐ更新」の代わりに
     /// 「更新中…」(動作の無い項目なので薄く出る) を出す。
     func lines(card: PlaceCard, office: String, updating: Bool) -> [String] {
-        [card.menuBarLine, "---",
-         // カードの下には区切り線を引かない (カードの地の縁が境目になる)
-         card.cardLine]
+        [card.menuBarLine, "---"]
+            // 取り直せなかったことと警報・注意報は、カードの上に出す
+            + card.notices
+            // カードの下には区切り線を引かない (カードの地の縁が境目になる)
+            + [card.cardLine]
             + hereNote()
             + locationItems()
             + [openConfigurationItem,
@@ -116,7 +118,7 @@ struct WeatherMenu {
         // ピンは標準の色のまま (SwiftBar の main のソースで確かめた。2026-11-06)。
         var summary = ""
         var parameters = ""
-        if let station = place.station, let card = PlaceCard.read(cache.card(station: station.code, dark: dark)) {
+        if let station = place.station, let card = PlaceCard.read(cache.card(station: station, dark: dark)) {
             let line = card.menuItemSummary.isEmpty ? card.menuBarLine : card.menuItemSummary
             if let separator = line.range(of: " | ") {
                 summary = "   " + line[..<separator.lowerBound]

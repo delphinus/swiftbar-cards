@@ -40,9 +40,17 @@ struct Place {
         /// 予報の気温の地点 (観測点の番号) と、その名前
         let temperaturePoint: String
         let temperaturePointName: String
+        /// 警報・注意報の市町村を決める座標。観測点の位置で、現在地なら現在地の位置
+        /// (いちばん近い観測点が隣の市町村にあっても、いる市町村の警報を出す)
+        let latitude: Double
+        let longitude: Double
 
         /// 表示の言語での観測点の名前
         var localizedName: String { L(name, enName) }
+
+        /// キャッシュのカードなどを分ける名前。現在地は、同じ観測点の地点 (東京にいる
+        /// ときの「東京」) とも警報・注意報の市町村が違いうるので、分けておく
+        var cacheKey: String { isHere ? "here-\(code)" : code }
     }
 }
 
@@ -108,7 +116,9 @@ struct PlaceResolver {
             code: code, isHere: isHere, name: station.kjName, enName: station.enName,
             office: best.office, officeName: office?.name ?? "", officeEnName: office?.enName ?? "",
             class10: best.class10, class10EnName: tables.areaNames.class10s[best.class10]?.enName ?? "",
-            temperaturePoint: best.station, temperaturePointName: tables.stations[best.station]?.kjName ?? "")
+            temperaturePoint: best.station, temperaturePointName: tables.stations[best.station]?.kjName ?? "",
+            latitude: isHere ? here.coordinate?.latitude ?? station.latitude : station.latitude,
+            longitude: isHere ? here.coordinate?.longitude ?? station.longitude : station.longitude)
     }
 
     /// 選んでいる地点の位置。覚えている文字列 (`selected`) と、書かれた文字列・観測点の

@@ -22,6 +22,8 @@ struct StationTables {
         "amedas/const/amedastable.json",
         "forecast/const/forecast_area.json",
         "common/const/area.json",
+        // 市町村の外接矩形 (警報・注意報の市町村を座標から決める。Class20Locator)
+        "common/const/class20relm.json",
     ]
 
     /// 古ければ取り直してから読む。読めなければ nil

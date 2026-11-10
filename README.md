@@ -8,7 +8,7 @@
 |---|---|---|
 | `nowplaying` | Artwork and title of the track playing in Music.app | Artwork, title, artist, album, and playback position, with play/pause and next-track items |
 | `sysmon` | CPU history, memory, the Mac's own battery with time remaining or until full (on a MacBook), and temperature | CPU (usage, last 10 minutes, E/P cores, temperatures), memory, top processes by CPU and memory, and batteries: the Mac's own battery (on a MacBook, with charging status and time remaining or until full) and Bluetooth devices |
-| `weather` | Today's weather icon, current temperature, and chance of rain | Current observations, a 24-hour temperature graph with weather, chance of rain, and wind, the regional forecast, and the weekly forecast with climate normals from the Japan Meteorological Agency (JMA) |
+| `weather` | Today's weather icon, current temperature, chance of rain, and a warning mark | Current observations, a 24-hour temperature graph with weather, chance of rain, and wind, the regional forecast, and the weekly forecast with climate normals from the Japan Meteorological Agency (JMA) |
 
 Each card is drawn by a small Swift program and passed to SwiftBar as an image, with separate colors for light and dark appearances. The plugins show English or Japanese text, following the language setting of macOS.
 
@@ -70,6 +70,10 @@ place=大阪
 The menu lists **My Location (Fuchu)** first (with the station in use in parentheses), followed by the stations you wrote, and you can switch between them. Each item shows the weather icon, temperature, and chance of rain from the last time that location was updated, the same as in the menu bar. The icon of the one shown is filled, and the plugin remembers the one you chose. After editing the file, choose **Refresh Now** to apply it without waiting for the next update (every 10 minutes). The **Open Configuration File** item in the menu creates this file with comments if it does not exist.
 
 The plugin finds the forecast area from the station: it uses the forecast area whose representative temperature point is nearest to the station, within the same region.
+
+When weather warnings or advisories are in effect for the municipality of the station (for My Location, the municipality you are actually in), the menu lists them above the card, under a heading like **Warnings and Advisories for Chiyoda City**. Choosing one opens the JMA warnings page for that municipality. For warnings and higher (warning, urgent warning, and emergency warning), the menu bar also shows a mark in the JMA color for the level: red, purple, and black or white. Advisories, such as for thunderstorms or dry air, are common, so they appear only in the menu.
+
+When the plugin cannot update the data from JMA, it shows the data from before with a gray cloud mark in the menu bar, and says so above the card in the menu.
 
 The weekly forecast may give temperatures for only one point in the prefecture (only Shimonoseki in Yamaguchi). When that point is not the representative temperature point, the heading names it, as in "Weekly forecast (Shimonoseki)", and the days covered by the short-range forecast (today and tomorrow) show the short-range values for the representative point instead.
 

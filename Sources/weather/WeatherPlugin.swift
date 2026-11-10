@@ -164,7 +164,7 @@ final class WeatherPlugin {
         let menu = WeatherMenu(state: state, cache: cache, dark: dark, pluginPath: pluginPath)
         guard let station = state.selected.station else { return publish(menu.configurationErrorLines()) }
 
-        if showCachedFirst, let card = PlaceCard.read(cache.card(station: station.code, dark: dark)) {
+        if showCachedFirst, let card = PlaceCard.read(cache.card(station: station, dark: dark)) {
             publish(menu.lines(card: card, office: station.office, updating: true))
         }
         let now = Date().timeIntervalSince1970
@@ -200,7 +200,7 @@ final class WeatherPlugin {
         var drew = false
         for (i, place) in state.places.enumerated() where i != state.selectedIndex {
             guard let station = place.station,
-                  !CacheFolder.isFresh(cache.card(station: station.code, dark: dark), maxAge: 3600) else { continue }
+                  !CacheFolder.isFresh(cache.card(station: station, dark: dark), maxAge: 3600) else { continue }
             await maker.fetch(station, now: now)
             if maker.draw(station, now: now, dark: dark, minHeight: minimumHeight(state, dark: dark)) != nil { drew = true }
         }
@@ -214,7 +214,7 @@ final class WeatherPlugin {
     private func minimumHeight(_ state: WeatherState, dark: Bool) -> Double {
         guard state.places.count > 1 else { return 0 }
         let heights = state.stations.compactMap { station -> Int? in
-            let file = cache.card(station: station.code, dark: dark)
+            let file = cache.card(station: station, dark: dark)
             guard CacheFolder.isFresh(file, maxAge: 3 * 3600) else { return nil }
             return PlaceCard.read(file)?.naturalHeight
         }
@@ -231,6 +231,7 @@ final class WeatherPlugin {
                 tables = loaded
                 tablesLoadedAt = Date()
                 maker.stations = loaded.stations
+                maker.areaNames = loaded.areaNames
             }
             maker.holidays = await Holidays.load(cache: cache, client: maker.client)
         }

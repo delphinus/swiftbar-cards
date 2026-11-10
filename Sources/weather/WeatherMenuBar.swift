@@ -5,7 +5,7 @@ import Shared
 
 /// メニューバーの画像。
 ///
-///     [天気のアイコン] 9°  [傘] 60%  [古いデータの印]
+///     [天気のアイコン] 9°  [傘] 60%  [警報の印]  [古いデータの印]
 ///
 /// 明るい用と暗い用の 2 枚を描き、SwiftBar がメニューバーの見た目に合うほうを選ぶ
 /// (SwiftBar.menuBarImageLine)。文字は sysmon の見出しのアイコンと同じく白か黒で、
@@ -17,6 +17,8 @@ struct WeatherMenuBar {
     let icon: String
     let temperature: String
     let precipitationChance: String
+    /// 印を出す警報 (警報以上)。無ければ nil
+    let warning: WeatherWarning?
     let stale: Bool
 
     private let height = MenuBarLayout.height
@@ -25,7 +27,7 @@ struct WeatherMenuBar {
     private let iconPointSize = MenuBarLayout.iconPointSize
     /// アイコンと文字の間 (文中に置いたときの空白に合わせる)
     private let spacing: CGFloat = 4
-    /// 気温と傘、降水確率と古いデータの印の間
+    /// 気温と傘、降水確率と警報や古いデータの印の間
     private let itemGap: CGFloat = 7
 
     func render(dark: Bool) -> PNGImage {
@@ -47,7 +49,11 @@ struct WeatherMenuBar {
            let umbrella = symbol("umbrella.fill", WeatherStyle.colors(forPrecipitationChance: precipitationChance)) {
             pieces += [.gap(itemGap), .icon(umbrella), .gap(spacing), .text(label("\(precipitationChance)%"))]
         }
-        if stale, let mark = symbol("exclamationmark.triangle", WeatherStyle.staleColorSet) {
+        if let warning, let mark = symbol(WeatherStyle.symbol(forWarningLevel: warning.level),
+                                          WeatherStyle.colors(forWarningLevel: warning.level)) {
+            pieces += [.gap(itemGap), .icon(mark)]
+        }
+        if stale, let mark = symbol(WeatherStyle.staleSymbol, WeatherStyle.staleColors) {
             pieces += [.gap(itemGap), .icon(mark)]
         }
 
