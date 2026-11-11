@@ -13,6 +13,13 @@ struct JMAClient {
 
     private let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
+        // 取ったものはキャッシュのフォルダに置くので、URLSession のキャッシュは使わない。
+        // ephemeral でもメモリ上にキャッシュがあり、気象庁の 404 (Last-Modified があり
+        // Cache-Control が無い) を数十日有効なものとして残す。まだできていない時系列の
+        // ファイルを一度 404 で掴むと、常駐している間は取り直しても通信せずに 404 が
+        // 返り、気温のグラフの破線が途中で切れたままになった (2026-11-11)
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.timeoutIntervalForRequest = 10
         configuration.timeoutIntervalForResource = 10
         return URLSession(configuration: configuration)
