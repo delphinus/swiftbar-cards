@@ -174,29 +174,43 @@ extension WeatherCard {
         context.restoreGState()
     }
 
-    /// 今の気温と、予報の最高気温に点と値を添える (最低気温は今の気温の近くに来やすく、値が重なる)
+    /// 今の気温と、予報の最高気温・最低気温に点と値を添える
     private func drawMarks(_ pen: WeatherPen, _ scale: GraphScale, solid: [TimedValue], hasCurrent: Bool) {
-        func mark(_ p: TimedValue) {
+        let labelHeight: CGFloat = 14
+        /// 値は点の上に置く。`below` なら点の下に置く (谷の底は、上に置くと線に挟まれる)
+        func mark(_ p: TimedValue, below: Bool = false) {
             let q = scale.point(p)
             pen.context.setFillColor(colors.primary.cgColor)
             pen.context.fillEllipse(in: CGRect(x: q.x - 3.5, y: q.y - 3.5, width: 7, height: 7))
-            pen.text(formatted(p.value.rounded()), x: min(max(q.x, scale.plot.minX + 8), scale.plot.maxX - 8), y: q.y - 19,
-                     size: 11, weight: .semibold, align: .center)
+            pen.text(formatted(p.value.rounded()), x: min(max(q.x, scale.plot.minX + 8), scale.plot.maxX - 8),
+                     y: below ? q.y + 5 : q.y - 19, size: 11, weight: .semibold, align: .center)
+        }
+        /// 2 つの点の値が重ならないくらい離れているか
+        func isApart(_ a: TimedValue, _ b: TimedValue) -> Bool {
+            abs(scale.x(a.t) - scale.x(b.t)) >= 26 || abs(scale.y(a.value) - scale.y(b.value)) >= 16
         }
 
         let now = hasCurrent ? solid.first : nil
         if let now { mark(now) }
+        var marked: [TimedValue] = now.map { [$0] } ?? []
 
-        // 予報の最高気温は、今より高いときだけ出す (この先は下がるだけなら、出しても
-        // 意味が無い)。今の点のすぐ近くにあると値が重なるので、そのときも省く。
+        // 予報の最高気温は今より高いとき、最低気温は今より低いときだけ出す (この先は
+        // 下がるだけ・上がるだけなら、出しても意味が無い)。既に出した点のすぐ近くに
+        // あると値が重なるので、そのときも省く。
         let future = solid.filter { $0.t >= scale.start && $0.t <= scale.end }.dropFirst(now != nil ? 1 : 0)
-        guard let highest = future.max(by: { $0.value < $1.value }) else { return }
-        if let now {
-            let isHigher = highest.value.rounded() > now.value.rounded()
-            let isApart = abs(scale.x(highest.t) - scale.x(now.t)) >= 26 || abs(scale.y(highest.value) - scale.y(now.value)) >= 16
-            guard isHigher && isApart else { return }
+        if let highest = future.max(by: { $0.value < $1.value }),
+           now.map({ highest.value.rounded() > $0.value.rounded() }) ?? true,
+           marked.allSatisfy({ isApart(highest, $0) }) {
+            mark(highest)
+            marked.append(highest)
         }
-        mark(highest)
+        if let lowest = future.min(by: { $0.value < $1.value }),
+           now.map({ lowest.value.rounded() < $0.value.rounded() }) ?? true,
+           marked.allSatisfy({ isApart(lowest, $0) && lowest.value.rounded() != $0.value.rounded() }) {
+            // 下に置くと時刻の行 (グラフの下端の 8pt 下) にかかるときは、上に置く
+            let below = scale.y(lowest.value) + 5 + labelHeight <= scale.plot.maxY + 6
+            mark(lowest, below: below)
+        }
     }
 
     /// 時刻: 3 時間ごとに数字、その間は点
