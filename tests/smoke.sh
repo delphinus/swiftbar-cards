@@ -39,8 +39,14 @@ ng() {
 # (メニューバーの image= は「明るい用,暗い用」の 2 枚を , で並べている)。
 save_image() { # <出力のファイル> <行番号> <名前>
 	local b64
+	[[ -n $2 ]] || return 1
 	b64=$(sed -n "$2p" "$1" | sed -nE 's/.*image=([^ ,]+).*/\1/p')
 	[[ -n $b64 ]] && base64 -d <<<"$b64" >"$out/$3.png" 2>/dev/null && file -b "$out/$3.png" | grep -q '^PNG image'
+}
+# weather のカードの行番号。カードはメニューバーの次の画像だけの行 (" | image=...")。
+# 警報・注意報が出ているとその上に行が入るので、行番号は決め打ちしない
+card_line() { # <出力のファイル>
+	awk 'NR > 1 && /^ \| image=/ { print NR; exit }' "$1"
 }
 
 echo "# shellcheck"
@@ -97,7 +103,7 @@ run_weather() { # <名前> <外観 (light / dark)> [設定ファイルの中身]
 for appearance in light dark; do
 	name=default-$appearance
 	run_weather "$name" "$appearance"
-	if save_image "$work/weather-$name.txt" 1 "weather-$name-menubar" && save_image "$work/weather-$name.txt" 3 "weather-$name"; then
+	if save_image "$work/weather-$name.txt" 1 "weather-$name-menubar" && save_image "$work/weather-$name.txt" "$(card_line "$work/weather-$name.txt")" "weather-$name"; then
 		ok "weather $name"
 	else
 		cut -c1-200 "$work/weather-$name.txt"
@@ -148,7 +154,7 @@ else
 	ng "weather 現在地が分からなければ東京"
 fi
 run_weather yokohama light "place=横浜"
-if grep -q 'image=' "$work/weather-yokohama.txt" && save_image "$work/weather-yokohama.txt" 3 weather-yokohama; then
+if grep -q 'image=' "$work/weather-yokohama.txt" && save_image "$work/weather-yokohama.txt" "$(card_line "$work/weather-yokohama.txt")" weather-yokohama; then
 	ok "weather place=横浜"
 else ng "weather place=横浜"; fi
 # 何も選んでいなければ現在地を出すので、設定の不備はその地点を選んでから確かめる
@@ -212,7 +218,7 @@ if grep -q '^府中 .*sfimage=mappin.circle.fill ' "$work/weather-renumbered.txt
 else ng "weather 番号に書き換えても選んだ地点のまま"; fi
 "$repo/plugins/weather.sh" select 東京
 SWIFTBAR_CARDS_LANG=en run_weather english light "place=横浜"
-if grep -q 'Open JMA Forecast' "$work/weather-english.txt" && save_image "$work/weather-english.txt" 3 weather-english; then
+if grep -q 'Open JMA Forecast' "$work/weather-english.txt" && save_image "$work/weather-english.txt" "$(card_line "$work/weather-english.txt")" weather-english; then
 	ok "weather 英語"
 else ng "weather 英語"; fi
 # 何も選んでいなければ現在地を出すので、設定の不備はその地点を選んでから確かめる

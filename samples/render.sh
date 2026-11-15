@@ -41,7 +41,8 @@ for l in ja en; do
 		o=$work/$l/weather/out-$appearance.txt
 		HOME=$work/home XDG_CONFIG_HOME=$work/home/.config SWIFTBAR_CARDS_APPEARANCE=$appearance \
 			"$repo/plugins/weather.sh" --once >"$o"
-		sed -n 3p "$o" | sed -nE 's/.*image=([^ ]+).*/\1/p' | base64 -d >"$work/$l/weather/card-$appearance.png"
+		# カードはメニューバーの次の画像だけの行。警報・注意報が出ているとその上に行が入る
+		awk 'NR > 1 && /^ \| image=/ { print; exit }' "$o" | sed -nE 's/.*image=([^ ]+).*/\1/p' | base64 -d >"$work/$l/weather/card-$appearance.png"
 		i=1
 		[[ $appearance == dark ]] && i=2
 		sed -n 1p "$o" | sed -nE 's/.*image=([^ ]+).*/\1/p' | cut -d, -f$i | base64 -d >"$work/$l/weather/menubar-$appearance.png"
