@@ -6,7 +6,7 @@
 
 | Plugin | Menu bar | Card |
 |---|---|---|
-| `nowplaying` | Artwork and title of the track playing in Music.app | Artwork, title, artist, album, and playback position, with play/pause and next-track items |
+| `nowplaying` | Artwork and title of the track playing in Music.app | Artwork, title, artist, album, and playback position (click to open the track's page), with play/pause and next-track items |
 | `sysmon` | CPU history, memory, the Mac's own battery with time remaining or until full (on a MacBook), and temperature | CPU (usage, last 10 minutes, E/P cores, temperatures), memory, top processes by CPU and memory, and batteries: the Mac's own battery (on a MacBook, with charging status and time remaining or until full) and Bluetooth devices |
 | `weather` | Today's weather icon, current temperature, chance of rain, and a warning mark | Current observations, a 24-hour temperature graph with weather, chance of rain, and wind, the regional forecast, and the weekly forecast with climate normals from the Japan Meteorological Agency (JMA) |
 
@@ -47,6 +47,8 @@ In SwiftBar's settings, set the plugin folder to the `plugins` directory of the 
 Each plugin compiles its Swift program on first run and again whenever the source changes. The binaries are kept under `~/Library/Caches/`.
 
 `nowplaying` asks Music.app for the current track through Apple Events (ScriptingBridge). The first time it runs, macOS asks whether SwiftBar may control Music. Music.app does not hand over the artwork of tracks played straight from the Apple Music catalog (not added to your library), so for those `nowplaying` looks it up with the iTunes Search API, sending the track name, artist and album to Apple.
+
+Clicking the card in the menu opens the page of the current track. `nowplaying` searches Apple Music, SoundCloud, Beatport and Discogs in that order by title and artist, and opens the first match (hover over the card to see which one). Each time the track changes, it sends the track name, artist and album to these services. If nothing matches, the card is not clickable.
 
 `weather` finds your location through Location Services. The first time, macOS asks whether an app named `swiftbar-cards` may use your location (see [Configuration](#configuration)).
 

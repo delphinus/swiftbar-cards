@@ -17,6 +17,8 @@
 // - MusicApp.swift         Music.app への問い合わせと操作
 // - MusicScripting.swift   Music.app の用語の宣言 (ScriptingBridge)
 // - StoreArtwork.swift     Music.app がアートワークを渡さない曲のアートワークを、ストアで探す
+// - SourceLink.swift       カードをクリックしたときに開く、曲のページを探す
+// - HTTP.swift             アートワークや曲のページを探すときの通信
 // - Track.swift            曲の情報
 // - NowPlayingMenu.swift   メニューの行
 // - NowPlayingImages.swift メニューバーとカードの画像
