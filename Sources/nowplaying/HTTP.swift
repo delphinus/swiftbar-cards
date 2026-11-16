@@ -24,9 +24,22 @@ enum HTTP {
 
     /// `url` を取る。取れなければ (応答が 200 でなければ) 理由を記録して `Failure` を投げる
     static func get(_ url: URL) async throws -> Data {
-        let where_ = "\(url.host ?? "")\(url.path)"
+        try await send(URLRequest(url: url))
+    }
+
+    /// `body` を JSON にして `url` へ POST し、応答の中身を返す。失敗は `get` と同じ
+    static func post(_ url: URL, json body: [String: Any]) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try await send(request)
+    }
+
+    private static func send(_ request: URLRequest) async throws -> Data {
+        let where_ = "\(request.url?.host ?? "")\(request.url?.path ?? "")"
         do {
-            let (data, response) = try await session.data(from: url)
+            let (data, response) = try await session.data(for: request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             guard status == 200 else {
                 logger.error("取得に失敗: \(where_, privacy: .public): HTTP \(status)")

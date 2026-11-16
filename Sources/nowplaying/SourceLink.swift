@@ -5,9 +5,11 @@ import Shared
 
 /// 再生中の曲のソース (曲のページ) を探す。カードをクリックすると開く。
 ///
-/// Apple Music → SoundCloud → Beatport → Discogs の順に探し、最初に見つかったものを使う。
+/// Apple Music → Bandcamp → SoundCloud → Beatport → Discogs の順に探し、最初に見つかったものを使う。
 /// どれも API キーは要らない。
 /// - Apple Music: iTunes Search API (StoreSearch)
+/// - Bandcamp: 検索の欄の候補を出す API (autocomplete_elastic)。検索のページは JavaScript の
+///   チャレンジを挟むので読めない
 /// - SoundCloud: 検索のページ。JavaScript を切ったとき用の <noscript> に、曲名と曲のページへの
 ///   リンクが 10 件ほど入っている
 /// - Beatport: 検索のページ。Next.js のページで、検索の結果が __NEXT_DATA__ の JSON に入っている
@@ -18,6 +20,7 @@ import Shared
 struct SourceLink {
     enum Source: String, CaseIterable {
         case appleMusic = "Apple Music"
+        case bandcamp = "Bandcamp"
         case soundCloud = "SoundCloud"
         case beatport = "Beatport"
         case discogs = "Discogs"
@@ -51,6 +54,7 @@ struct SourceLink {
     private static func find(_ track: Track, in source: Source) async throws -> URL? {
         switch source {
         case .appleMusic: return try await appleMusic(track)
+        case .bandcamp: return try await bandcamp(track)
         case .soundCloud: return try await soundCloud(track)
         case .beatport: return try await beatport(track)
         case .discogs: return try await discogs(track)
@@ -75,6 +79,41 @@ struct SourceLink {
             ?? songs.compactMap { song in match.sameVersionRank(song.trackName ?? "").map { (song, $0) } }
                 .min { $0.1 < $1.1 }?.0
         return song?.trackViewUrl.flatMap(URL.init(string:))
+    }
+
+    // MARK: - Bandcamp
+
+    /// 検索の欄の候補を出す API。検索の語をすべて含む曲しか返さないので、曲名の括弧
+    /// (ミックス名) は外して探す。Bandcamp では「(X Remix)」が「(X Mix)」と書かれている
+    /// ことがあり、括弧ごと入れると見つからない。返った曲の中から曲名で選ぶ。
+    ///
+    /// 曲名はレーベルのページだと「アーティスト - 曲名」と書かれることがある。そのときは
+    /// 「 - 」の前をアーティストとみなす。
+    private static func bandcamp(_ track: Track) async throws -> URL? {
+        guard let url = URL(string: "https://bandcamp.com/api/bcsearch_public_api/1/autocomplete_elastic") else { return nil }
+        let data = try await HTTP.post(url, json: [
+            "search_text": "\(track.artist) \(SourceMatch.withoutBrackets(track.name))",
+            "search_filter": "t",
+            "full_page": false,
+        ])
+        let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let results = (root?["auto"] as? [String: Any])?["results"] as? [[String: Any]] ?? []
+        let match = SourceMatch(track)
+        let songs: [(name: String, url: String)] = results.compactMap { result in
+            guard result["type"] as? String == "t",
+                  var name = result["name"] as? String,
+                  let url = result["item_url_path"] as? String else { return nil }
+            var artist = result["band_name"] as? String ?? ""
+            if let dash = name.range(of: " - "), match.artist(String(name[..<dash.lowerBound])) {
+                artist = String(name[..<dash.lowerBound])
+                name = String(name[dash.upperBound...])
+            }
+            return match.artist(artist) ? (name, url) : nil
+        }
+        let song = songs.first { match.title($0.name) }
+            ?? songs.compactMap { song in match.sameVersionRank(song.name).map { (song, $0) } }
+                .min { $0.1 < $1.1 }?.0
+        return song.flatMap { URL(string: $0.url) }
     }
 
     // MARK: - SoundCloud
@@ -165,7 +204,7 @@ struct SourceLink {
     /// 最初に返ったもの (master があれば master) を選ぶ。見つからなければ、曲名から
     /// 「(Original Mix)」のような括弧を外して探し直す。
     private static func discogs(_ track: Track) async throws -> URL? {
-        let base = track.name.replacing(#/\s*[(\[][^)\]]*[)\]]/#, with: "").trimmingCharacters(in: .whitespaces)
+        let base = SourceMatch.withoutBrackets(track.name)
         var names = [track.name]
         if !base.isEmpty, base != track.name { names.append(base) }
         for name in names {
@@ -201,7 +240,8 @@ struct SourceLink {
 /// 検索の結果が再生中の曲かどうかを見分ける。
 ///
 /// 大文字と小文字、アクセント記号、全角と半角、空白や記号の違いは無視して比べる
-/// (「Satellite (Original Mix)」と「satellite - original mix」は同じ)。
+/// (「Satellite (Original Mix)」と「satellite - original mix」は同じ)。曲名の「Remix」は
+/// 「Mix」と同じとみなす (Bandcamp では「(Diakronik Remix)」が「(Diakronik Mix)」と書かれていた)。
 struct SourceMatch {
     private let name: String
     private let baseName: String
@@ -212,8 +252,8 @@ struct SourceMatch {
     private let mainArtist: String
 
     init(_ track: Track) {
-        name = Self.key(track.name)
-        baseName = Self.key(Self.withoutOriginalMix(track.name))
+        name = Self.titleKey(track.name)
+        baseName = Self.titleKey(Self.withoutOriginalMix(track.name))
         nameHasMix = track.name.contains("(")
         album = Self.key(track.album)
         artist = Self.key(track.artist)
@@ -229,8 +269,8 @@ struct SourceMatch {
 
     func title(_ candidate: String, allowingSuffix: Bool) -> Bool {
         guard !name.isEmpty else { return false }
-        let key = Self.key(candidate)
-        if key == name || Self.key(Self.withoutOriginalMix(candidate)) == baseName { return true }
+        let key = Self.titleKey(candidate)
+        if key == name || Self.titleKey(Self.withoutOriginalMix(candidate)) == baseName { return true }
         return allowingSuffix && nameHasMix && key.hasPrefix(name)
     }
 
@@ -248,7 +288,7 @@ struct SourceMatch {
               let found = candidate.wholeMatch(of: #/(.+?)\s*(?:[(\[]\s*([^)\]]+?)\s*[)\]]|\s-\s+(.+?))\s*/#)
         else { return nil }
         let mix = String(found.2 ?? found.3 ?? "").lowercased()
-        guard Self.key(String(found.1)) == name else { return nil }
+        guard Self.titleKey(String(found.1)) == name else { return nil }
         return Self.sameVersionMixes.firstIndex(of: mix)
     }
 
@@ -268,6 +308,16 @@ struct SourceMatch {
         text.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
             .unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }
             .map(String.init).joined()
+    }
+
+    /// 曲名を比べるための形。「Remix」を「Mix」にそろえてから key にする
+    private static func titleKey(_ text: String) -> String {
+        key(text.replacing(#/\bremix\b/#.ignoresCase(), with: "mix"))
+    }
+
+    /// 曲名から括弧 (「(Extended Mix)」「[Free Download]」など) を外したもの。検索の語に使う
+    static func withoutBrackets(_ text: String) -> String {
+        text.replacing(#/\s*[(\[][^)\]]*[)\]]/#, with: "").trimmingCharacters(in: .whitespaces)
     }
 
     private static func withoutOriginalMix(_ text: String) -> String {
