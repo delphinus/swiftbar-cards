@@ -12,6 +12,8 @@ import Shared
 struct NowPlayingMenu {
     let track: Track
     let artwork: NSImage?
+    /// カードをクリックしたときに開く、曲のソース。見つかっていなければ nil
+    let sourceLink: SourceLink?
     let musicIsRunning: Bool
 
     func lines() -> [String] {
@@ -38,7 +40,12 @@ struct NowPlayingMenu {
             // 一時停止中のメニューバーは、音符のアイコンだけにする
             menuBar = Self.musicNoteIcon
         }
-        let card = SwiftBar.imageLine(images.card(dark: isDarkAppearance()))
+        var card = SwiftBar.imageLine(images.card(dark: isDarkAppearance()))
+        if let sourceLink {
+            // 動作を付けると、マウスを載せたときにカードが選択の色で塗られる。それでクリック
+            // できることが分かるので、そのままにする
+            card += " href=\(sourceLink.url.absoluteString) tooltip=\"\(L("\(sourceLink.source.rawValue) で開く", "Open in \(sourceLink.source.rawValue)"))\""
+        }
         // カードの下には区切り線を引かない (カードの地の縁が境目になる)
         return [menuBar, "---", card]
     }

@@ -12,6 +12,13 @@ final class NowPlayingPlugin {
     private var artwork: NSImage?
     /// `artwork` がどの曲のものか。曲が変わったときだけアートワークを取り直す
     private var artworkTrackID = ""
+    /// 再生中の曲のソース (カードをクリックすると開くページ)。探しているあいだは nil
+    private var sourceLink: SourceLink?
+    /// `sourceLink` がどの曲のものか
+    private var sourceLinkTrackID = ""
+    /// 探し終えた曲のソース。同じ曲がまたかかったときに探し直さない (見つからなかった曲も
+    /// nil として覚える)。プレイリストを繰り返しても検索を何度も送らないよう、曲の ID で持つ
+    private var sourceLinks: [String: SourceLink?] = [:]
     /// 前回出したメニュー。同じなら出し直さない
     private var lastOutput = ""
     /// 通知の受け取りの登録。解除するときに要るので持っておく (このプログラムは終了するまで解除しない)
@@ -59,6 +66,7 @@ final class NowPlayingPlugin {
     func refresh() {
         track = MusicApp.currentTrack()
         refreshArtworkIfTrackChanged()
+        refreshSourceLinkIfTrackChanged()
         publishMenu()
     }
 
@@ -94,16 +102,44 @@ final class NowPlayingPlugin {
         }
     }
 
+    /// 曲のソースを探す (SourceLink.swift)。アートワークと同じく、通信を待つあいだは
+    /// ソース無しで出しておき、見つかったら差し替える。
+    private func refreshSourceLinkIfTrackChanged() {
+        guard track.id != sourceLinkTrackID else { return }
+        sourceLinkTrackID = track.id
+        sourceLink = nil
+        guard track.hasTrack else { return }
+        if let known = sourceLinks[track.id] {
+            sourceLink = known
+            return
+        }
+        let requested = track
+        Task { @MainActor [weak self] in
+            let result = await SourceLink.find(for: requested)
+            guard let self else { return }
+            if result.complete {
+                // 増えすぎないよう、覚えておくのは 500 曲まで
+                if self.sourceLinks.count >= 500 { self.sourceLinks.removeAll() }
+                self.sourceLinks[requested.id] = result.link
+            }
+            guard self.track.id == requested.id else { return }
+            self.sourceLink = result.link
+            self.publishMenu()
+        }
+    }
+
     private func forgetTrack() {
         track = Track()
         artwork = nil
         artworkTrackID = ""
+        sourceLink = nil
+        sourceLinkTrackID = ""
     }
 
     // MARK: - メニュー
 
     private func publishMenu() {
-        let lines = NowPlayingMenu(track: track, artwork: artwork, musicIsRunning: MusicApp.isRunning).lines()
+        let lines = NowPlayingMenu(track: track, artwork: artwork, sourceLink: sourceLink, musicIsRunning: MusicApp.isRunning).lines()
         let output = lines.joined(separator: "\n")
         guard output != lastOutput else { return }
         lastOutput = output
