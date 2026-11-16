@@ -62,12 +62,18 @@ struct SourceLink {
     /// 曲名が一致し、アルバムかアーティストも一致するもの。アートワーク (StoreArtwork) と
     /// 違って曲名だけの一致では選ばない。ライブラリの曲 (Bandcamp で買った曲など) と
     /// 同じ名前の別の曲に飛んでしまう。
+    ///
+    /// 曲名が一致するものが無く、Music.app の曲名にミックス名が書いていなければ、
+    /// 「曲名 (Extended Mix)」のような同じ曲の長さ違いを選ぶ (SourceMatch.sameVersionRank)。
+    /// DJ mix のアルバムに入れた曲は、ミックス名を書かないことが多い。
     private static func appleMusic(_ track: Track) async throws -> URL? {
         let match = SourceMatch(track)
-        let song = try await StoreSearch.songs(for: track).first { song in
-            match.title(song.trackName ?? "")
-                && (match.album(song.collectionName ?? "") || match.artist(song.artistName ?? ""))
+        let songs = try await StoreSearch.songs(for: track).filter { song in
+            match.album(song.collectionName ?? "") || match.artist(song.artistName ?? "")
         }
+        let song = songs.first { match.title($0.trackName ?? "") }
+            ?? songs.compactMap { song in match.sameVersionRank(song.trackName ?? "").map { (song, $0) } }
+                .min { $0.1 < $1.1 }?.0
         return song?.trackViewUrl.flatMap(URL.init(string:))
     }
 
@@ -112,7 +118,7 @@ struct SourceLink {
     /// 検索のページの __NEXT_DATA__ にある曲。曲名は track_name とミックス名 (mix_name) に
     /// 分かれている。Music.app の曲名は「曲名 (Extended Mix)」のようにミックス名まで
     /// 書いてあることも、書いていないこともある。書いていなければ Original Mix を選び、
-    /// 無ければ Extended Mix を選ぶ。
+    /// 無ければ同じ曲の長さ違い (SourceMatch.sameVersionRank) を選ぶ。
     private static func beatport(_ track: Track) async throws -> URL? {
         guard let url = HTTP.url("https://www.beatport.com/search/tracks", ["q": "\(track.artist) \(track.name)"])
         else { return nil }
@@ -128,7 +134,8 @@ struct SourceLink {
         func name(_ song: [String: Any]) -> String { song["track_name"] as? String ?? "" }
         func mix(_ song: [String: Any]) -> String { song["mix_name"] as? String ?? "" }
         let song = byArtist.first { match.title("\(name($0)) (\(mix($0)))") }
-            ?? byArtist.first { match.title(name($0)) && mix($0).lowercased() == "extended mix" }
+            ?? byArtist.compactMap { song in match.sameVersionRank("\(name(song)) (\(mix(song)))").map { (song, $0) } }
+                .min { $0.1 < $1.1 }?.0
         guard let song, let id = song["track_id"] as? Int else { return nil }
         // URL の名前の部分は何でもよい (ID で引かれる)。ページと同じ形にしておく
         let slug = name(song).lowercased()
@@ -225,6 +232,24 @@ struct SourceMatch {
         let key = Self.key(candidate)
         if key == name || Self.key(Self.withoutOriginalMix(candidate)) == baseName { return true }
         return allowingSuffix && nameHasMix && key.hasPrefix(name)
+    }
+
+    /// Music.app の曲名にミックス名が書いていないとき、同じ曲の長さ違いとみなすミックス名。
+    /// 先にあるものほど優先する (DJ mix で使うのは長いほう)。Original Mix は title が扱う。
+    /// 「(X Remix)」「(X VIP)」「(X Edit)」のような別の人の手が入ったものは含めない。
+    /// 違うミックスのページを開くよりは、どこにも飛ばないほうがよい。
+    static let sameVersionMixes = ["extended mix", "club mix", "radio mix", "radio edit"]
+
+    /// 候補が「曲名 (ミックス名)」か「曲名 - ミックス名」で、曲名が一致し、ミックス名が
+    /// sameVersionMixes にあれば、その順位 (小さいほど優先)。Music.app の曲名にミックス名が
+    /// 書いてあれば nil (そのときは title で比べる)。
+    func sameVersionRank(_ candidate: String) -> Int? {
+        guard !nameHasMix, !name.isEmpty,
+              let found = candidate.wholeMatch(of: #/(.+?)\s*(?:[(\[]\s*([^)\]]+?)\s*[)\]]|\s-\s+(.+?))\s*/#)
+        else { return nil }
+        let mix = String(found.2 ?? found.3 ?? "").lowercased()
+        guard Self.key(String(found.1)) == name else { return nil }
+        return Self.sameVersionMixes.firstIndex(of: mix)
     }
 
     func album(_ candidate: String) -> Bool {
