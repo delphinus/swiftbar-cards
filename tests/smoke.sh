@@ -26,6 +26,9 @@ export SWIFTBAR_CARDS_LANG=ja
 # weather の現在地は、位置情報を読む .app を起動せず、東京駅の座標を使う
 # (CI では位置情報を読めず、手元では許可のダイアログが出てしまう)
 export SWIFTBAR_CARDS_LOCATION="35.6812 139.7671"
+# メニューバーは縮めずに描く (手元の MacBook で外部のディスプレイが無いと、何もしないと縮める)。
+# 縮めた形は「メニューバーを縮める」で決め打ちして確かめる
+export SWIFTBAR_CARDS_COMPACT=off
 mkdir -p "$HOME"
 
 failures=0
@@ -91,6 +94,17 @@ for h in nowplaying sysmon; do
 		if [[ -n $ok_all ]]; then ok "render $h ($l)"; else ng "render $h ($l)"; fi
 	done
 done
+
+echo "# メニューバーを縮める (SWIFTBAR_CARDS_COMPACT)"
+# 外部のディスプレイが無いときに縮めた形は、縮めない形より幅が狭い。CI の仮想マシンには
+# 内蔵のディスプレイが無いので、決め打ちで両方を描いて比べる
+png_width() { sips -g pixelWidth "$1" | awk '/pixelWidth/ { print $2 }'; }
+for c in on off; do
+	SWIFTBAR_CARDS_COMPACT=$c "$work/sysmon" --render "$repo/samples/sysmon.json" "$work/compact-$c"
+done
+on_width=$(png_width "$work/compact-on/menubar-light.png")
+off_width=$(png_width "$work/compact-off/menubar-light.png")
+if ((on_width < off_width)); then ok "sysmon 縮めた形 ($on_width < $off_width)"; else ng "sysmon 縮めた形の幅が狭くない ($on_width, $off_width)"; fi
 
 echo "# weather"
 conf=$XDG_CONFIG_HOME/swiftbar-cards/weather.conf

@@ -58,6 +58,22 @@ The plugins use Japanese when the first preferred language in macOS is Japanese,
 
 In English, `weather` uses JMA's English names for stations and areas. JMA publishes the forecast text only in Japanese, so the card shows the English name of each day's weather code (such as "Partly cloudy") instead.
 
+## Narrow menu bars
+
+On a MacBook, the menu bar has little room to the right of the notch, and macOS hides the items that do not fit. When that happens, the plugins draw shorter menu bar items so that as many of them as possible stay visible:
+
+- `sysmon` narrows the CPU graph and memory bar, shows the temperature only at 70°C or higher, and shows the battery time only below 20%.
+- `weather` shows the chance of rain only at 30% or higher.
+- `nowplaying` cuts the title at 100pt instead of 220pt.
+
+To find out whether items are hidden, the plugins build a small app (`swiftbar-cards`, which appears neither in the Dock nor in the menu bar) under `~/Library/Caches/swiftbar-cards/` and keep it running. Every 2 seconds it checks, through the Accessibility API, whether macOS shows the button for hidden menu bar items, and where the items are. The plugins go back to the full items once there has been enough room for them for 6 seconds (and at least a minute after they were shortened). The app only reads the position, size and identifier of menu bar items; it never clicks, types, or changes anything.
+
+The first time, macOS asks whether `swiftbar-cards` may use Accessibility (listed under **Accessibility** in **Privacy & Security**; the name of the list differs on newer versions of macOS). The app is signed ad hoc, so macOS stops honoring the permission whenever an update changes the app. When the plugins rebuild the app, they remove its old entry from the list, and the app asks again; turn it on again.
+
+Without the permission (or on a version of macOS without the button for hidden items), the plugins draw the shorter items when no external display is connected. SwiftBar shows the same image on the menu bar of every display, so they draw the full items whenever any external display is connected.
+
+To choose one regardless of all this, set `SWIFTBAR_CARDS_COMPACT` to `on` or `off` for SwiftBar.
+
 ## Configuration
 
 `weather` shows the weather at the AMeDAS station (one that observes temperature) nearest to your current location, found through macOS Location Services. SwiftBar itself cannot use Location Services, so the plugin builds a small app that only reads the location (`swiftbar-cards`, which appears neither in the Dock nor in the menu bar) under `~/Library/Caches/swiftbar-weather/`. The first time, macOS asks whether this app may use your location. The location is checked again every 10 minutes. When access is not allowed or the location is unavailable, the plugin shows Tokyo and says why in the menu.
@@ -100,7 +116,7 @@ place=44116
 - `tests/smoke.sh` builds the Swift programs, runs each plugin, and checks that the menu bar line and the card image come out. CI runs it on every push.
 - `samples/render.sh` redraws the images in `docs/images/en/` and `docs/images/ja/`. `nowplaying` and `sysmon` can draw a card once from given values with `--render <JSON> <output directory>`; the values are in `samples/`. `weather` prints its menu once and exits with `--once`.
 - Releases follow [Semantic Versioning](https://semver.org/) and are tagged `vX.Y.Z`. All plugins share the version in their `<xbar.version>` header (shown in SwiftBar's plugin settings); `tests/smoke.sh` checks that they match.
-- When fetching or reading something fails, the reason goes to the macOS unified log (SwiftBar does not show the standard error of streamable plugins). The subsystem is `dev.delphinus.swiftbar-cards` and the category is the plugin name (`weather`, `sysmon`, `nowplaying`, `locate`). View it with `/usr/bin/log show --last 1h --predicate 'subsystem == "dev.delphinus.swiftbar-cards"'` (use the full path in zsh, where `log` is a builtin).
+- When fetching or reading something fails, the reason goes to the macOS unified log (SwiftBar does not show the standard error of streamable plugins). The subsystem is `dev.delphinus.swiftbar-cards` and the category is the plugin name (`weather`, `sysmon`, `nowplaying`, `locate`, `menubar`). View it with `/usr/bin/log show --last 1h --predicate 'subsystem == "dev.delphinus.swiftbar-cards"'` (use the full path in zsh, where `log` is a builtin).
 - `scripts/update-telops.sh` regenerates `data/jma-telops.json`, the table of weather codes (English name, Japanese name, and representative weather), from the table embedded in the JMA forecast page. The weather icons follow the representative weather in this table (clear, cloudy, rain, or snow).
 
 ## Acknowledgements

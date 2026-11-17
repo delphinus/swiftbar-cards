@@ -14,6 +14,8 @@ trap 'rm -rf "$work"' EXIT
 export LANG=en_US.UTF-8
 # weather の現在地は、位置情報を読む .app を起動せず、東京駅の座標にする
 export SWIFTBAR_CARDS_LOCATION="35.6812 139.7671"
+# メニューバーは縮めずに描く (外部のディスプレイが無い Mac では、何もしないと縮める)
+export SWIFTBAR_CARDS_COMPACT=off
 
 mkdir -p "$work/bin"
 for h in nowplaying sysmon; do

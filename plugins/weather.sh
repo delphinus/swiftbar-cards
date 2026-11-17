@@ -1,7 +1,7 @@
 #!/bin/bash
 # <xbar.title>Weather (JMA)</xbar.title>
 # <xbar.desc>気象庁の天気予報とアメダスの観測値をメニューバーに出す</xbar.desc>
-# <xbar.version>v1.1.18</xbar.version>
+# <xbar.version>v1.1.19</xbar.version>
 # <xbar.author>delphinus</xbar.author>
 # <xbar.author.github>delphinus</xbar.author.github>
 # <xbar.abouturl>https://github.com/delphinus/swiftbar-cards</xbar.abouturl>
@@ -39,6 +39,7 @@ bin=$cache/weather
 if [[ $# -eq 0 || $1 == --once ]]; then
 	build_helper weather "$bin"
 	build_app locate "$cache/Locate.app"
+	build_menubar_app
 	# 以前の形 (weather.10m.sh) で使っていたファイルを消す
 	rm -f "$cache/weather-card" "$cache/switched" "$cache/fresh" "$cache"/menu-*.txt
 fi

@@ -17,6 +17,7 @@ struct NowPlayingMenu {
     let musicIsRunning: Bool
 
     func lines() -> [String] {
+        reportExtraWidth()
         guard musicIsRunning else {
             return [Self.musicNoteIcon, "---", Self.openMusic]
         }
@@ -30,12 +31,23 @@ struct NowPlayingMenu {
         return lines
     }
 
+    /// 縮めるか (MenuBarDensity)。1 回のメニューの中ではそろえる
+    private let compact = MenuBarDensity.isCompact
+
+    /// 戻したときに増える幅を、縮めるかを決める側に伝える。曲名を出すのは再生中だけで、
+    /// 音符だけのときは縮めても戻しても幅は同じ
+    private func reportExtraWidth() {
+        let showsTitle = musicIsRunning && track.hasTrack && track.isPlaying
+        let extra = showsTitle ? NowPlayingImages(track: track, artwork: nil).menuBarTitleExtraWidth() : 0
+        MenuBarDensity.report(plugin: "nowplaying", compact: compact, extraWidth: extra)
+    }
+
     /// メニューバーの画像とカード
     private func trackLines() -> [String] {
         let images = NowPlayingImages(track: track, artwork: artwork)
         let menuBar: String
         if track.isPlaying {
-            menuBar = SwiftBar.menuBarLine(title: images.menuBarTitle(), image: images.menuBarArtwork())
+            menuBar = SwiftBar.menuBarLine(title: images.menuBarTitle(compact: compact), image: images.menuBarArtwork())
         } else {
             // 一時停止中のメニューバーは、音符のアイコンだけにする
             menuBar = Self.musicNoteIcon

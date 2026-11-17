@@ -10,7 +10,8 @@ import Shared
 /// - メニューで地点を選んだときと「今すぐ更新」を押したとき。キャッシュのフォルダに
 ///   指示が書かれる (Command.swift) ので、フォルダの変化を見て気付く
 /// - 現在地が変わったとき。Locate.app がキャッシュのフォルダに書く
-/// - 外観 (ダーク / ライト) が変わったとき。取り直さずに描き直す
+/// - 外観 (ダーク / ライト) が変わったときと、ディスプレイを繋いだり外したりして
+///   メニューバーの項目を縮めるか (MenuBarDensity) が変わったとき。取り直さずに描き直す
 ///
 /// 状態 (読み込んだ表・前回の出力など) を持ち続けるので class にする。中身はすべて
 /// メインスレッドで動かす (`@MainActor`)。取り直しの最中に次のきっかけが来ても
@@ -24,7 +25,7 @@ final class WeatherPlugin {
         /// 地点を選んだか「今すぐ更新」を押した。取り直しには数秒かかるので、先に
         /// キャッシュのカードと「更新中…」を出す
         case switched(forceLocate: Bool)
-        /// 外観が変わった。取り直さずに描き直す
+        /// 外観か、メニューバーの項目を縮めるかが変わった。取り直さずに描き直す
         case redraw
         /// 現在地が変わった。現在地に当たる観測点が変わったときだけ取り直す
         case locationChanged
@@ -81,6 +82,10 @@ final class WeatherPlugin {
             forName: Notification.Name("AppleInterfaceThemeChangedNotification"), object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in self?.enqueue(.redraw) }
             })
+        // ディスプレイを繋いだり外したりしたら、メニューバーの項目を縮めるかが変わる
+        MenuBarDensity.observeChanges { [weak self] in
+            Task { @MainActor in self?.enqueue(.redraw) }
+        }
         watchCacheFolder()
     }
 
@@ -171,6 +176,10 @@ final class WeatherPlugin {
         let minHeight = minimumHeight(state, dark: dark)
         guard let card = await makeCard(station, now: now, dark: dark, minHeight: minHeight, fetch: fetch) else {
             return publish(WeatherMenu.noDataLines())
+        }
+        // 戻したときに増える幅を、縮めるかを決める側に伝える
+        if let extra = card.menuBarExtraWidth {
+            MenuBarDensity.report(plugin: "weather", compact: MenuBarDensity.isCompact, extraWidth: extra)
         }
         publish(menu.lines(card: card, office: station.office, updating: false))
 

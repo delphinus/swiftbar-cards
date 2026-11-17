@@ -24,13 +24,21 @@ import Shared
 /// 数字は等幅の数字で描くので、値が変わっても項目の幅が変わらない。
 ///
 /// 文字・アイコン・グラフ・棒・電池を置く高さは MenuBarLayout に従う。
+///
+/// メニューバーが狭いとき (`compact`。MenuBarDensity) は、グラフと棒を細くし、項目の
+/// 間を詰める。温度は注意の色 (70°C 以上) のときだけ、電池の残り時間は残量が 20% を
+/// 切ったときだけ出す。
+///
+///     [cpu] [グラフ]  [memorychip] [棒]  [電池]
 struct SystemMenuBar {
     let snapshot: Snapshot
+    /// 縮めて描くか
+    var compact = MenuBarDensity.isCompact
 
     private let height = MenuBarLayout.height
     private let font = MenuBarLayout.font
-    private let chartSize = CGSize(width: 40, height: 14)
-    private let barSize = CGSize(width: 26, height: 6)
+    private var chartSize: CGSize { CGSize(width: compact ? 24 : 40, height: 14) }
+    private var barSize: CGSize { CGSize(width: compact ? 16 : 26, height: 6) }
     /// 見出しとグラフ・値の間
     private let spacing: CGFloat = 4
     /// 見出しのアイコンの大きさ
@@ -40,7 +48,7 @@ struct SystemMenuBar {
     /// 電池の出っ張りの幅
     private let batteryNubWidth: CGFloat = 1.5
     /// CPU・メモリ・電池・温度の項目の間
-    private let itemGap: CGFloat = 10
+    private var itemGap: CGFloat { compact ? 6 : 10 }
     /// グラフに描く回数 (18 回 = 3 分)
     private let chartSamples = 18
 
@@ -76,12 +84,14 @@ struct SystemMenuBar {
         let memoryLabel = label("MEM", heading)
         let cpuHeadWidth = cpuIcon?.size.width ?? cpuLabel.size().width
         let memoryHeadWidth = memoryIcon?.size.width ?? memoryLabel.size().width
-        let tempValue = snapshot.cpu.temp.map { label(String(format: "%.0f°C", $0), level($0, warning: 70, critical: 85)) }
+        let tempValue = snapshot.cpu.temp
+            .flatMap { compact && $0 < 70 ? nil : $0 }
+            .map { label(String(format: "%.0f°C", $0), level($0, warning: 70, critical: 85)) }
         let internalBattery = snapshot.battery.first { $0.isInternal }
         let batteryColor = internalBattery.map { $0.percent < 20 ? red : $0.percent < 40 ? yellow : green } ?? green
-        let batteryTime = internalBattery?.minutes.map {
-            label(String(format: "%d:%02d", $0 / 60, $0 % 60), batteryColor)
-        }
+        let batteryTime = internalBattery
+            .flatMap { compact && $0.percent >= 20 ? nil : $0.minutes }
+            .map { label(String(format: "%d:%02d", $0 / 60, $0 % 60), batteryColor) }
         let bluetoothIsLow = snapshot.battery.contains { !$0.isInternal && $0.percent < 20 }
 
         var width = cpuHeadWidth + spacing + chartSize.width + itemGap

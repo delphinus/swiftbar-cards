@@ -58,6 +58,22 @@ macOS の優先する言語の先頭が日本語なら日本語で、それ以�
 
 英語のとき、`weather` は観測点や区域の名前に気象庁の英語名を使います。予報の文は気象庁が日本語でしか出していないので、代わりに各日の天気コードの英語名 (「Partly cloudy」など) を出します。
 
+## メニューバーが狭いとき
+
+MacBook ではメニューバーのノッチの右側が狭く、収まらない項目は macOS が隠してしまいます。そのときはメニューバーの項目を縮めて描き、できるだけ全部が出るようにします。
+
+- `sysmon` は CPU のグラフとメモリの棒を細くし、温度は 70°C 以上のときだけ、電池の残り時間は残量が 20% 未満のときだけ出します。
+- `weather` は降水確率を 30% 以上のときだけ出します。
+- `nowplaying` は曲名を 220pt ではなく 100pt で切ります。
+
+項目が隠れているかを調べるため、プラグインは `~/Library/Caches/swiftbar-cards/` に小さなアプリ (`swiftbar-cards`。Dock にもメニューバーにも出ません) をビルドし、常駐させます。このアプリは 2 秒ごとに、macOS が隠れた項目のボタンを出しているかと、項目の並んでいる位置をアクセシビリティ API で読みます。縮めない形に戻しても収まるだけの空きが 6 秒続けば (縮めてから 1 分以上たっていれば)、元に戻します。読むのはメニューバーの項目の位置・大きさ・識別子だけで、クリックや入力などの操作は一切しません。
+
+初回は、`swiftbar-cards` にアクセシビリティの使用を許可するかを macOS が尋ねます (「プライバシーとセキュリティ」の「アクセシビリティ」。新しい macOS では「デバイスの制御とデータへのアクセス」)。このアプリはアドホック署名なので、更新でアプリが変わると許可が通らなくなります。プラグインはアプリをビルドし直したときに一覧から古い項目を消し、アプリがもう一度尋ねるので、改めて ON にしてください。
+
+許可が無いとき (と、隠れた項目のボタンが無い macOS) は、外部のディスプレイが繋がっていなければ縮めます。SwiftBar はどのディスプレイのメニューバーにも同じ画像を出すので、外部のディスプレイが 1 台でも繋がっていれば縮めません。
+
+これらによらず決めたいときは、SwiftBar に環境変数 `SWIFTBAR_CARDS_COMPACT` (`on` か `off`) を渡します。
+
 ## 設定
 
 `weather` は、現在地にいちばん近い (気温を観測している) アメダスの観測点の天気を表示します。現在地は macOS の位置情報サービスで調べます。SwiftBar 自身は位置情報を使えないので、位置情報を読むだけの小さなアプリ (`swiftbar-cards`。Dock にもメニューバーにも出ません) を `~/Library/Caches/swiftbar-weather/` に作って使います。初回は、このアプリに位置情報の利用を許可するかを macOS が尋ねます。現在地は 10 分ごとに調べ直します。許可されていないときや取得できないときは東京を表示し、メニューに理由を出します。
@@ -100,7 +116,7 @@ place=44116
 - `tests/smoke.sh` は、Swift のプログラムをビルドし、各プラグインを動かして、メニューバーの行とカードの画像が出るかを確かめます。CI が push のたびに流します。
 - `samples/render.sh` は `docs/images/en/` と `docs/images/ja/` の画像を描き直します。`nowplaying` と `sysmon` は `--render <JSON> <出力先>` で、与えた値から 1 回だけカードを描けます。値は `samples/` にあります。`weather` は `--once` で、メニューを 1 回だけ出して終わります。
 - リリースは [Semantic Versioning](https://semver.org/lang/ja/) に従い、`vX.Y.Z` のタグを打ちます。版はすべてのプラグインで共通で、ヘッダの `<xbar.version>` に書きます (SwiftBar のプラグインの設定画面に出ます)。そろっているかは `tests/smoke.sh` が確かめます。
-- 取得や読み込みに失敗したときは、理由を macOS の統合ログに書きます (SwiftBar は常駐型のプラグインの標準エラーを見せないため)。subsystem は `dev.delphinus.swiftbar-cards`、category はプラグインの名前 (`weather`・`sysmon`・`nowplaying`・`locate`) です。`/usr/bin/log show --last 1h --predicate 'subsystem == "dev.delphinus.swiftbar-cards"'` で見られます (zsh では `log` が組み込みコマンドとぶつかるので、フルパスで書きます)。
+- 取得や読み込みに失敗したときは、理由を macOS の統合ログに書きます (SwiftBar は常駐型のプラグインの標準エラーを見せないため)。subsystem は `dev.delphinus.swiftbar-cards`、category はプラグインの名前 (`weather`・`sysmon`・`nowplaying`・`locate`・`menubar`) です。`/usr/bin/log show --last 1h --predicate 'subsystem == "dev.delphinus.swiftbar-cards"'` で見られます (zsh では `log` が組み込みコマンドとぶつかるので、フルパスで書きます)。
 - `scripts/update-telops.sh` は、天気コードの表 `data/jma-telops.json` (英語名・日本語名・代表の天気) を、気象庁の予報のページに埋め込まれた表から作り直します。天気のアイコンは、この表の代表の天気 (晴・曇・雨・雪) で決めます。
 
 ## 謝辞
