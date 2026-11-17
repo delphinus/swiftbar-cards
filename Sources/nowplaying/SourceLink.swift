@@ -67,9 +67,9 @@ struct SourceLink {
     /// 違って曲名だけの一致では選ばない。ライブラリの曲 (Bandcamp で買った曲など) と
     /// 同じ名前の別の曲に飛んでしまう。
     ///
-    /// 曲名が一致するものが無く、Music.app の曲名にミックス名が書いていなければ、
-    /// 「曲名 (Extended Mix)」のような同じ曲の長さ違いを選ぶ (SourceMatch.sameVersionRank)。
-    /// DJ mix のアルバムに入れた曲は、ミックス名を書かないことが多い。
+    /// 曲名が一致するものが無ければ、「曲名 (Extended Mix)」「曲名 (X Remix (Extended))」の
+    /// ような同じ曲の長さ違いを選ぶ (SourceMatch.sameVersionRank)。DJ mix のアルバムに
+    /// 入れた曲は、ミックス名を書かないか、長さ違いの印を省いて書くことが多い。
     private static func appleMusic(_ track: Track) async throws -> URL? {
         let match = SourceMatch(track)
         let songs = try await StoreSearch.songs(for: track).filter { song in
@@ -276,22 +276,36 @@ struct SourceMatch {
         return allowingSuffix && nameHasMix && key.hasPrefix(name)
     }
 
-    /// Music.app の曲名にミックス名が書いていないとき、同じ曲の長さ違いとみなすミックス名。
-    /// 先にあるものほど優先する (DJ mix で使うのは長いほう)。Original Mix は title が扱う。
-    /// 「(X Remix)」「(X VIP)」「(X Edit)」のような別の人の手が入ったものは含めない。
-    /// 違うミックスのページを開くよりは、どこにも飛ばないほうがよい。
-    static let sameVersionMixes = ["extended mix", "club mix", "radio mix", "radio edit"]
+    /// 同じ曲の長さ違いとみなすミックス名。先にあるものほど優先する (DJ mix で使うのは長いほう)。
+    /// Original Mix は title が扱う。「(X Remix)」「(X VIP)」「(X Edit)」のような別の人の手が
+    /// 入ったものは含めない。違うミックスのページを開くよりは、どこにも飛ばないほうがよい。
+    static let sameVersionMixes = ["extended mix", "extended", "extended version", "club mix", "radio mix", "radio edit"]
 
-    /// 候補が「曲名 (ミックス名)」か「曲名 - ミックス名」で、曲名が一致し、ミックス名が
-    /// sameVersionMixes にあれば、その順位 (小さいほど優先)。Music.app の曲名にミックス名が
-    /// 書いてあれば nil (そのときは title で比べる)。
+    /// 候補が同じ曲の長さ違いなら、その順位 (小さいほど優先)。title で一致しないときに使う。
+    ///
+    /// - Music.app の曲名にミックス名が書いていないとき: 候補が「曲名 (ミックス名)」か
+    ///   「曲名 - ミックス名」で、ミックス名が sameVersionMixes にあるもの
+    /// - 書いてあるとき: 候補が Music.app の曲名の後ろに、sameVersionMixes にある印を足したもの。
+    ///   Apple Music は「I Like the Way (Alaguan Remix (Extended))」のように括弧の中に書き、
+    ///   ほかでは「曲名 (X Remix) [Extended Mix]」のように後ろに書く
     func sameVersionRank(_ candidate: String) -> Int? {
-        guard !nameHasMix, !name.isEmpty,
-              let found = Self.withoutFeaturing(candidate).wholeMatch(of: #/(.+?)\s*(?:[(\[]\s*([^)\]]+?)\s*[)\]]|\s-\s+(.+?))\s*/#)
-        else { return nil }
-        let mix = String(found.2 ?? found.3 ?? "").lowercased()
-        guard Self.titleKey(String(found.1)) == name else { return nil }
-        return Self.sameVersionMixes.firstIndex(of: mix)
+        guard !name.isEmpty else { return nil }
+        let text = Self.withoutFeaturing(candidate)
+        let base: String
+        let mix: String
+        if nameHasMix {
+            guard let found = text.wholeMatch(of: #/(.+?)\s*[(\[]\s*([^()\[\]]+?)\s*[)\]](\s*[)\]])?\s*/#)
+            else { return nil }
+            base = String(found.1) + String(found.3 ?? "")
+            mix = String(found.2)
+        } else {
+            guard let found = text.wholeMatch(of: #/(.+?)\s*(?:[(\[]\s*([^)\]]+?)\s*[)\]]|\s-\s+(.+?))\s*/#)
+            else { return nil }
+            base = String(found.1)
+            mix = String(found.2 ?? found.3 ?? "")
+        }
+        guard Self.titleKey(base) == name || Self.titleKey(Self.withoutOriginalMix(base)) == baseName else { return nil }
+        return Self.sameVersionMixes.firstIndex(of: mix.lowercased())
     }
 
     func album(_ candidate: String) -> Bool {
