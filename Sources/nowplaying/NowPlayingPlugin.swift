@@ -32,6 +32,8 @@ final class NowPlayingPlugin {
     /// - 再生中は、再生位置のバーのために 5 秒ごとに再生位置を問い合わせる。
     ///   一時停止中・停止中は問い合わせず、通知が来るまで何もしない。
     /// - Music.app の起動・終了、外観 (ダーク / ライト) の切り替え。
+    /// - ディスプレイの抜き差しで、メニューバーの項目を縮めるか (MenuBarDensity) が
+    ///   変わったとき。
     func startObserving() {
         let distributed = DistributedNotificationCenter.default()
         observers.append(distributed.addObserver(forName: Notification.Name("com.apple.Music.playerInfo"),
@@ -53,6 +55,11 @@ final class NowPlayingPlugin {
                 if name == NSWorkspace.didTerminateApplicationNotification { self?.forgetTrack() }
                 self?.refresh()
             })
+        }
+
+        // ディスプレイを繋いだり外したりしたら、メニューバーの曲名を切る幅が変わる
+        MenuBarDensity.observeChanges { [weak self] in
+            self?.publishMenu()
         }
 
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in

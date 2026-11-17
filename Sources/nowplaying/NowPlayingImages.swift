@@ -10,8 +10,8 @@ struct NowPlayingImages {
 
     // MARK: - メニューバー
 
-    /// メニューバーの曲名を切る幅
-    static let menuBarTitleWidth: CGFloat = 220
+    /// メニューバーの曲名を切る幅。メニューバーが狭いとき (MenuBarDensity) は詰める
+    static func menuBarTitleWidth(compact: Bool) -> CGFloat { compact ? 100 : 220 }
     /// メニューバーのアートワークの右に足す余白
     static let menuBarArtworkGap: CGFloat = 3
 
@@ -31,16 +31,24 @@ struct NowPlayingImages {
         }
     }
 
-    /// メニューバーの曲名。220pt を超える分は末尾を「…」にして切る。
-    func menuBarTitle() -> String {
+    /// メニューバーの曲名。`menuBarTitleWidth` (220pt、メニューバーが狭いときは 100pt) を
+    /// 超える分は末尾を「…」にして切る。
+    func menuBarTitle(compact: Bool = MenuBarDensity.isCompact) -> String {
         let font = NSFont.menuBarFont(ofSize: 0)
         let name = track.name
-        guard textWidth(name, font: font) > Self.menuBarTitleWidth else { return name }
+        let maxWidth = Self.menuBarTitleWidth(compact: compact)
+        guard textWidth(name, font: font) > maxWidth else { return name }
         var characters = Array(name)
-        while !characters.isEmpty, textWidth(String(characters) + "…", font: font) > Self.menuBarTitleWidth {
+        while !characters.isEmpty, textWidth(String(characters) + "…", font: font) > maxWidth {
             characters.removeLast()
         }
         return String(characters).trimmingCharacters(in: .whitespaces) + "…"
+    }
+
+    /// 縮めずに描いたときに、縮めたときより曲名が広がる幅
+    func menuBarTitleExtraWidth() -> CGFloat {
+        let font = NSFont.menuBarFont(ofSize: 0)
+        return textWidth(menuBarTitle(compact: false), font: font) - textWidth(menuBarTitle(compact: true), font: font)
     }
 
     /// README とテスト用に、メニューバーの見た目 (アートワークと曲名) を 1 枚に描く。

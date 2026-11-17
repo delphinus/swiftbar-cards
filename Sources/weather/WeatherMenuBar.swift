@@ -13,6 +13,9 @@ import Shared
 /// 等幅にしない。
 ///
 /// 文字とアイコンを置く高さは MenuBarLayout に従う。
+///
+/// メニューバーが狭いとき (`compact`。MenuBarDensity) は、降水確率を 30% 以上のとき
+/// (傘が灰色でなく青になるとき) だけ出し、項目の間を詰める。
 struct WeatherMenuBar {
     let icon: String
     let temperature: String
@@ -20,6 +23,8 @@ struct WeatherMenuBar {
     /// 印を出す警報 (警報以上)。無ければ nil
     let warning: WeatherWarning?
     let stale: Bool
+    /// 縮めて描くか
+    var compact = MenuBarDensity.isCompact
 
     private let height = MenuBarLayout.height
     /// メニューバーのほかの文字 (SwiftBar が描く文字や時計) と同じフォント
@@ -28,7 +33,7 @@ struct WeatherMenuBar {
     /// アイコンと文字の間 (文中に置いたときの空白に合わせる)
     private let spacing: CGFloat = 4
     /// 気温と傘、降水確率と警報や古いデータの印の間
-    private let itemGap: CGFloat = 7
+    private var itemGap: CGFloat { compact ? 5 : 7 }
 
     func render(dark: Bool) -> PNGImage {
         let textColor = dark ? NSColor(white: 1, alpha: 0.92) : NSColor(white: 0, alpha: 0.85)
@@ -45,7 +50,7 @@ struct WeatherMenuBar {
         let weatherSymbol = icon == "cloud.rain" ? "cloud.rain.fill" : icon
         if let image = symbol(weatherSymbol, WeatherStyle.colors(forIcon: icon)) { pieces.append(.icon(image)) }
         if !temperature.isEmpty { pieces.append(.gap(spacing)); pieces.append(.text(label(temperature))) }
-        if !precipitationChance.isEmpty,
+        if !precipitationChance.isEmpty, !compact || (Int(precipitationChance) ?? 0) >= 30,
            let umbrella = symbol("umbrella.fill", WeatherStyle.colors(forPrecipitationChance: precipitationChance)) {
             pieces += [.gap(itemGap), .icon(umbrella), .gap(spacing), .text(label("\(precipitationChance)%"))]
         }

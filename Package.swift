@@ -13,5 +13,6 @@ let package = Package(
         .executableTarget(name: "weather", dependencies: ["Shared"]),
         // .app の形でビルドする (scripts/lib.sh の build_app)。Shared は使わない
         .executableTarget(name: "locate", exclude: ["Info.plist", "en.lproj", "ja.lproj"]),
+        .executableTarget(name: "menubar", exclude: ["Info.plist"]),
     ]
 )

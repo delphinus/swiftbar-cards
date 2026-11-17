@@ -51,25 +51,39 @@ let openActivityMonitor = L("アクティビティモニタを開く", "Open Act
 SwiftBar.beginStreaming()
 Thread.sleep(forTimeInterval: 1) // 最初の使用率を出すため、ティックの差分を取る間を置く
 
+// メニューバーの項目を縮めるか (MenuBarDensity) が変わったら、次の 10 秒の区切りを
+// 待たずに描き直す。このループは RunLoop を回していないので、別のキューで受けて起こす
+let densityChanged = DispatchSemaphore(value: 0)
+MenuBarDensity.observeChanges(on: DispatchQueue(label: "sysmon.density")) { densityChanged.signal() }
+
+var snapshot = monitor.takeSnapshot()
 while true {
     // 1 回ごとに autorelease pool を空にする。このループは RunLoop で回して
     // いないので、囲まないと毎回描く画像や文字列が解放されずに溜まり続ける
     // (1 時間で 2 GB ほど増えていた)。
     autoreleasepool {
-        let snapshot = monitor.takeSnapshot()
-        let menuBar = SystemMenuBar(snapshot: snapshot)
+        let compact = MenuBarDensity.isCompact
+        let menuBar = SystemMenuBar(snapshot: snapshot, compact: compact)
+        let light = menuBar.render(dark: false)
+        // 戻したときに増える幅を、縮めるかを決める側に伝える
+        let otherWidth = SystemMenuBar(snapshot: snapshot, compact: !compact).render(dark: false).size.width
+        MenuBarDensity.report(plugin: "sysmon", compact: compact,
+                              extraWidth: abs(light.size.width - otherWidth))
         let card = SystemCard(snapshot: snapshot, dark: isDarkAppearance())
         SwiftBar.replaceMenu(with: [
-            SwiftBar.menuBarImageLine(light: menuBar.render(dark: false), dark: menuBar.render(dark: true)),
+            SwiftBar.menuBarImageLine(light: light, dark: menuBar.render(dark: true)),
             "---",
             // カードの下には区切り線を引かない (カードの地の縁が境目になる)
             SwiftBar.imageLine(card.render()),
             openActivityMonitor,
         ])
+    }
 
-        // 次の 10 秒の区切りまで寝る
-        let now = Date().timeIntervalSince1970
-        let next = (floor(now / monitor.interval) + 1) * monitor.interval
-        Thread.sleep(forTimeInterval: max(1, next - now))
+    // 次の 10 秒の区切りまで寝る。途中で起こされたら、値は取り直さずに描き直す
+    // (取り直すと、CPU の使用率の履歴に、間隔の短い 1 回が入ってしまう)
+    let now = Date().timeIntervalSince1970
+    let next = (floor(now / monitor.interval) + 1) * monitor.interval
+    if densityChanged.wait(timeout: .now() + max(1, next - now)) == .timedOut {
+        snapshot = autoreleasepool { monitor.takeSnapshot() }
     }
 }

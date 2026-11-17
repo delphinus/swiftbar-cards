@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// 地点ごとに描いたメニューの行。キャッシュのファイル (`CacheFolder.card`) に書く。
@@ -14,6 +15,9 @@ struct PlaceCard {
     let naturalHeight: Int
     let menuItemSummary: String
     let notices: [String]
+    /// メニューバーの項目を縮めずに描いたときに広がる幅 (MenuBarDensity)。描いたときだけ
+    /// 持ち、ファイルには書かない (キャッシュから読んだときは nil)
+    var menuBarExtraWidth: CGFloat?
 
     static func read(_ file: URL) -> PlaceCard? {
         guard let text = CacheFolder.readText(file) else { return nil }

@@ -59,10 +59,19 @@ struct WeatherReport {
     /// システムの外観で選ぶ。ライトモードで暗い壁紙を透かしたメニューバー (文字は白) では、
     /// 白地向けの濃い青が暗い地に出て、雨のアイコンが見にくかった。
     var menuBarLine: String {
-        let menuBar = WeatherMenuBar(icon: todayIcon, temperature: currentTemperatureText,
-                                     precipitationChance: currentPrecipitationChance,
-                                     warning: menuBarWarning, stale: stale)
+        let menuBar = menuBar(compact: MenuBarDensity.isCompact)
         return SwiftBar.menuBarImageLine(light: menuBar.render(dark: false), dark: menuBar.render(dark: true))
+    }
+
+    /// メニューバーの項目を縮めずに描いたときに、縮めたときより広がる幅 (MenuBarDensity)
+    var menuBarExtraWidth: CGFloat {
+        menuBar(compact: false).render(dark: false).size.width - menuBar(compact: true).render(dark: false).size.width
+    }
+
+    private func menuBar(compact: Bool) -> WeatherMenuBar {
+        WeatherMenuBar(icon: todayIcon, temperature: currentTemperatureText,
+                       precipitationChance: currentPrecipitationChance,
+                       warning: menuBarWarning, stale: stale, compact: compact)
     }
 
     /// 地点の切り替えの項目に添える行。中身はメニューバーの行と同じ。項目はメニュー

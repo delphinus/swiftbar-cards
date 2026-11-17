@@ -147,7 +147,7 @@ final class CardMaker {
         let (image, naturalHeight) = WeatherCard(input: report.card).render()
         let card = PlaceCard(menuBarLine: report.menuBarLine, cardLine: SwiftBar.imageLine(image),
                              naturalHeight: Int(ceil(naturalHeight)), menuItemSummary: report.menuItemSummary,
-                             notices: report.notices)
+                             notices: report.notices, menuBarExtraWidth: report.menuBarExtraWidth)
         card.write(to: cache.card(station: station, dark: dark))
         cache.deleteOldFiles(days: 2) { $0.hasPrefix("body-") }
         return card
