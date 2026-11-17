@@ -242,6 +242,8 @@ struct SourceLink {
 /// 大文字と小文字、アクセント記号、全角と半角、空白や記号の違いは無視して比べる
 /// (「Satellite (Original Mix)」と「satellite - original mix」は同じ)。曲名の「Remix」は
 /// 「Mix」と同じとみなす (Bandcamp では「(Diakronik Remix)」が「(Diakronik Mix)」と書かれていた)。
+/// 曲名の「(feat. X)」は外して比べる (Apple Music は「Change (feat. Allison Gray) [Technikore Remix]」
+/// のように、ゲストのアーティストを曲名に書く)。
 struct SourceMatch {
     private let name: String
     private let baseName: String
@@ -254,7 +256,7 @@ struct SourceMatch {
     init(_ track: Track) {
         name = Self.titleKey(track.name)
         baseName = Self.titleKey(Self.withoutOriginalMix(track.name))
-        nameHasMix = track.name.contains("(")
+        nameHasMix = Self.withoutFeaturing(track.name).contains("(")
         album = Self.key(track.album)
         artist = Self.key(track.artist)
         let main = track.artist.split(separator: #/ & | and |, | feat\.? | ft\.? | featuring | x | vs\.? /#.ignoresCase())
@@ -285,7 +287,7 @@ struct SourceMatch {
     /// 書いてあれば nil (そのときは title で比べる)。
     func sameVersionRank(_ candidate: String) -> Int? {
         guard !nameHasMix, !name.isEmpty,
-              let found = candidate.wholeMatch(of: #/(.+?)\s*(?:[(\[]\s*([^)\]]+?)\s*[)\]]|\s-\s+(.+?))\s*/#)
+              let found = Self.withoutFeaturing(candidate).wholeMatch(of: #/(.+?)\s*(?:[(\[]\s*([^)\]]+?)\s*[)\]]|\s-\s+(.+?))\s*/#)
         else { return nil }
         let mix = String(found.2 ?? found.3 ?? "").lowercased()
         guard Self.titleKey(String(found.1)) == name else { return nil }
@@ -310,9 +312,15 @@ struct SourceMatch {
             .map(String.init).joined()
     }
 
-    /// 曲名を比べるための形。「Remix」を「Mix」にそろえてから key にする
+    /// 曲名を比べるための形。「(feat. X)」を外し、「Remix」を「Mix」にそろえてから key にする
     private static func titleKey(_ text: String) -> String {
-        key(text.replacing(#/\bremix\b/#.ignoresCase(), with: "mix"))
+        key(withoutFeaturing(text).replacing(#/\bremix\b/#.ignoresCase(), with: "mix"))
+    }
+
+    /// 曲名から「(feat. X)」「[ft. X]」「(featuring X)」を外したもの
+    static func withoutFeaturing(_ text: String) -> String {
+        text.replacing(#/\s*[(\[]\s*(?:feat\.?|ft\.?|featuring)\s[^)\]]*[)\]]/#.ignoresCase(), with: "")
+            .trimmingCharacters(in: .whitespaces)
     }
 
     /// 曲名から括弧 (「(Extended Mix)」「[Free Download]」など) を外したもの。検索の語に使う
