@@ -64,8 +64,10 @@ struct RadarView {
         centerY = (1 - log(tan(phi) + 1 / cos(phi)) / .pi) / 2 * worldSize
     }
 
-    var left: Double { centerX - Self.pixelWidth / 2 }
-    var top: Double { centerY - Self.pixelHeight / 2 }
+    /// 範囲の左上。画素の境目にそろえる (小数のままだと、タイルの縁が半透明に描かれて
+    /// 継ぎ目が線になる)。地点は範囲の中心から 1 画素 (0.5pt) までずれる
+    var left: Double { floor(centerX - Self.pixelWidth / 2) }
+    var top: Double { floor(centerY - Self.pixelHeight / 2) }
 
     /// 範囲にかかるタイルの番号
     var tiles: [(x: Int, y: Int)] {
@@ -83,15 +85,18 @@ struct RadarView {
 /// - 地図のタイル (国土地理院): 陰影起伏図 (海が透明) で陸の形を、白地図で海岸線と
 ///   都府県の境を取り、外観に合わせて塗り直したものを置いておく。地図は変わらないので
 ///   30 日使い回す。
-/// - 降水のタイル (気象庁): 5 分ごとに更新される。実況と、20・40・60 分後の予測を
-///   更新のたびに取る。範囲にかかるタイルは 4×3 枚までなので、1 回に 48 枚まで。
-///   雨の無いタイルは数百バイトの透明な PNG。
+/// - 降水のタイル (気象庁): 実況は高解像度降水ナウキャスト (5 分ごとに更新)、予測は
+///   降水短時間予報 (10 分ごとに更新、1 時間ごとに 6 時間先まで) の 1 時間後と 3 時間後。
+///   ナウキャストの予測は 60 分先までで、300km 四方の地図では雨域がほとんど動いて
+///   見えなかった。更新のたびに取り、範囲にかかるタイルは 4×3 枚までなので、1 回に
+///   36 枚まで。雨の無いタイルは数百バイトの透明な PNG。降水短時間予報の値は前 1 時間の
+///   降水量 (mm) だが、配色はナウキャストの強さ (mm/h) と同じ。
 final class RadarMaker {
     let cache: CacheFolder
     let client: JMAClient
 
-    /// 予測のコマ (実況の何分後か)
-    static let forecastMinutes = [20, 40, 60]
+    /// 予測のコマ (降水短時間予報の発表の何時間後か)
+    static let forecastHours = [1, 3]
 
     init(cache: CacheFolder, client: JMAClient) {
         self.cache = cache
@@ -100,22 +105,31 @@ final class RadarMaker {
 
     // MARK: - 取り直し
 
-    /// 気象庁のナウキャストの時刻の一覧 (targetTimes_N1.json・targetTimes_N2.json) の 1 件
+    /// 気象庁のタイルの時刻の一覧 (targetTimes*.json) の 1 件。`member` は降水短時間予報
+    /// にだけある (10 分ごとの速報は immed、1 時間ごとの 15 時間先までの予報は none)
     private struct TargetTime: Decodable {
         let basetime: String
         let validtime: String
+        let member: String?
     }
 
     /// 地点のまわりのタイルを取る。実況のタイルを取れたら true
     @discardableResult
     func fetch(latitude: Double, longitude: Double) async -> Bool {
-        // 予測 (N2) の発表時刻を実況の時刻にする。実況 (N1) のほうが先に新しくなることが
-        // あり、実況だけ新しいと予測のコマと時刻がずれる
-        guard let data = await client.data("jmatile/data/nowc/targetTimes_N2.json"),
-              let times = try? JSONDecoder().decode([TargetTime].self, from: data),
-              let base = times.map(\.basetime).max(),
-              let baseDate = Self.nowcastFormatter.date(from: base) else { return false }
-        let valids = Self.forecastMinutes.map { Self.nowcastFormatter.string(from: baseDate.addingTimeInterval(Double($0 * 60))) }
+        let decoder = JSONDecoder()
+        guard let nowData = await client.data("jmatile/data/nowc/targetTimes_N1.json"),
+              let nowTimes = try? decoder.decode([TargetTime].self, from: nowData),
+              let nowBase = nowTimes.map(\.basetime).max(),
+              let forecastData = await client.data("jmatile/data/rasrf/targetTimes.json"),
+              let forecastTimes = try? decoder.decode([TargetTime].self, from: forecastData),
+              // 最新の発表時刻には、まだ解析値 (発表時刻と同じ時刻のもの) しか無いことがある
+              // (2026-11-18 に 04:20 の発表が解析値だけで、予測は 04:10 の発表にあった)。
+              // 予測のある発表のうち、いちばん新しいものを使う
+              let forecastBase = forecastTimes.filter({ $0.member == "immed" && $0.validtime > $0.basetime })
+                  .map(\.basetime).max(),
+              let forecastDate = Self.timeFormatter.date(from: forecastBase) else { return false }
+        let valids = Self.forecastHours.map { Self.timeFormatter.string(from: forecastDate.addingTimeInterval(Double($0 * 3600))) }
+        let times = RadarTimes(nowBase: nowBase, forecastBase: forecastBase, valids: valids)
 
         let view = RadarView(latitude: latitude, longitude: longitude)
         let z = RadarView.zoom
@@ -129,9 +143,8 @@ final class RadarMaker {
                 }
                 jobs.append(("https://cyberjapandata.gsi.go.jp/xyz/\(layer)/\(z)/\(x)/\(y).png", file))
             }
-            for valid in [base] + valids {
-                jobs.append(("jmatile/data/nowc/\(base)/none/\(valid)/surf/hrpns/\(z)/\(x)/\(y).png",
-                             cache.radarTile(Self.rainTileName(base: base, valid: valid, x: x, y: y))))
+            for frame in times.frames {
+                jobs.append((frame.path(x: x, y: y), cache.radarTile(frame.name(x: x, y: y))))
             }
         }
         let client = self.client
@@ -143,9 +156,9 @@ final class RadarMaker {
             for await (file, ok) in group where !ok { failed.insert(file) }
             return failed
         }
-        let nowTiles = view.tiles.map { cache.radarTile(Self.rainTileName(base: base, valid: base, x: $0.x, y: $0.y)) }
+        let nowTiles = view.tiles.map { cache.radarTile(times.frames[0].name(x: $0.x, y: $0.y)) }
         guard !nowTiles.contains(where: failed.contains) else { return false }
-        CacheFolder.writeText(([base] + valids).joined(separator: " ") + "\n", to: cache.radarTimes)
+        CacheFolder.writeText(times.line + "\n", to: cache.radarTimes)
         cache.deleteOldFiles(in: "radar", days: 3.0 / 24) { $0.hasPrefix("rain-") }
         cache.deleteOldFiles(in: "radar", days: 30) { $0.hasPrefix("gsi-") || $0.hasPrefix("base-") }
         return true
@@ -162,12 +175,8 @@ final class RadarMaker {
         }
     }
 
-    private static func rainTileName(base: String, valid: String, x: Int, y: Int) -> String {
-        "rain-\(base)-\(valid)-\(RadarView.zoom)-\(x)-\(y)"
-    }
-
-    /// 気象庁のナウキャストの時刻の書式 (UTC)
-    private static let nowcastFormatter: DateFormatter = {
+    /// 気象庁のタイルの時刻の書式 (UTC)
+    static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(identifier: "UTC")
@@ -182,20 +191,18 @@ final class RadarMaker {
         guard let line = CacheFolder.readText(cache.radarTimes)?.trimmingCharacters(in: .whitespacesAndNewlines) else {
             return nil
         }
-        let times = line.split(separator: " ").map(String.init)
-        guard times.count == Self.forecastMinutes.count + 1 else { return nil }
-        let base = times[0]
+        guard let times = RadarTimes(line: line) else { return nil }
         let view = RadarView(latitude: latitude, longitude: longitude)
 
         // コマごとに、タイルの番号 → 降水のタイル。予測のタイルが欠けていたら透明として描く
         var frames: [[String: TileBitmap]] = []
-        for valid in times {
+        for (k, frame) in times.frames.enumerated() {
             var tiles: [String: TileBitmap] = [:]
             for (x, y) in view.tiles {
-                let file = cache.radarTile(Self.rainTileName(base: base, valid: valid, x: x, y: y))
+                let file = cache.radarTile(frame.name(x: x, y: y))
                 if let bitmap = TileBitmap(file: file) {
                     tiles["\(x)-\(y)"] = bitmap
-                } else if valid == base, !FileManager.default.fileExists(atPath: file.path) {
+                } else if k == 0, !FileManager.default.fileExists(atPath: file.path) {
                     return nil // 実況のタイルが無い (この地点ではまだ取っていない)
                 }
             }
@@ -207,7 +214,7 @@ final class RadarMaker {
         }
 
         let report = RadarReport(view: view, frames: frames)
-        let card = RadarCardDrawing(view: view, base: base, valids: Array(times.dropFirst()),
+        let card = RadarCardDrawing(view: view, base: times.nowBase, valids: times.valids,
                                     frames: frames, bases: bases, dark: dark).render()
         let page = String(format: "https://www.jma.go.jp/bosai/nowc/#lat:%.6f/lon:%.6f/zoom:9/colordepth:normal/elements:hrpns&slmcs",
                           latitude, longitude)
@@ -259,6 +266,49 @@ final class RadarMaker {
     }
 }
 
+/// 雨雲の地図に使う時刻 (気象庁の UTC の書式)。キャッシュの radar/times.txt に
+/// 「実況の時刻 予報の発表時刻 予測の時刻…」の 1 行で書く
+struct RadarTimes {
+    /// 実況 (高解像度降水ナウキャスト) の時刻
+    let nowBase: String
+    /// 降水短時間予報 (速報) の発表時刻
+    let forecastBase: String
+    /// 予測のコマの時刻 (`RadarMaker.forecastHours` の順)
+    let valids: [String]
+
+    init(nowBase: String, forecastBase: String, valids: [String]) {
+        self.nowBase = nowBase
+        self.forecastBase = forecastBase
+        self.valids = valids
+    }
+
+    /// times.txt の 1 行から読む。形が合わなければ nil (v1.2.0 の書式も含む)
+    init?(line: String) {
+        let parts = line.split(separator: " ").map(String.init)
+        guard parts.count == RadarMaker.forecastHours.count + 2 else { return nil }
+        self.init(nowBase: parts[0], forecastBase: parts[1], valids: Array(parts.dropFirst(2)))
+    }
+
+    var line: String { ([nowBase, forecastBase] + valids).joined(separator: " ") }
+
+    /// コマ (先頭が実況) のタイルの URL とキャッシュのファイル名
+    var frames: [Frame] {
+        [Frame(directory: "jmatile/data/nowc/\(nowBase)/none/\(nowBase)/surf/hrpns", stem: "rain-now-\(nowBase)")]
+            + valids.map { Frame(directory: "jmatile/data/rasrf/\(forecastBase)/immed/\($0)/surf/rasrf",
+                                 stem: "rain-rasrf-\(forecastBase)-\($0)") }
+    }
+
+    struct Frame {
+        /// タイルの URL の、ズームより前 (JMAClient.base からの相対)
+        let directory: String
+        /// キャッシュのファイル名の、タイルの番号より前
+        let stem: String
+
+        func path(x: Int, y: Int) -> String { "\(directory)/\(RadarView.zoom)/\(x)/\(y).png" }
+        func name(x: Int, y: Int) -> String { "\(stem)-\(RadarView.zoom)-\(x)-\(y)" }
+    }
+}
+
 /// 地図の地の色 (0〜1 の RGB)
 struct MapPalette {
     let sea: [Double]
@@ -305,8 +355,8 @@ struct RadarReport {
             return L("雨 \(RainLevel.range(level))", "Raining, \(RainLevel.range(level))")
         }
         if let k = center.dropFirst().firstIndex(where: { $0 != nil }) {
-            let minutes = RadarMaker.forecastMinutes[k - 1]
-            return L("\(minutes) 分後に雨の予測", "Rain expected in \(minutes) min")
+            let hours = RadarMaker.forecastHours[k - 1]
+            return L("\(hours) 時間後に雨の予測", hours == 1 ? "Rain expected in 1 hour" : "Rain expected in \(hours) hours")
         }
         if let maxLevel {
             return L("周辺に雨雲（最大 \(RainLevel.range(maxLevel))）", "Rain nearby (up to \(RainLevel.range(maxLevel)))")
@@ -394,9 +444,9 @@ struct RadarCardDrawing {
             for (i, valid) in valids.enumerated() {
                 let rect = CGRect(x: CGFloat(i) * (thumbnailWidth + thumbnailGap), y: thumbnailTop,
                                   width: thumbnailWidth, height: thumbnailHeight)
-                drawMap(context, frame: i + 1, in: rect, radius: 5, marker: 3.5)
-                drawThumbnailLabel(context, L("\(RadarMaker.forecastMinutes[i]) 分後  \(Self.clock(valid))",
-                                              "+\(RadarMaker.forecastMinutes[i]) min  \(Self.clock(valid))"), in: rect)
+                drawMap(context, frame: i + 1, in: rect, radius: 5, marker: 4)
+                drawThumbnailLabel(context, L("\(RadarMaker.forecastHours[i]) 時間後  \(Self.clock(valid))",
+                                              "+\(RadarMaker.forecastHours[i]) h  \(Self.clock(valid))"), in: rect)
             }
             pen.text(L("地理院タイル・気象庁", "GSI Tiles, JMA"), x: width, y: creditTop, size: 9,
                      color: colors.secondary, align: .right)
@@ -405,22 +455,12 @@ struct RadarCardDrawing {
 
     /// 地図を `rect` に描く。地図の範囲を `rect` の幅に合わせて縮める
     private func drawMap(_ context: CGContext, frame: Int, in rect: CGRect, radius: CGFloat, marker: CGFloat) {
-        let scale = rect.width / (RadarView.pixelWidth / 2)
         context.saveGState()
         context.addPath(CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil))
         context.clip()
-        let sea = MapPalette(dark: dark).sea
-        context.setFillColor(red: sea[0], green: sea[1], blue: sea[2], alpha: 1)
-        context.fill(rect)
-        context.interpolationQuality = scale < 1 ? .high : .none
-        for (x, y) in view.tiles {
-            let tileRect = CGRect(x: rect.minX + (Double(x * 256) - view.left) / 2 * scale,
-                                  y: rect.minY + (Double(y * 256) - view.top) / 2 * scale,
-                                  width: 128 * scale, height: 128 * scale)
-            let key = "\(x)-\(y)"
-            for image in [bases[key], frames[frame][key]?.image].compactMap({ $0 }) {
-                NSImage(cgImage: image, size: tileRect.size).drawUpright(in: tileRect)
-            }
+        if let image = mapImage(frame: frame) {
+            context.interpolationQuality = .high
+            NSImage(cgImage: image, size: rect.size).drawUpright(in: rect)
         }
         context.restoreGState()
         // 地点の印。雨の配色に無い黒と白の二重丸にして、どの色の上でも見えるようにする
@@ -430,6 +470,30 @@ struct RadarCardDrawing {
         let inner = marker * 0.55
         context.setFillColor(NSColor.white.cgColor)
         context.fillEllipse(in: CGRect(x: center.x - inner, y: center.y - inner, width: inner * 2, height: inner * 2))
+    }
+
+    /// コマの地図を、タイルの画素のまま (680×440) 1 枚に組む。タイルを 1 枚ずつ縮めて
+    /// 描くと、縁が透明な外側に溶けて、予測のコマにタイルの継ぎ目が線になって出た
+    private func mapImage(frame: Int) -> CGImage? {
+        let width = Int(RadarView.pixelWidth), height = Int(RadarView.pixelHeight)
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        let sea = MapPalette(dark: dark).sea
+        context.setFillColor(red: sea[0], green: sea[1], blue: sea[2], alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.interpolationQuality = .none
+        for (x, y) in view.tiles {
+            // Core Graphics の座標は下から上へ取る
+            let left = Double(x * 256) - view.left
+            let top = Double(y * 256) - view.top
+            let tileRect = CGRect(x: left, y: Double(height) - top - 256, width: 256, height: 256)
+            let key = "\(x)-\(y)"
+            for image in [bases[key], frames[frame][key]?.image].compactMap({ $0 }) {
+                context.draw(image, in: tileRect)
+            }
+        }
+        return context.makeImage()
     }
 
     /// 凡例。段階の色を並べ、境目の下に強さ (mm/h) を書く
@@ -459,11 +523,7 @@ struct RadarCardDrawing {
 
     /// 気象庁の UTC の時刻を、日本時間の「HH:mm」にする
     static func clock(_ text: String) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        formatter.dateFormat = "yyyyMMddHHmmss"
-        guard let date = formatter.date(from: text) else { return "" }
+        guard let date = RadarMaker.timeFormatter.date(from: text) else { return "" }
         return JapanTime.string(date.timeIntervalSince1970, "H:mm")
     }
 }
