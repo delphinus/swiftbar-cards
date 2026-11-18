@@ -10,8 +10,11 @@ import Shared
 /// 数字を減らして静かに見せるため、CPU とメモリは使用率の数字を出さず、グラフと棒
 /// (と、その色) だけで表す。見出しも文字でなく SF Symbols のアイコンにしている。
 /// 電池は本体のバッテリーがあるとき (MacBook) だけ出す。残量は電池の塗りで表し、
-/// 数字では残り時間 (電池で動いているとき) か満充電までの時間 (充電中) を出す。
-/// 時間が分からないとき (計算中・充電済み) は電池だけを出す。Bluetooth 機器の残量は
+/// 数字では電池で動いているときの残り時間を出す。電源につながっているときは出さない
+/// (満充電までの時間はメニューのカードにだけ出す)。macOS は満充電の手前 (実際は 95%
+/// ほど) から残量を 100% と見せ、そこから満充電までの仕上げに 30 分ほどかかる。その間の
+/// 「100%・0:29」は役に立たないうえ、32pt ほど幅を取り、メニューバーから溢れさせて
+/// いた。時間が分からないとき (計算中) も電池だけを出す。Bluetooth 機器の残量は
 /// メニューのカードにだけ出し、20% を切ったときだけ警告のアイコンを足す。
 ///
 /// 見出しのアイコンは白か黒で、電池の枠・数字は使用率や残量の色で描く。
@@ -27,7 +30,8 @@ import Shared
 ///
 /// メニューバーが狭いとき (`compact`。MenuBarDensity) は、グラフと棒を細くし、項目の
 /// 間を詰める。温度は注意の色 (70°C 以上) のときだけ、電池の残り時間は残量が 20% を
-/// 切ったときだけ出す。
+/// 切ったときだけ出す。残り時間は 32pt ほど幅を取り、縮めてもなお溢れさせることがあるが、
+/// 電池で動いていて残りが少ないときは、ほかの項目より大事なので出す。
 ///
 ///     [cpu] [グラフ]  [memorychip] [棒]  [電池]
 struct SystemMenuBar {
@@ -90,7 +94,7 @@ struct SystemMenuBar {
         let internalBattery = snapshot.battery.first { $0.isInternal }
         let batteryColor = internalBattery.map { $0.percent < 20 ? red : $0.percent < 40 ? yellow : green } ?? green
         let batteryTime = internalBattery
-            .flatMap { compact && $0.percent >= 20 ? nil : $0.minutes }
+            .flatMap { $0.external == true || compact && $0.percent >= 20 ? nil : $0.minutes }
             .map { label(String(format: "%d:%02d", $0 / 60, $0 % 60), batteryColor) }
         let bluetoothIsLow = snapshot.battery.contains { !$0.isInternal && $0.percent < 20 }
 

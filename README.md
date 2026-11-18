@@ -7,7 +7,7 @@
 | Plugin | Menu bar | Card |
 |---|---|---|
 | `nowplaying` | Artwork and title of the track playing in Music.app | Artwork, title, artist, album, and playback position (click to open the track's page), with play/pause and next-track items |
-| `sysmon` | CPU history, memory, the Mac's own battery with time remaining or until full (on a MacBook), and temperature | CPU (usage, last 10 minutes, E/P cores, temperatures), memory, top processes by CPU and memory, and batteries: the Mac's own battery (on a MacBook, with charging status and time remaining or until full) and Bluetooth devices |
+| `sysmon` | CPU history, memory, the Mac's own battery with time remaining when on battery (on a MacBook), and temperature | CPU (usage, last 10 minutes, E/P cores, temperatures), memory, top processes by CPU and memory, and batteries: the Mac's own battery (on a MacBook, with charging status and time remaining or until full) and Bluetooth devices |
 | `weather` | Today's weather icon, current temperature, chance of rain, and a warning mark | Current observations, a 24-hour temperature graph with weather, chance of rain, and wind, the regional forecast, and the weekly forecast with climate normals from the Japan Meteorological Agency (JMA) |
 
 Each card is drawn by a small Swift program and passed to SwiftBar as an image, with separate colors for light and dark appearances. The plugins show English or Japanese text, following the language setting of macOS.
@@ -60,11 +60,26 @@ In English, `weather` uses JMA's English names for stations and areas. JMA publi
 
 ## Narrow menu bars
 
-On a MacBook, the menu bar has little room to the right of the notch, and macOS hides the items that do not fit. When that happens, the plugins draw shorter menu bar items so that as many of them as possible stay visible:
+On a MacBook, the menu bar has little room to the right of the notch, and macOS hides the items that do not fit. When that happens, the plugins draw shorter menu bar items (the compact layout) so that as many of them as possible stay visible. The compact layout differs from the full one as follows:
 
-- `sysmon` narrows the CPU graph and memory bar, shows the temperature only at 70°C or higher, and shows the battery time only below 20%.
-- `weather` shows the chance of rain only at 30% or higher.
-- `nowplaying` cuts the title at 100pt instead of 220pt.
+| Plugin | Part | Full | Compact |
+|---|---|---|---|
+| `sysmon` | CPU graph | 40pt wide | 24pt wide |
+| | Memory bar | 26pt wide | 16pt wide |
+| | Temperature | Always shown | Shown only at 70°C or higher |
+| | Battery time | Shown when on battery | Shown only when on battery and below 20% |
+| | Gaps between parts | 10pt | 6pt |
+| `weather` | Chance of rain | Always shown | Shown only at 30% or higher |
+| | Gaps between parts | 7pt | 5pt |
+| `nowplaying` | Title | Cut at 220pt | Cut at 100pt |
+
+These stay the same in both layouts:
+
+- The battery shape in `sysmon`. Its fill and color show the charge (green at 40% or more, orange at 20% or more, red below 20%), with a bolt (charging) or a plug (not charging) on top when the Mac is on power.
+- On power, `sysmon` does not show the time until full in the menu bar (the card still shows it). macOS shows 100% before the battery is actually full and then takes about 30 minutes to finish charging, so the time is of little use in the menu bar.
+- The weather icon, temperature, and warning mark in `weather`.
+
+In the compact layout, the battery time takes about 30pt, and may make the items overflow even after they are shortened. It is shown anyway, because when the Mac is on battery and running low, it matters more than the other items.
 
 To find out whether items are hidden, the plugins build a small app (`swiftbar-cards`, which appears neither in the Dock nor in the menu bar) under `~/Library/Caches/swiftbar-cards/` and keep it running. Every 2 seconds it checks, through the Accessibility API, whether macOS shows the button for hidden menu bar items, and where the items are. The plugins go back to the full items once there has been enough room for them for 6 seconds (and at least a minute after they were shortened). The app only reads the position, size and identifier of menu bar items; it never clicks, types, or changes anything.
 
