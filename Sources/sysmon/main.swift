@@ -29,7 +29,7 @@
 // SwiftBar のプラグインのフォルダには置かない (実行できるファイルは
 // プラグインとして読まれる)。sysmon.sh が初回 (とソースを変えたとき) にコンパイルする。
 
-import Foundation
+import AppKit
 #if canImport(Shared)
 import Shared
 #endif
@@ -51,39 +51,71 @@ let openActivityMonitor = L("アクティビティモニタを開く", "Open Act
 SwiftBar.beginStreaming()
 Thread.sleep(forTimeInterval: 1) // 最初の使用率を出すため、ティックの差分を取る間を置く
 
-// メニューバーの項目を縮めるか (MenuBarDensity) が変わったら、次の 10 秒の区切りを
-// 待たずに描き直す。このループは RunLoop を回していないので、別のキューで受けて起こす
-let densityChanged = DispatchSemaphore(value: 0)
-MenuBarDensity.observeChanges(on: DispatchQueue(label: "sysmon.density")) { densityChanged.signal() }
-
-var snapshot = monitor.takeSnapshot()
-while true {
-    // 1 回ごとに autorelease pool を空にする。このループは RunLoop で回して
-    // いないので、囲まないと毎回描く画像や文字列が解放されずに溜まり続ける
-    // (1 時間で 2 GB ほど増えていた)。
-    autoreleasepool {
-        let compact = MenuBarDensity.isCompact
-        let menuBar = SystemMenuBar(snapshot: snapshot, compact: compact)
-        let light = menuBar.render(dark: false)
-        // 戻したときに増える幅を、縮めるかを決める側に伝える
-        let otherWidth = SystemMenuBar(snapshot: snapshot, compact: !compact).render(dark: false).size.width
-        MenuBarDensity.report(plugin: "sysmon", compact: compact,
-                              extraWidth: abs(light.size.width - otherWidth))
-        let card = SystemCard(snapshot: snapshot, dark: isDarkAppearance())
-        SwiftBar.replaceMenu(with: [
-            SwiftBar.menuBarImageLine(light: light, dark: menuBar.render(dark: true)),
-            "---",
-            // カードの下には区切り線を引かない (カードの地の縁が境目になる)
-            SwiftBar.imageLine(card.render()),
-            openActivityMonitor,
-        ])
+// 次のときは、次の 10 秒の区切りを待たずに描き直す。描くループは別のスレッドで寝て
+// いるので、受けたらセマフォで起こす。
+// - メニューバーの項目を縮めるか (MenuBarDensity) が変わったとき
+// - Space を切り替えたとき。メニューバーの画像は明るい用と暗い用の 2 枚で、SwiftBar は
+//   メニューを受け取ったときにだけ、そのときのメニューバーの見た目でどちらかを選ぶ。
+//   フルスクリーンの Space ではメニューバーが黒くなるので、切り替えたら出し直して
+//   選び直させる。切り替えの直後はメニューバーの見た目がまだ前の Space のままの
+//   ことがあるので、少し待ってから出し、念のためもう 1 回出す
+let redrawRequested = DispatchSemaphore(value: 0)
+MenuBarDensity.observeChanges(on: DispatchQueue(label: "sysmon.density")) { redrawRequested.signal() }
+let spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+    forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { _ in
+        for delay in [0.5, 2.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { redrawRequested.signal() }
+        }
     }
 
-    // 次の 10 秒の区切りまで寝る。途中で起こされたら、値は取り直さずに描き直す
-    // (取り直すと、CPU の使用率の履歴に、間隔の短い 1 回が入ってしまう)
-    let now = Date().timeIntervalSince1970
-    let next = (floor(now / monitor.interval) + 1) * monitor.interval
-    if densityChanged.wait(timeout: .now() + max(1, next - now)) == .timedOut {
-        snapshot = autoreleasepool { monitor.takeSnapshot() }
+// 描くループ。メインスレッドは Space の切り替えの通知を受けるために NSApplication を
+// 回すので、別のスレッドで回す
+let drawingThread = Thread {
+    var snapshot = monitor.takeSnapshot()
+    // メニューバーの行の末尾に空白を足すか。取り直さずに描き直すたびに切り替える。
+    // SwiftBar は常駐型のプラグインの出力が前回と同じなら読み捨てるので、同じ値で
+    // 描き直しても画像を選び直してくれない。行の末尾の空白は引数の区切りとして
+    // 読み飛ばされ、見た目は変わらないが、出力は前回と違うものになる
+    var padsMenuBarLine = false
+    while true {
+        // 1 回ごとに autorelease pool を空にする。このループは RunLoop で回して
+        // いないので、囲まないと毎回描く画像や文字列が解放されずに溜まり続ける
+        // (1 時間で 2 GB ほど増えていた)。
+        autoreleasepool {
+            let compact = MenuBarDensity.isCompact
+            let menuBar = SystemMenuBar(snapshot: snapshot, compact: compact)
+            let light = menuBar.render(dark: false)
+            // 戻したときに増える幅を、縮めるかを決める側に伝える
+            let otherWidth = SystemMenuBar(snapshot: snapshot, compact: !compact).render(dark: false).size.width
+            MenuBarDensity.report(plugin: "sysmon", compact: compact,
+                                  extraWidth: abs(light.size.width - otherWidth))
+            let card = SystemCard(snapshot: snapshot, dark: isDarkAppearance())
+            SwiftBar.replaceMenu(with: [
+                SwiftBar.menuBarImageLine(light: light, dark: menuBar.render(dark: true)) + (padsMenuBarLine ? " " : ""),
+                "---",
+                // カードの下には区切り線を引かない (カードの地の縁が境目になる)
+                SwiftBar.imageLine(card.render()),
+                openActivityMonitor,
+            ])
+        }
+
+        // 次の 10 秒の区切りまで寝る。途中で起こされたら、値は取り直さずに描き直す
+        // (取り直すと、CPU の使用率の履歴に、間隔の短い 1 回が入ってしまう)
+        let now = Date().timeIntervalSince1970
+        let next = (floor(now / monitor.interval) + 1) * monitor.interval
+        if redrawRequested.wait(timeout: .now() + max(1, next - now)) == .timedOut {
+            snapshot = autoreleasepool { monitor.takeSnapshot() }
+        } else {
+            padsMenuBarLine.toggle()
+        }
     }
 }
+// 画像を描くので、メインスレッドと同じ大きさのスタックを持たせる
+drawingThread.stackSize = 8 << 20
+drawingThread.start()
+
+// Space の切り替えの通知は、NSApplication を回しているプログラムにしか届かない
+// (RunLoop を回すだけでは届かなかった)。Dock やアプリの切り替えには出さない
+let app = NSApplication.shared
+app.setActivationPolicy(.prohibited)
+app.run()

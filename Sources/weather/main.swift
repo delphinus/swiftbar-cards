@@ -45,7 +45,7 @@
 // SwiftBar のプラグインのフォルダには置かない (実行できるファイルは
 // プラグインとして読まれる)。weather.sh が初回 (とソースを変えたとき) にコンパイルする。
 
-import Foundation
+import AppKit
 #if canImport(Shared)
 import Shared
 #endif
@@ -84,5 +84,10 @@ Task { @MainActor in
     // 常駐しているあいだ、plugin を手放さない
     WeatherPlugin.running = plugin
 }
-// タイマー・通知・フォルダの変化を待ち続ける (ここから先へは進まない)
-RunLoop.main.run()
+// タイマー・通知・フォルダの変化を待ち続ける (ここから先へは進まない)。
+// Space の切り替えの通知 (WeatherPlugin.observeSpaceChanges) は、NSApplication を
+// 回しているプログラムにしか届かない (RunLoop を回すだけでは届かなかった)。
+// Dock やアプリの切り替えには出さない
+let app = NSApplication.shared
+app.setActivationPolicy(.prohibited)
+app.run()

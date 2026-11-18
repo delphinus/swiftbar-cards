@@ -12,6 +12,7 @@ import Shared
 /// - 現在地が変わったとき。Locate.app がキャッシュのフォルダに書く
 /// - 外観 (ダーク / ライト) が変わったときと、ディスプレイを繋いだり外したりして
 ///   メニューバーの項目を縮めるか (MenuBarDensity) が変わったとき。取り直さずに描き直す
+/// - Space を切り替えたとき。取り直さずに描き直す (`observeSpaceChanges`)
 ///
 /// 状態 (読み込んだ表・前回の出力など) を持ち続けるので class にする。中身はすべて
 /// メインスレッドで動かす (`@MainActor`)。取り直しの最中に次のきっかけが来ても
@@ -42,6 +43,13 @@ final class WeatherPlugin {
     private var tablesLoadedAt = Date.distantPast
     /// 前回出したメニュー。同じなら出し直さない
     private var lastOutput = ""
+    /// メニューバーの行の末尾に空白を足すか。描き直すたびに切り替える。
+    ///
+    /// SwiftBar は常駐型のプラグインの出力が前回と同じなら読み捨てるので、Space を
+    /// 切り替えたときに同じ中身を出し直しても、画像を選び直してくれない
+    /// (observeSpaceChanges)。行の末尾の空白は引数の区切りとして読み飛ばされ、
+    /// 見た目は変わらないが、出力は前回と違うものになる。
+    private var padsMenuBarLine = false
     /// フォルダの変化に気付いたときに、現在地が変わったかを比べる元
     private var lastLocation: CurrentLocation?
     /// 前回の更新での、現在地に当たる観測点と現在地の状態
@@ -86,7 +94,30 @@ final class WeatherPlugin {
         MenuBarDensity.observeChanges { [weak self] in
             Task { @MainActor in self?.enqueue(.redraw) }
         }
+        observeSpaceChanges()
         watchCacheFolder()
+    }
+
+    /// Space を切り替えたら、メニューを出し直す。
+    ///
+    /// メニューバーの画像は明るい用と暗い用の 2 枚で、SwiftBar はメニューを受け取った
+    /// ときにだけ、そのときのメニューバーの見た目でどちらかを選ぶ。選び直すのはシステムの
+    /// 外観が変わったときだけで、Space の切り替えでは選び直さない。フルスクリーンの
+    /// Space ではメニューバーが黒くなるので、通常の Space で選んだ黒い文字が黒い地に
+    /// 載って消え、戻ると今度は白い文字が明るい地に載ったままになった。
+    ///
+    /// 切り替えの直後は、メニューバーの見た目がまだ前の Space のままのことがあるので、
+    /// 少し待ってから出し、念のためもう 1 回出す。
+    private func observeSpaceChanges() {
+        observers.append(NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in
+                    for delay in [0.5, 1.5] {
+                        try? await Task.sleep(for: .seconds(delay))
+                        self?.enqueue(.redraw)
+                    }
+                }
+            })
     }
 
     /// キャッシュのフォルダの中身が変わったら (ファイルを足した・置き換えた・消した)、
@@ -145,6 +176,7 @@ final class WeatherPlugin {
             await refresh(fetch: true, showCachedFirst: true)
         case .redraw:
             lastOutput = "" // 中身は同じでも色が変わるので、前回と比べずに出す
+            padsMenuBarLine.toggle()
             await refresh(fetch: false, showCachedFirst: false)
         case .locationChanged:
             guard let state = await loadState(), hereSignature(state) != lastHereSignature else { return }
@@ -260,6 +292,8 @@ final class WeatherPlugin {
     }
 
     private func publish(_ lines: [String]) {
+        var lines = lines
+        if padsMenuBarLine, !lines.isEmpty { lines[0] += " " }
         let output = lines.joined(separator: "\n")
         guard output != lastOutput else { return }
         lastOutput = output
