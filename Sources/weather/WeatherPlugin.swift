@@ -37,7 +37,11 @@ final class WeatherPlugin {
 
     private let cache: CacheFolder
     private let maker: CardMaker
+    private let radar: RadarMaker
     private let pluginPath: String
+    /// 描いた雨雲の地図 (地点の cacheKey と外観 → サブメニュー)。地点を切り替えたときに、
+    /// 取り直しを待たずに出す
+    private var radarCards: [String: RadarCard] = [:]
 
     private var tables: StationTables?
     private var tablesLoadedAt = Date.distantPast
@@ -66,6 +70,7 @@ final class WeatherPlugin {
         self.cache = cache
         self.pluginPath = pluginPath
         self.maker = CardMaker(cache: cache, telops: telops)
+        self.radar = RadarMaker(cache: cache, client: maker.client)
     }
 
     // MARK: - 常駐
@@ -202,18 +207,22 @@ final class WeatherPlugin {
         guard let station = state.selected.station else { return publish(menu.configurationErrorLines()) }
 
         if showCachedFirst, let card = PlaceCard.read(cache.card(station: station, dark: dark)) {
-            publish(menu.lines(card: card, office: station.office, updating: true))
+            publish(menu.lines(card: card, radar: radarCards[radarKey(station, dark: dark)], office: station.office, updating: true))
         }
         let now = Date().timeIntervalSince1970
         let minHeight = minimumHeight(state, dark: dark)
+        // 雨雲の地図のタイルは、予報と並べて取る
+        async let radarCard = makeRadar(station, dark: dark, fetch: fetch)
         guard let card = await makeCard(station, now: now, dark: dark, minHeight: minHeight, fetch: fetch) else {
+            _ = await radarCard
             return publish(WeatherMenu.noDataLines())
         }
+        let radar = await radarCard
         // 戻したときに増える幅を、縮めるかを決める側に伝える
         if let extra = card.menuBarExtraWidth {
             MenuBarDensity.report(plugin: "weather", compact: MenuBarDensity.isCompact, extraWidth: extra)
         }
-        publish(menu.lines(card: card, office: station.office, updating: false))
+        publish(menu.lines(card: card, radar: radar, office: station.office, updating: false))
 
         guard await prefetchOtherPlaces(state, dark: dark, now: now), publishAgain else { return }
         // 描いた地点のカードが今のカードより高ければ、今のカードを下を空けて描き直す。
@@ -223,7 +232,7 @@ final class WeatherPlugin {
         if newMinHeight > minHeight, let redrawn = maker.draw(station, now: now, dark: dark, minHeight: newMinHeight) {
             selectedCard = redrawn
         }
-        publish(menu.lines(card: selectedCard, office: station.office, updating: false))
+        publish(menu.lines(card: selectedCard, radar: radar, office: station.office, updating: false))
     }
 
     /// カードを描く。`fetch` でなくても、キャッシュに予報が無ければ取り直す
@@ -232,6 +241,21 @@ final class WeatherPlugin {
         await maker.fetch(station, now: now)
         return maker.draw(station, now: now, dark: dark, minHeight: minHeight)
     }
+
+    /// 雨雲の地図を描く。`fetch` でなくても、地点のタイルがまだ無ければ取る。
+    /// 取れなければ nil (サブメニューを出さない)
+    private func makeRadar(_ station: Place.Station, dark: Bool, fetch: Bool) async -> RadarCard? {
+        let key = radarKey(station, dark: dark)
+        var card = fetch ? nil : radar.draw(latitude: station.latitude, longitude: station.longitude, dark: dark)
+        if card == nil {
+            await radar.fetch(latitude: station.latitude, longitude: station.longitude)
+            card = radar.draw(latitude: station.latitude, longitude: station.longitude, dark: dark)
+        }
+        radarCards[key] = card
+        return card
+    }
+
+    private func radarKey(_ station: Place.Station, dark: Bool) -> String { "\(station.cacheKey)-\(dark)" }
 
     /// 選んでいない地点のうち、キャッシュのカードが 60 分より古い (か無い) ものを描いて
     /// おく。地点を選んだときにすぐ出せるようにし、高さをそろえる元にもする。

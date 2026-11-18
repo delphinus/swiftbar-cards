@@ -33,12 +33,18 @@ struct WeatherMenu {
 
     /// 選んでいる地点のカードを出すメニュー。`updating` なら、「今すぐ更新」の代わりに
     /// 「更新中…」(動作の無い項目なので薄く出る) を出す。
-    func lines(card: PlaceCard, office: String, updating: Bool) -> [String] {
+    ///
+    /// 雨雲の地図 (`radar`) は、カードのすぐ下のサブメニューにする。カードに入れると
+    /// メニューが MacBook の画面の高さを超えるうえ、雨の無い日は要らない。親の項目には
+    /// 気象庁の「雨雲の動き」を開く動作を付ける (動作の無いサブメニューの親は、
+    /// SwiftBar 2.1.1 で押せないまま残ることがある。locationItems に書いた)。
+    func lines(card: PlaceCard, radar: RadarCard?, office: String, updating: Bool) -> [String] {
         [card.menuBarLine, "---"]
             // 取り直せなかったことと警報・注意報は、カードの上に出す
             + card.notices
             // カードの下には区切り線を引かない (カードの地の縁が境目になる)
             + [card.cardLine]
+            + (radar.map { $0.lines + ["---"] } ?? [])
             + hereNote()
             + locationItems()
             + [openConfigurationItem,

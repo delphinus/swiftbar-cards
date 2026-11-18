@@ -28,20 +28,25 @@ struct JMAClient {
     /// `path` (base からの相対) を取る。取れなければ (応答が 200 でなければ) nil。
     /// 気象庁以外のファイル (内閣府の祝日の一覧) は、`path` に URL をそのまま渡す
     func data(_ path: String) async -> Data? {
-        guard let url = URL(string: path, relativeTo: Self.base) else { return nil }
-        let data: Data, response: URLResponse
-        do {
-            (data, response) = try await session.data(from: url)
-        } catch {
-            logger.error("取得に失敗: \(path, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            return nil
-        }
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let (data, status) = await response(path)
         guard status == 200 else {
-            logger.error("取得に失敗: \(path, privacy: .public): HTTP \(status)")
+            if status != 0 { logger.error("取得に失敗: \(path, privacy: .public): HTTP \(status)") }
             return nil
         }
         return data
+    }
+
+    /// `path` を取り、中身と応答の状態コードを返す。通信できなければ状態コードは 0。
+    /// 「無い」(404) と「取れなかった」を分けたいとき (地図のタイル) に使う
+    func response(_ path: String) async -> (data: Data?, status: Int) {
+        guard let url = URL(string: path, relativeTo: Self.base) else { return (nil, 0) }
+        do {
+            let (data, response) = try await session.data(from: url)
+            return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
+        } catch {
+            logger.error("取得に失敗: \(path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return (nil, 0)
+        }
     }
 
     /// `path` を取って `file` に書く。取れなければファイルはそのままにして false を返す

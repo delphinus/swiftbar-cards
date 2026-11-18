@@ -41,6 +41,8 @@
 // - WeatherPen.swift        カードの色と、文字・アイコン・線の描き方
 // - Typesetting.swift       予報の文の折り返し
 // - MonotoneCurve.swift     点を通る滑らかな曲線
+// 雨雲の動き:
+// - RainRadar.swift         降水ナウキャストのタイルを取り、地図のカードを描く (サブメニュー)
 //
 // SwiftBar のプラグインのフォルダには置かない (実行できるファイルは
 // プラグインとして読まれる)。weather.sh が初回 (とソースを変えたとき) にコンパイルする。
