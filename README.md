@@ -62,6 +62,13 @@ In English, `weather` uses JMA's English names for stations and areas. JMA publi
 
 On a MacBook, the menu bar has little room to the right of the notch, and macOS hides the items that do not fit. When that happens, the plugins draw shorter menu bar items (the compact layout) so that as many of them as possible stay visible. The compact layout differs from the full one as follows:
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/en/menubar-density-dark.png">
+    <img src="docs/images/en/menubar-density-light.png" alt="Full and compact layouts" width="501">
+  </picture>
+</p>
+
 | Plugin | Part | Full | Compact |
 |---|---|---|---|
 | `sysmon` | CPU graph | 40pt wide | 24pt wide |
@@ -140,7 +147,7 @@ place=44116
 
 - The Swift programs are laid out as a Swift package (`Package.swift`), so `swift build` and editors work as usual. The plugins themselves compile them with `swiftc` directly, without SwiftPM.
 - `tests/smoke.sh` builds the Swift programs, runs each plugin, and checks that the menu bar line and the card image come out. CI runs it on every push.
-- `samples/render.sh` redraws the images in `docs/images/en/` and `docs/images/ja/`. `nowplaying` and `sysmon` can draw a card once from given values with `--render <JSON> <output directory>`; the values are in `samples/`. `weather` prints its menu once and exits with `--once`.
+- `samples/render.sh` redraws the images in `docs/images/en/` and `docs/images/ja/`. `nowplaying` and `sysmon` can draw a card once from given values with `--render <JSON> <output directory>`; the values are in `samples/`. `weather` prints its menu once and exits with `--once`, and draws only the menu bar item from given values with `--render-menubar <weather icon> <temperature> <chance of rain> <output directory>` (used for the image comparing the full and compact layouts). `SWIFTBAR_CARDS_COMPACT` chooses which layout to draw.
 - Releases follow [Semantic Versioning](https://semver.org/) and are tagged `vX.Y.Z`. All plugins share the version in their `<xbar.version>` header (shown in SwiftBar's plugin settings); `tests/smoke.sh` checks that they match.
 - When fetching or reading something fails, the reason goes to the macOS unified log (SwiftBar does not show the standard error of streamable plugins). The subsystem is `dev.delphinus.swiftbar-cards` and the category is the plugin name (`weather`, `sysmon`, `nowplaying`, `locate`, `menubar`). View it with `/usr/bin/log show --last 1h --predicate 'subsystem == "dev.delphinus.swiftbar-cards"'` (use the full path in zsh, where `log` is a builtin).
 - `scripts/update-telops.sh` regenerates `data/jma-telops.json`, the table of weather codes (English name, Japanese name, and representative weather), from the table embedded in the JMA forecast page. The weather icons follow the representative weather in this table (clear, cloudy, rain, or snow).

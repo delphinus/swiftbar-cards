@@ -19,6 +19,7 @@
 // - Command.swift           メニューの項目から引数付きで起動されたときの仕事
 // - WeatherPlugin.swift     常駐して、きっかけを受けて取り直し、メニューを差し替える
 // - WeatherMenu.swift       メニューの行
+// - SampleRender.swift      --render-menubar (与えた値でメニューバーの項目を描く)
 // 地点:
 // - Configuration.swift     設定ファイル (地点の並び)
 // - CurrentLocation.swift   現在地 (Locate.app が調べた結果)
@@ -52,8 +53,11 @@ import AppKit
 import Shared
 #endif
 
-let cache = CacheFolder.standard
 let arguments = CommandLine.arguments
+if arguments.count >= 2, arguments[1] == "--render-menubar" {
+    SampleRender.run(arguments)
+}
+let cache = CacheFolder.standard
 Command.runIfRequested(arguments, cache: cache)
 cache.prepare()
 

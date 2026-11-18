@@ -62,6 +62,13 @@ macOS の優先する言語の先頭が日本語なら日本語で、それ以�
 
 MacBook ではメニューバーのノッチの右側が狭く、収まらない項目は macOS が隠してしまいます。そのときはメニューバーの項目を縮めて描き (縮小表示)、できるだけ全部が出るようにします。通常表示との違いは次のとおりです。
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/ja/menubar-density-dark.png">
+    <img src="docs/images/ja/menubar-density-light.png" alt="通常表示と縮小表示" width="505">
+  </picture>
+</p>
+
 | プラグイン | 項目 | 通常表示 | 縮小表示 |
 |---|---|---|---|
 | `sysmon` | CPU のグラフ | 幅 40pt | 幅 24pt |
@@ -140,7 +147,7 @@ place=44116
 
 - Swift のプログラムは Swift のパッケージの形 (`Package.swift`) にしてあるので、`swift build` やエディタの補完がそのまま使えます。プラグイン自身は SwiftPM を通さず、`swiftc` で直接コンパイルします。
 - `tests/smoke.sh` は、Swift のプログラムをビルドし、各プラグインを動かして、メニューバーの行とカードの画像が出るかを確かめます。CI が push のたびに流します。
-- `samples/render.sh` は `docs/images/en/` と `docs/images/ja/` の画像を描き直します。`nowplaying` と `sysmon` は `--render <JSON> <出力先>` で、与えた値から 1 回だけカードを描けます。値は `samples/` にあります。`weather` は `--once` で、メニューを 1 回だけ出して終わります。
+- `samples/render.sh` は `docs/images/en/` と `docs/images/ja/` の画像を描き直します。`nowplaying` と `sysmon` は `--render <JSON> <出力先>` で、与えた値から 1 回だけカードを描けます。値は `samples/` にあります。`weather` は `--once` で、メニューを 1 回だけ出して終わります。また `--render-menubar <天気のアイコン> <気温> <降水確率> <出力先>` で、与えた値からメニューバーの項目だけを描けます (通常表示と縮小表示を並べた画像に使います)。縮めて描くかは `SWIFTBAR_CARDS_COMPACT` で決め打ちします。
 - リリースは [Semantic Versioning](https://semver.org/lang/ja/) に従い、`vX.Y.Z` のタグを打ちます。版はすべてのプラグインで共通で、ヘッダの `<xbar.version>` に書きます (SwiftBar のプラグインの設定画面に出ます)。そろっているかは `tests/smoke.sh` が確かめます。
 - 取得や読み込みに失敗したときは、理由を macOS の統合ログに書きます (SwiftBar は常駐型のプラグインの標準エラーを見せないため)。subsystem は `dev.delphinus.swiftbar-cards`、category はプラグインの名前 (`weather`・`sysmon`・`nowplaying`・`locate`・`menubar`) です。`/usr/bin/log show --last 1h --predicate 'subsystem == "dev.delphinus.swiftbar-cards"'` で見られます (zsh では `log` が組み込みコマンドとぶつかるので、フルパスで書きます)。
 - `scripts/update-telops.sh` は、天気コードの表 `data/jma-telops.json` (英語名・日本語名・代表の天気) を、気象庁の予報のページに埋め込まれた表から作り直します。天気のアイコンは、この表の代表の天気 (晴・曇・雨・雪) で決めます。
