@@ -3,6 +3,9 @@
 #   samples/render.sh [出力先]
 # 日本語と英語のそれぞれを docs/images/ja と docs/images/en に描く。nowplaying と
 # sysmon は samples/ の架空の値で、weather は東京の今の予報で描く。
+# weather の「雨雲の動き」の地図は、RADAR_LOCATION (「緯度 経度」) の地点で描く。
+# 雨の無い地点では地図が空になるので、描く日に雨の降っている地点を渡す
+# (例: RADAR_LOCATION="35.4681 133.0484" samples/render.sh で松江)。既定は東京駅。
 # 手元のキャッシュや設定ファイルには触らない (HOME を一時ディレクトリにする)。
 
 set -euo pipefail
@@ -14,6 +17,7 @@ trap 'rm -rf "$work"' EXIT
 export LANG=en_US.UTF-8
 # weather の現在地は、位置情報を読む .app を起動せず、東京駅の座標にする
 export SWIFTBAR_CARDS_LOCATION="35.6812 139.7671"
+radar_location=${RADAR_LOCATION:-$SWIFTBAR_CARDS_LOCATION}
 # メニューバーは縮めずに描く (外部のディスプレイが無い Mac では、何もしないと縮める)
 export SWIFTBAR_CARDS_COMPACT=off
 
@@ -48,6 +52,13 @@ for l in ja en; do
 		i=1
 		[[ $appearance == dark ]] && i=2
 		sed -n 1p "$o" | sed -nE 's/.*image=([^ ]+).*/\1/p' | cut -d, -f$i | base64 -d >"$work/$l/weather/menubar-$appearance.png"
+	done
+	# 雨雲の動き: サブメニューの中の地図のカードをそのまま置く
+	for appearance in light dark; do
+		o=$work/$l/weather/radar-$appearance.txt
+		HOME=$work/home XDG_CONFIG_HOME=$work/home/.config SWIFTBAR_CARDS_APPEARANCE=$appearance \
+			SWIFTBAR_CARDS_LOCATION=$radar_location "$repo/plugins/weather.sh" --once >"$o"
+		grep -m1 '^-- | image=' "$o" | sed -nE 's/.*image=([^ ]+).*/\1/p' | base64 -d >"$out/$l/weather-radar-$appearance.png"
 	done
 	# 地点の項目 (選んでいる地点は塗りつぶしたピン)。compose の項目の形にする。添えた天気の
 	# アイコン (:symbol:) の色を compose が読めるよう、sfcolor を含む行のまま渡す

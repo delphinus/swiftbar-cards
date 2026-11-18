@@ -124,6 +124,18 @@ for appearance in light dark; do
 		ng "weather $name"
 	fi
 done
+# 雨雲の動き: カードの下のサブメニューの親の項目と、その中の地図のカード。
+# 雨が降っているかは日によるので、項目と画像が出ているかだけを確かめる
+for appearance in light dark; do
+	name=default-$appearance
+	if grep -qE '^雨雲の動き   .* \| sfimage=[a-z.]+ href=https://www\.jma\.go\.jp/bosai/nowc/' "$work/weather-$name.txt" &&
+		save_image "$work/weather-$name.txt" "$(grep -n -m1 '^-- | image=' "$work/weather-$name.txt" | cut -d: -f1)" "weather-radar-$appearance"; then
+		ok "weather 雨雲の動き $appearance"
+	else
+		grep -v ' image=' "$work/weather-$name.txt"
+		ng "weather 雨雲の動き $appearance"
+	fi
+done
 # 祝日の一覧 (内閣府、Shift_JIS) を取ってキャッシュに置く。取れていなければ、
 # 内閣府のサイトにこの環境から届くかを curl で確かめ、届かなければ飛ばす
 # (届かないときは、プラグインは曜日だけで色を決める)。

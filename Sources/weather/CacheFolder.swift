@@ -53,12 +53,18 @@ struct CacheFolder {
         file("body-\(station.cacheKey)-\(isJapaneseCode)-\(dark).txt")
     }
 
+    /// 雨雲の地図 (RainRadar.swift) のタイル。地図のタイル (国土地理院) と、それを
+    /// 外観に合わせて塗り直したもの、降水のタイル (気象庁)
+    func radarTile(_ name: String) -> URL { file("radar/\(name).png") }
+    /// 雨雲の地図に使う時刻。「実況の時刻 予測の時刻…」の 1 行 (気象庁の UTC の書式)
+    var radarTimes: URL { file("radar/times.txt") }
+
     private var isJapaneseCode: String { isJapanese ? "ja" : "en" }
 
     // MARK: - ファイルの扱い
 
     func prepare() {
-        for dir in [url, file("const"), file("const/class20s"), file("amedas")] {
+        for dir in [url, file("const"), file("const/class20s"), file("amedas"), file("radar")] {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         }
     }

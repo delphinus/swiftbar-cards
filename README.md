@@ -91,6 +91,17 @@ The plugin finds the forecast area from the station: it uses the forecast area w
 
 When weather warnings or advisories are in effect for the municipality of the station (for My Location, the municipality you are actually in), the menu lists them above the card, under a heading like **Warnings and Advisories for Chiyoda City**. Choosing one opens the JMA warnings page for that municipality. For warnings and higher (warning, urgent warning, and emergency warning), the menu bar also shows a mark in the JMA color for the level: red, purple, and black or white. Advisories, such as for thunderstorms or dry air, are common, so they appear only in the menu.
 
+Right below the card, **Rain Radar** sums up the rain around the location shown ("Raining, 1–5 mm/h", "Rain expected in 20 min", "Rain nearby (up to 30–50 mm/h)", or "No rain nearby"). Hover over it to see the map of the JMA [rain radar](https://www.jma.go.jp/bosai/nowc/) (high-resolution precipitation nowcasts): the current rain in about 300 km around the location, and the forecasts for 20, 40, and 60 minutes ahead. The rain is drawn over [GSI Tiles](https://maps.gsi.go.jp/development/ichiran.html) (the hillshade and blank maps) from the Geospatial Information Authority of Japan. Choose the item to open the JMA page at that location.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/en/weather-radar-dark.png">
+    <img src="docs/images/en/weather-radar-light.png" alt="Rain Radar" width="280">
+  </picture>
+</p>
+
+The image shows a place where it was raining when it was drawn.
+
 When the plugin cannot update the data from JMA, it shows the data from before with a gray cloud mark in the menu bar, and says so above the card in the menu.
 
 The weekly forecast may give temperatures for only one point in the prefecture (only Shimonoseki in Yamaguchi). When that point is not the representative temperature point, the heading names it, as in "Weekly forecast (Shimonoseki)", and the days covered by the short-range forecast (today and tomorrow) show the short-range values for the representative point instead.
