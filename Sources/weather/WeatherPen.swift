@@ -91,23 +91,29 @@ struct WeatherPen {
     }
 
     /// SF Symbols のアイコンを、中心が (cx, cy) に来るよう描く。雲のある天気の
-    /// アイコンは、画像の中心ではなく雲の中心を (cx, cy) に置く (`cloudOffsets`)
+    /// アイコンは、雲の位置が `cloud` を描いたときと同じになるようずらす (`cloudOffsets`)
     func symbol(_ name: String, color: NSColor, cx: CGFloat, cy: CGFloat, size: CGFloat) {
         let offset = Self.cloudOffsets[name] ?? .zero
         NSImage.symbol(name, pointSize: size, color: color)?
             .drawUpright(centeredAt: CGPoint(x: cx - offset.x * size, y: cy - offset.y * size))
     }
 
-    /// 画像の中心から見た雲の中心の位置 (ポイントサイズに対する比。y は下向き)。
+    /// 雲のある天気のアイコンをずらす量 (ポイントサイズに対する比。y は下向き)。
     /// 画像の中心で揃えると、雨・雪・霧は下に雨粒などがあるぶん雲が上に、
     /// 晴れ間のあるくもりは右上に太陽があるぶん雲が左下に寄り、並べたときに
-    /// 雲の高さがそろわない。`cloud` の形を各アイコンに重ねて、いちばん重なる
-    /// 位置から測った値 (macOS 27 の SF Symbols、weight は regular)
+    /// 雲の高さがそろわない。
+    ///
+    /// x は、画像の中心から見た雲の中心。y は、雲の下端が `cloud` の雲の下端と
+    /// 同じ高さに来るようにずらす量。雲の大きさはアイコンごとに違い (`cloud` を 1 と
+    /// すると、雨・雪・霧は 0.95、晴れ間のあるくもりは 0.825)、中心で揃えると
+    /// 小さい雲ほど浮いて見えるので、文字のベースラインと同じく下端で揃える。
+    /// `cloud` の形を各アイコンに重ねて、いちばん重なる位置から測った値
+    /// (macOS 27 の SF Symbols、weight は regular)
     private static let cloudOffsets: [String: CGPoint] = [
-        "cloud.sun": CGPoint(x: -0.2, y: 0.145),
-        "cloud.rain": CGPoint(x: 0.01, y: -0.195),
-        "cloud.snow": CGPoint(x: 0.01, y: -0.215),
-        "cloud.fog": CGPoint(x: 0.01, y: -0.17),
+        "cloud.sun": CGPoint(x: -0.2, y: 0.08),
+        "cloud.rain": CGPoint(x: 0.01, y: -0.205),
+        "cloud.snow": CGPoint(x: 0.01, y: -0.225),
+        "cloud.fog": CGPoint(x: 0.01, y: -0.18),
     ]
 
     /// 横線 (区切り線やグラフの目盛り)
