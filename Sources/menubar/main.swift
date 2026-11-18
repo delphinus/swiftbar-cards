@@ -17,19 +17,26 @@
 //   open -g -a <.app> --args <キャッシュのフォルダ>
 //
 // キャッシュのフォルダ (~/Library/Caches/swiftbar-cards) のファイル:
-// - menubar-state          ここが書く。「pid compact|full|unknown 理由」の 1 行。
-//                          unknown のとき、プラグインはディスプレイの構成で決める
+// - menubar-state          ここが書く。「pid 描き方 理由」の 1 行。描き方はプラグインごとの
+//                          描き方を `,` で並べたもの (sysmon=full,weather=compact,*=compact)。
+//                          `*` はまだ幅を報告していないプラグインの描き方。決められない
+//                          ときは unknown で、プラグインはディスプレイの構成で決める
 // - menubar-extra-<名前>   プラグインが書く。「今の描き方 (compact|full) 戻したときに
 //                          増える幅 (pt)」の 1 行
 // - menubar-asked          許可を求めたら置く。起動のたびにダイアログを出さない (ビルドし
 //                          直して、これより .app が新しくなったら、もう一度求める)
 //
-// 決め方:
-// - ボタンが出ていたら (隠れている項目があれば) 縮める。
-// - 縮めているときは、ボタンが無く、空いている幅が、縮めて描いているプラグインを
-//   戻したときに増える幅の合計より広い状態が 6 秒続いたら戻す。縮めてから 60 秒は
-//   戻さない (見積もりが外れて、縮める・戻すを繰り返さないように)。項目を読めなかった
-//   アプリがあった回は、判断しない。
+// 決め方 (プラグインごとに決める。優先順は sysmon、weather、nowplaying):
+// - ボタンが出ていたら (隠れている項目があれば)、縮めていないプラグインのうち、優先順の
+//   いちばん低いものを縮める。
+// - ボタンが無ければ、縮めているプラグインのうち、戻したときに増える幅が空いている幅に
+//   収まるもので、優先順のいちばん高いものを戻す。収まる状態が 6 秒続き、そのプラグインを
+//   縮めてから 60 秒たっていたら戻す (見積もりが外れて、縮める・戻すを繰り返さないように)。
+//   60 秒たつのを待っている間は、それより優先順の低いプラグインも戻さない。
+// - 1 回に動かすのは 1 つだけ。動かしたら、そのプラグインが描き直した (報告の描き方が
+//   変わった) のを見届けてから、次の判断をする (描き直す前のメニューバーの幅で、
+//   もう 1 つ動かしてしまわないように)。
+// - 項目を読めなかったアプリがあった回は、判断しない。
 // - 空いている幅は、いちばん左の項目の x から、ノッチの右端に余白を足した位置を
 //   引いたもの。余白は、全部が収まっていたときにいちばん左の項目が置かれた位置から
 //   測った (ノッチの右端 848.5、項目 891)。
@@ -69,10 +76,19 @@ final class Watcher {
     /// 縮め直したことがあった)
     let fitsFor: TimeInterval = 6
 
-    private var mode = ""
-    private var compactedAt = Date.distantPast
-    /// 空きが足りると見え始めた時刻。足りなくなったら nil に戻す
-    private var fitsSince: Date?
+    /// 戻す優先順。ここに無いプラグインは、これらの後に名前の順で並べる
+    let priority = ["sysmon", "weather", "nowplaying"]
+    /// 動かしたプラグインが描き直すのを待つ秒数。過ぎたら待たずに次の判断をする
+    let redrawTimeout: TimeInterval = 10
+
+    /// プラグインごとの描き方 (true なら縮める)
+    private var modes: [String: Bool] = [:]
+    /// プラグインごとの、最後に縮めた時刻
+    private var compactedAt: [String: Date] = [:]
+    /// 戻す候補と、空きが足りると見え始めた時刻。足りなくなったら nil に戻す
+    private var fitsSince: (plugin: String, date: Date)?
+    /// 動かしたプラグインと、そのときの描き方。描き直すまで次の判断をしない
+    private var waiting: (plugin: String, compact: Bool, date: Date)?
     private var lastWritten = ""
     /// メニューバーに項目を出しているアプリ。全部のアプリを毎回調べると、応答しない
     /// プロセスの打ち切り (0.5 秒) を待つことがあるので、調べ直すのは間を空ける
@@ -102,9 +118,9 @@ final class Watcher {
     private func tick() {
         // ビルドし直されたら終わる。次にプラグインが新しいほうを起動する
         if Watcher.modificationDate(Bundle.main.executableURL) != executableDate { exit(0) }
-        guard AXIsProcessTrusted() else { return write("unknown", "untrusted") }
+        guard AXIsProcessTrusted() else { return writeUnknown("untrusted") }
         guard NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.MenuBarAgent").first != nil else {
-            return write("unknown", "no-menubar-agent")
+            return writeUnknown("no-menubar-agent")
         }
         if Date().timeIntervalSince(scannedAt) > 60 { scanApps() }
 
@@ -118,32 +134,63 @@ final class Watcher {
         let items = perApp.flatMap { $0 ?? [] }
         let overflowing = items.contains { $0.identifier.hasPrefix("menu-bar-overflow-indicator") }
         let reports = readReports()
-        if mode.isEmpty {
-            // 起動したときは、プラグインの今の描き方から始める
-            mode = reports.contains { $0.compact } ? "compact" : "full"
+        // 初めて見たプラグイン (起動したときは全部) は、今の描き方から始める
+        for (plugin, report) in reports where modes[plugin] == nil {
+            modes[plugin] = report.compact
+        }
+
+        // 動かしたプラグインが描き直すのを待つ。描き直したのを見たら、メニューバーに
+        // 並び直すのを待って、次の回から判断する
+        if let waiting {
+            if reports[waiting.plugin]?.compact == waiting.compact || Date().timeIntervalSince(waiting.date) > redrawTimeout {
+                self.waiting = nil
+            }
+            return
+        }
+
+        // 判断するのは、幅を報告しているプラグインだけ
+        let ordered = reports.keys.sorted { a, b in
+            let (ia, ib) = (priority.firstIndex(of: a) ?? priority.count, priority.firstIndex(of: b) ?? priority.count)
+            return ia != ib ? ia < ib : a < b
         }
 
         if overflowing {
             fitsSince = nil
-            if mode != "compact" { compactedAt = Date() }
-            mode = "compact"
-            return write(mode, "overflow")
+            if let plugin = ordered.last(where: { modes[$0] == false }) {
+                set(plugin, compact: true)
+                return write("overflow \(plugin)")
+            }
+            return write("overflow")
         }
-        guard mode == "compact" else { return write(mode, "fits") }
-        let needed = reports.filter(\.compact).reduce(0) { $0 + $1.extra }
+
         let free = freeWidth(items)
-        guard free >= needed + slack else {
+        guard let candidate = ordered.first(where: { modes[$0] == true && free >= reports[$0]!.extra + slack }) else {
             fitsSince = nil
-            return write(mode, String(format: "free=%.0f needed=%.0f", free, needed))
+            return write(String(format: "free=%.0f", free))
         }
-        let since = fitsSince ?? Date()
-        fitsSince = since
-        if Date().timeIntervalSince(since) >= fitsFor, Date().timeIntervalSince(compactedAt) >= holdAfterCompact {
-            mode = "full"
+        let reason = String(format: "free=%.0f next=%@+%.0f", free, candidate, reports[candidate]!.extra)
+        if fitsSince?.plugin != candidate { fitsSince = (candidate, Date()) }
+        if let since = fitsSince?.date, Date().timeIntervalSince(since) >= fitsFor,
+           Date().timeIntervalSince(compactedAt[candidate] ?? .distantPast) >= holdAfterCompact {
             fitsSince = nil
-            return write(mode, String(format: "free=%.0f needed=%.0f", free, needed))
+            set(candidate, compact: false)
         }
-        write(mode, String(format: "free=%.0f needed=%.0f", free, needed))
+        write(reason)
+    }
+
+    /// `plugin` の描き方を変え、描き直すのを待つ
+    private func set(_ plugin: String, compact: Bool) {
+        modes[plugin] = compact
+        if compact { compactedAt[plugin] = Date() }
+        waiting = (plugin, compact, Date())
+    }
+
+    /// 状態ファイルの描き方の欄。`*` (まだ報告していないプラグイン) は、どれかを
+    /// 縮めていれば縮める
+    private var modesField: String {
+        let pairs = modes.keys.sorted().map { "\($0)=\(modes[$0]! ? "compact" : "full")" }
+        let fallback = modes.values.contains(true) ? "compact" : "full"
+        return (pairs + ["*=\(fallback)"]).joined(separator: ",")
     }
 
     /// 項目のある画面のノッチの右端から、いちばん左の項目までの幅。ノッチの無い画面
@@ -186,19 +233,35 @@ final class Watcher {
         return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
     }
 
-    /// プラグインが書いた描き方と増える幅。1 時間より古いもの (止めたプラグイン) は使わない
-    private func readReports() -> [(compact: Bool, extra: CGFloat)] {
+    /// プラグインごとの、今の描き方と戻したときに増える幅。1 時間より古いもの (止めた
+    /// プラグイン) は使わない。ただし描き方 (`modes`) は覚えておき、状態ファイルにも書き続ける
+    /// (曲を止めたままの nowplaying のように、書き直さずに動いているものがある)
+    private func readReports() -> [String: (compact: Bool, extra: CGFloat)] {
+        let prefix = "menubar-extra-"
         let files = (try? FileManager.default.contentsOfDirectory(at: cacheDir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
-        return files.filter { $0.lastPathComponent.hasPrefix("menubar-extra-") }.compactMap { file in
+        var reports: [String: (compact: Bool, extra: CGFloat)] = [:]
+        for file in files where file.lastPathComponent.hasPrefix(prefix) {
             guard let date = Watcher.modificationDate(file), Date().timeIntervalSince(date) < 3600,
                   let fields = (try? String(contentsOf: file, encoding: .utf8))?.split(separator: " "),
                   fields.count >= 2, let extra = Double(fields[1].trimmingCharacters(in: .whitespacesAndNewlines))
-            else { return nil }
-            return (fields[0] == "compact", CGFloat(extra))
+            else { continue }
+            reports[String(file.lastPathComponent.dropFirst(prefix.count))] = (fields[0] == "compact", CGFloat(extra))
         }
+        return reports
     }
 
-    /// 決めた描き方を書く。プラグインはフォルダの変化で気付くので、描き方か理由の種類が
+    /// 決めた描き方を書く
+    private func write(_ reason: String) { write(modesField, reason) }
+
+    /// 決められないことを書く。次に決められたときは、プラグインの今の描き方から始める
+    private func writeUnknown(_ reason: String) {
+        modes = [:]
+        fitsSince = nil
+        waiting = nil
+        write("unknown", reason)
+    }
+
+    /// 状態ファイルを書く。プラグインはフォルダの変化で気付くので、描き方か理由の種類が
     /// 変わったときだけ書く (理由の数字の空いている幅は、変わっても書き直さない)
     private func write(_ mode: String, _ reason: String) {
         let key = "\(mode) \(reason.prefix { $0 != "=" })"

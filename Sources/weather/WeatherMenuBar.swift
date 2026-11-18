@@ -24,7 +24,7 @@ struct WeatherMenuBar {
     let warning: WeatherWarning?
     let stale: Bool
     /// 縮めて描くか
-    var compact = MenuBarDensity.isCompact
+    var compact = MenuBarDensity.isCompact("weather")
 
     private let height = MenuBarLayout.height
     /// メニューバーのほかの文字 (SwiftBar が描く文字や時計) と同じフォント

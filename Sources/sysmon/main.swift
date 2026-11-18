@@ -60,7 +60,7 @@ Thread.sleep(forTimeInterval: 1) // 最初の使用率を出すため、ティ�
 //   選び直させる。切り替えの直後はメニューバーの見た目がまだ前の Space のままの
 //   ことがあるので、少し待ってから出し、念のためもう 1 回出す
 let redrawRequested = DispatchSemaphore(value: 0)
-MenuBarDensity.observeChanges(on: DispatchQueue(label: "sysmon.density")) { redrawRequested.signal() }
+MenuBarDensity.observeChanges(plugin: "sysmon", on: DispatchQueue(label: "sysmon.density")) { redrawRequested.signal() }
 let spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
     forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { _ in
         for delay in [0.5, 2.0] {
@@ -82,7 +82,7 @@ let drawingThread = Thread {
         // いないので、囲まないと毎回描く画像や文字列が解放されずに溜まり続ける
         // (1 時間で 2 GB ほど増えていた)。
         autoreleasepool {
-            let compact = MenuBarDensity.isCompact
+            let compact = MenuBarDensity.isCompact("sysmon")
             let menuBar = SystemMenuBar(snapshot: snapshot, compact: compact)
             let light = menuBar.render(dark: false)
             // 戻したときに増える幅を、縮めるかを決める側に伝える

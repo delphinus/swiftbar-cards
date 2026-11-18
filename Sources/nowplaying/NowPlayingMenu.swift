@@ -32,7 +32,7 @@ struct NowPlayingMenu {
     }
 
     /// 縮めるか (MenuBarDensity)。1 回のメニューの中ではそろえる
-    private let compact = MenuBarDensity.isCompact
+    private let compact = MenuBarDensity.isCompact("nowplaying")
 
     /// 戻したときに増える幅を、縮めるかを決める側に伝える。曲名を出すのは再生中だけで、
     /// 音符だけのときは縮めても戻しても幅は同じ
