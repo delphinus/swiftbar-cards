@@ -22,10 +22,11 @@ radar_location=${RADAR_LOCATION:-$SWIFTBAR_CARDS_LOCATION}
 export SWIFTBAR_CARDS_COMPACT=off
 
 mkdir -p "$work/bin"
-for h in nowplaying sysmon; do
+for h in nowplaying sysmon weather; do
 	swiftc -O -suppress-warnings -o "$work/bin/$h" "$repo"/Sources/Shared/*.swift "$repo/Sources/$h"/*.swift
 done
 swiftc -O -suppress-warnings -o "$work/bin/compose" "$repo/samples/compose.swift"
+swiftc -O -suppress-warnings -o "$work/bin/density" "$repo/samples/density.swift"
 
 # nowplaying: アートワークも図形から描く
 swift "$repo/samples/artwork.swift" "$work/artwork.png"
@@ -37,6 +38,12 @@ for l in ja en; do
 	mkdir -p "$out/$l"
 	"$work/bin/nowplaying" --render "$work/nowplaying-$l.json" "$work/$l/nowplaying"
 	"$work/bin/sysmon" --render "$repo/samples/sysmon.json" "$work/$l/sysmon"
+	# 通常表示と縮小表示を並べる絵のために、縮めたメニューバーも描く。weather は今の予報では
+	# 違いが出ないことがあるので、降水確率が 30% 未満の決まった値で両方を描く
+	SWIFTBAR_CARDS_COMPACT=on "$work/bin/nowplaying" --render "$work/nowplaying-$l.json" "$work/$l/nowplaying-compact"
+	SWIFTBAR_CARDS_COMPACT=on "$work/bin/sysmon" --render "$repo/samples/sysmon.json" "$work/$l/sysmon-compact"
+	"$work/bin/weather" --render-menubar cloud.sun 17° 20 "$work/$l/weather-full"
+	SWIFTBAR_CARDS_COMPACT=on "$work/bin/weather" --render-menubar cloud.sun 17° 20 "$work/$l/weather-compact"
 
 	# weather: プラグインを 1 回だけ動かし (--once)、メニューバーの画像とカードを取り出す。
 	# メニューバーの行は「image=明るい用,暗い用」の 2 枚の画像なので、外観に合う方を取る。
@@ -80,6 +87,10 @@ for l in ja en; do
 			"$out/$l/weather-$appearance.png" "${locations[@]}" - "gearshape.circle:$(T 設定ファイルを開く 'Open Configuration File')" \
 			"arrow.clockwise.circle:$(T 今すぐ更新 'Refresh Now')" \
 			"arrow.up.forward.circle:$(T 気象庁の天気予報を開く 'Open JMA Forecast')"
+		"$work/bin/density" "$appearance" "$out/$l/menubar-density-$appearance.png" "$(T 通常表示 Full)" "$(T 縮小表示 Compact)" \
+			sysmon "$work/$l/sysmon/menubar-$appearance.png" "$work/$l/sysmon-compact/menubar-$appearance.png" \
+			weather "$work/$l/weather-full/menubar-$appearance.png" "$work/$l/weather-compact/menubar-$appearance.png" \
+			nowplaying "$work/$l/nowplaying/menubar-$appearance.png" "$work/$l/nowplaying-compact/menubar-$appearance.png"
 	done
 done
 ls -R "$out"

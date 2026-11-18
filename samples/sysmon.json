@@ -129,9 +129,9 @@
       "name": "",
       "percent": 76,
       "internal": true,
-      "external": true,
-      "charging": true,
-      "minutes": 85
+      "external": false,
+      "charging": false,
+      "minutes": 263
     },
     {
       "name": "Magic Trackpad",
