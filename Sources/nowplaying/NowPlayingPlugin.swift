@@ -58,7 +58,7 @@ final class NowPlayingPlugin {
         }
 
         // ディスプレイを繋いだり外したりしたら、メニューバーの曲名を切る幅が変わる
-        MenuBarDensity.observeChanges { [weak self] in
+        MenuBarDensity.observeChanges(plugin: "nowplaying") { [weak self] in
             self?.publishMenu()
         }
 

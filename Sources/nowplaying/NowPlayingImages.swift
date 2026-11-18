@@ -33,7 +33,7 @@ struct NowPlayingImages {
 
     /// メニューバーの曲名。`menuBarTitleWidth` (220pt、メニューバーが狭いときは 100pt) を
     /// 超える分は末尾を「…」にして切る。
-    func menuBarTitle(compact: Bool = MenuBarDensity.isCompact) -> String {
+    func menuBarTitle(compact: Bool = MenuBarDensity.isCompact("nowplaying")) -> String {
         let font = NSFont.menuBarFont(ofSize: 0)
         let name = track.name
         let maxWidth = Self.menuBarTitleWidth(compact: compact)

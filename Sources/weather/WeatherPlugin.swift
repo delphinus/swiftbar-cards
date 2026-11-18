@@ -96,7 +96,7 @@ final class WeatherPlugin {
                 Task { @MainActor in self?.enqueue(.redraw) }
             })
         // ディスプレイを繋いだり外したりしたら、メニューバーの項目を縮めるかが変わる
-        MenuBarDensity.observeChanges { [weak self] in
+        MenuBarDensity.observeChanges(plugin: "weather") { [weak self] in
             Task { @MainActor in self?.enqueue(.redraw) }
         }
         observeSpaceChanges()
@@ -220,7 +220,7 @@ final class WeatherPlugin {
         let radar = await radarCard
         // 戻したときに増える幅を、縮めるかを決める側に伝える
         if let extra = card.menuBarExtraWidth {
-            MenuBarDensity.report(plugin: "weather", compact: MenuBarDensity.isCompact, extraWidth: extra)
+            MenuBarDensity.report(plugin: "weather", compact: MenuBarDensity.isCompact("weather"), extraWidth: extra)
         }
         publish(menu.lines(card: card, radar: radar, office: station.office, updating: false))
 

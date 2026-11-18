@@ -37,7 +37,7 @@ import Shared
 struct SystemMenuBar {
     let snapshot: Snapshot
     /// 縮めて描くか
-    var compact = MenuBarDensity.isCompact
+    var compact = MenuBarDensity.isCompact("sysmon")
 
     private let height = MenuBarLayout.height
     private let font = MenuBarLayout.font

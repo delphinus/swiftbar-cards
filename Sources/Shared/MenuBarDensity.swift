@@ -8,7 +8,8 @@ import AppKit
 ///
 /// 決めるのは、常駐する小さな .app (Sources/menubar/、キャッシュの swiftbar-cards.app)。
 /// アクセシビリティ API でメニューバーの項目を読み、隠れている項目があれば縮め、
-/// 戻しても収まるだけ空いていれば戻すと決めて、キャッシュのフォルダに書く。
+/// 戻しても収まるだけ空いていれば戻すと決めて、キャッシュのフォルダに書く。決めるのは
+/// プラグインごとで、空いている幅に収まるものから戻す (sysmon、weather、nowplaying の順)。
 /// プラグインはそれを読み、戻したときに増える幅を書いて返す (`report`)。
 ///
 /// .app が決められないとき (アクセシビリティが許可されていない、動いていない、
@@ -18,14 +19,14 @@ import AppKit
 ///
 /// SWIFTBAR_CARDS_COMPACT を on / off にすると、どちらかに決め打ちできる。
 public enum MenuBarDensity {
-    /// 縮めて描くか
-    public static var isCompact: Bool {
+    /// `plugin` が縮めて描くか。`plugin` は `report` に渡すものと同じ名前
+    public static func isCompact(_ plugin: String) -> Bool {
         let (value, source): (Bool, String)
         switch override {
         case "on": (value, source) = (true, "SWIFTBAR_CARDS_COMPACT")
         case "off": (value, source) = (false, "SWIFTBAR_CARDS_COMPACT")
         default:
-            if let decision = watcherDecision() {
+            if let decision = watcherDecision(plugin) {
                 (value, source) = (decision, "swiftbar-cards.app")
             } else {
                 (value, source) = (!hasExternalDisplay(), "displays")
@@ -76,18 +77,38 @@ public enum MenuBarDensity {
     private static var app: URL { folder.appendingPathComponent("swiftbar-cards.app") }
     nonisolated(unsafe) private static var launchedAt = Date.distantPast
 
-    /// swiftbar-cards.app が決めた描き方。決められていなければ nil。動いていなければ起動する
-    private static func watcherDecision() -> Bool? {
+    /// swiftbar-cards.app が決めた `plugin` の描き方。決められていなければ nil。動いていなければ
+    /// 起動する。
+    ///
+    /// 状態ファイルの 2 つめの欄は、プラグインごとの描き方を `,` で並べたもの
+    /// (`sysmon=full,weather=compact,*=compact`)。`*` は、まだ幅を報告していない
+    /// プラグインの描き方。`unknown` なら決められていない。`compact` / `full` だけの
+    /// ときは全部のプラグインに当てる (プラグインごとに決めるようになる前の .app が書いたもの)。
+    private static func watcherDecision(_ plugin: String) -> Bool? {
         guard let fields = (try? String(contentsOf: stateFile, encoding: .utf8))?.split(separator: " "),
               fields.count >= 2, let pid = pid_t(fields[0]), kill(pid, 0) == 0 else {
             launchWatcher()
             return nil
         }
-        switch fields[1] {
-        case "compact": return true
-        case "full": return false
-        default: return nil
+        return decision(in: String(fields[1]), for: plugin)
+    }
+
+    /// 状態ファイルの 2 つめの欄から、`plugin` の描き方を引く (`watcherDecision`)
+    static func decision(in field: String, for plugin: String) -> Bool? {
+        func mode(_ value: Substring) -> Bool? {
+            switch value {
+            case "compact": return true
+            case "full": return false
+            default: return nil
+            }
         }
+        guard field.contains("=") else { return mode(Substring(field)) }
+        var modes: [Substring: Substring] = [:]
+        for pair in field.split(separator: ",") {
+            let parts = pair.split(separator: "=", maxSplits: 1)
+            if parts.count == 2 { modes[parts[0]] = parts[1] }
+        }
+        return (modes[Substring(plugin)] ?? modes["*"]).flatMap(mode)
     }
 
     /// swiftbar-cards.app を裏で起動する (open -g と同じく前に出さない)。.app が二重に動かない
@@ -119,21 +140,23 @@ public enum MenuBarDensity {
     // MARK: - 変化の通知
 
     nonisolated(unsafe) private static var handler: (() -> Void)?
+    nonisolated(unsafe) private static var observedPlugin = ""
     nonisolated(unsafe) private static var queue = DispatchQueue.main
     nonisolated(unsafe) private static var lastValue: Bool?
     nonisolated(unsafe) private static var folderWatcher: DispatchSourceFileSystemObject?
 
-    /// `isCompact` が変わったら、`handler` を `queue` で呼ぶ。1 つのプログラムで 1 回だけ
+    /// `isCompact(plugin)` が変わったら、`handler` を `queue` で呼ぶ。1 つのプログラムで 1 回だけ
     /// 呼ぶ。気付くきっかけは次の 2 つ。
     /// - キャッシュのフォルダの変化 (swiftbar-cards.app が決め直した)
     /// - ディスプレイの抜き差し (.app が決められないとき)。登録したスレッドの RunLoop に
     ///   届くので、RunLoop.main を回しているプログラムでだけ働く。回していない sysmon は
     ///   10 秒ごとに描き直すときに `isCompact` を見るので、それで足りる
-    public static func observeChanges(on queue: DispatchQueue = .main, _ handler: @escaping () -> Void) {
+    public static func observeChanges(plugin: String, on queue: DispatchQueue = .main, _ handler: @escaping () -> Void) {
         guard self.handler == nil else { return }
         self.handler = handler
+        self.observedPlugin = plugin
         self.queue = queue
-        lastValue = isCompact
+        lastValue = isCompact(plugin)
 
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let descriptor = open(folder.path, O_EVTONLY)
@@ -155,7 +178,7 @@ public enum MenuBarDensity {
     /// フォルダの変化はプラグインが `report` で書いたときにも届くが、描き方が前と
     /// 同じなら何もしない
     private static func notifyIfChanged() {
-        let value = isCompact
+        let value = isCompact(observedPlugin)
         guard value != lastValue else { return }
         lastValue = value
         handler?()

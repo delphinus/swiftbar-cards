@@ -59,7 +59,7 @@ struct WeatherReport {
     /// システムの外観で選ぶ。ライトモードで暗い壁紙を透かしたメニューバー (文字は白) では、
     /// 白地向けの濃い青が暗い地に出て、雨のアイコンが見にくかった。
     var menuBarLine: String {
-        let menuBar = menuBar(compact: MenuBarDensity.isCompact)
+        let menuBar = menuBar(compact: MenuBarDensity.isCompact("weather"))
         return SwiftBar.menuBarImageLine(light: menuBar.render(dark: false), dark: menuBar.render(dark: true))
     }
 
