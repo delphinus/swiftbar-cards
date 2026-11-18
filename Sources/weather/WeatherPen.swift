@@ -90,10 +90,25 @@ struct WeatherPen {
         ])
     }
 
-    /// SF Symbols のアイコンを、中心が (cx, cy) に来るよう描く
+    /// SF Symbols のアイコンを、中心が (cx, cy) に来るよう描く。雲のある天気の
+    /// アイコンは、画像の中心ではなく雲の中心を (cx, cy) に置く (`cloudOffsets`)
     func symbol(_ name: String, color: NSColor, cx: CGFloat, cy: CGFloat, size: CGFloat) {
-        NSImage.symbol(name, pointSize: size, color: color)?.drawUpright(centeredAt: CGPoint(x: cx, y: cy))
+        let offset = Self.cloudOffsets[name] ?? .zero
+        NSImage.symbol(name, pointSize: size, color: color)?
+            .drawUpright(centeredAt: CGPoint(x: cx - offset.x * size, y: cy - offset.y * size))
     }
+
+    /// 画像の中心から見た雲の中心の位置 (ポイントサイズに対する比。y は下向き)。
+    /// 画像の中心で揃えると、雨・雪・霧は下に雨粒などがあるぶん雲が上に、
+    /// 晴れ間のあるくもりは右上に太陽があるぶん雲が左下に寄り、並べたときに
+    /// 雲の高さがそろわない。`cloud` の形を各アイコンに重ねて、いちばん重なる
+    /// 位置から測った値 (macOS 27 の SF Symbols、weight は regular)
+    private static let cloudOffsets: [String: CGPoint] = [
+        "cloud.sun": CGPoint(x: -0.2, y: 0.145),
+        "cloud.rain": CGPoint(x: 0.01, y: -0.195),
+        "cloud.snow": CGPoint(x: 0.01, y: -0.215),
+        "cloud.fog": CGPoint(x: 0.01, y: -0.17),
+    ]
 
     /// 横線 (区切り線やグラフの目盛り)
     func horizontalLine(y: CGFloat, from x0: CGFloat, to x1: CGFloat, color: NSColor) {
