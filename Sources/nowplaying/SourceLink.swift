@@ -203,10 +203,15 @@ struct SourceLink {
     /// アーティストと曲名で、その曲が入ったリリースを探す。曲名の一致は Discogs の検索に任せ、
     /// 最初に返ったもの (master があれば master) を選ぶ。見つからなければ、曲名から
     /// 「(Original Mix)」のような括弧を外して探し直す。
+    ///
+    /// Discogs の検索は日本語の語では引けない (「夕焼け」では何も返らず、「Fading Day」なら
+    /// 返る)。曲名に日本語が入っていれば、最後に日本語の部分を外した曲名でも探す。
     private static func discogs(_ track: Track) async throws -> URL? {
         let base = SourceMatch.withoutBrackets(track.name)
         var names = [track.name]
         if !base.isEmpty, base != track.name { names.append(base) }
+        let latin = SourceMatch.withoutCJK(track.name)
+        if !SourceMatch.withoutBrackets(latin).isEmpty, !names.contains(latin) { names.append(latin) }
         for name in names {
             guard let url = HTTP.url("https://api.discogs.com/database/search",
                                      ["artist": track.artist, "track": name, "per_page": "5"])
@@ -340,6 +345,16 @@ struct SourceMatch {
     /// 曲名から括弧 (「(Extended Mix)」「[Free Download]」など) を外したもの。検索の語に使う
     static func withoutBrackets(_ text: String) -> String {
         text.replacing(#/\s*[(\[][^)\]]*[)\]]/#, with: "").trimmingCharacters(in: .whitespaces)
+    }
+
+    /// 曲名から日本語・中国語・韓国語の文字と、それを囲む波線 (「～」「〜」「~」) を外したもの。
+    /// 「夕焼け ～Fading Day～ (2025 Ver. Extended)」は「Fading Day (2025 Ver. Extended)」になる。
+    /// 日本語が入っていなければそのまま返す。検索の語に使う
+    static func withoutCJK(_ text: String) -> String {
+        guard text.contains(#/[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]/#) else { return text }
+        return text.replacing(#/[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}ー～〜~・「」『』]+/#, with: " ")
+            .replacing(#/\s+/#, with: " ")
+            .trimmingCharacters(in: .whitespaces)
     }
 
     private static func withoutOriginalMix(_ text: String) -> String {
