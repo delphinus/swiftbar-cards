@@ -200,27 +200,45 @@ struct SourceLink {
 
     // MARK: - Discogs
 
-    /// アーティストと曲名で、その曲が入ったリリースを探す。曲名の一致は Discogs の検索に任せ、
-    /// 最初に返ったもの (master があれば master) を選ぶ。見つからなければ、曲名から
-    /// 「(Original Mix)」のような括弧を外して探し直す。
+    /// アーティストと曲名で、その曲が入ったリリースを探す。曲名の一致は Discogs の検索に任せる。
+    /// 見つからなければ、曲名から「(Original Mix)」のような括弧を外して探し直す。
     ///
-    /// Discogs の検索は日本語の語では引けない (「夕焼け」では何も返らず、「Fading Day」なら
-    /// 返る)。曲名に日本語が入っていれば、最後に日本語の部分を外した曲名でも探す。
+    /// Discogs の検索には、次の癖がある。
+    /// - 日本語の語では引けない (「夕焼け」では何も返らず、「Fading Day」なら返る)。曲名に
+    ///   日本語が入っていれば、最後に日本語の部分を外した曲名でも探す。
+    /// - 曲名にアポストロフィがあると引けない (「Doesn't Matter」では何も返らず、「Doesnt Matter」
+    ///   なら返る)。いつも外して探す。
+    /// - 複数のアーティストのリリースは、アーティストが 1 人ずつ登録されていて、並べた名前
+    ///   (「Hypasonic V Jorg Schmid」) では引けない。見つからなければ先頭の 1 人で探し直す。
+    ///
+    /// 同じ曲のリリース (CD・12 インチ・配信など) が並んで返るので、リリース名にミックス名が
+    /// 入っているものを選ぶ。無ければ master (それらをまとめたページ) を、それも無ければ
+    /// 最初に返ったものを選ぶ。
     private static func discogs(_ track: Track) async throws -> URL? {
         let base = SourceMatch.withoutBrackets(track.name)
         var names = [track.name]
         if !base.isEmpty, base != track.name { names.append(base) }
         let latin = SourceMatch.withoutCJK(track.name)
         if !SourceMatch.withoutBrackets(latin).isEmpty, !names.contains(latin) { names.append(latin) }
-        for name in names {
-            guard let url = HTTP.url("https://api.discogs.com/database/search",
-                                     ["artist": track.artist, "track": name, "per_page": "5"])
-            else { continue }
-            let data = try await HTTP.get(url)
-            let results = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["results"] as? [[String: Any]] ?? []
-            let result = results.first { ["master", "release"].contains($0["type"] as? String ?? "") }
-            if let uri = result?["uri"] as? String {
-                return URL(string: "https://www.discogs.com\(uri)")
+        names = names.map { $0.replacing(#/['’]/#, with: "") }
+        var artists = [track.artist]
+        let main = SourceMatch.mainArtist(of: track.artist)
+        if !main.isEmpty, main != track.artist { artists.append(main) }
+        let match = SourceMatch(track)
+        for artist in artists {
+            for name in names {
+                guard let url = HTTP.url("https://api.discogs.com/database/search",
+                                         ["artist": artist, "track": name, "per_page": "10"])
+                else { continue }
+                let data = try await HTTP.get(url)
+                let results = ((try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["results"] as? [[String: Any]] ?? [])
+                    .filter { ["master", "release"].contains($0["type"] as? String ?? "") }
+                let result = results.first { match.mixName($0["title"] as? String ?? "") }
+                    ?? results.first { $0["type"] as? String == "master" }
+                    ?? results.first
+                if let uri = result?["uri"] as? String {
+                    return URL(string: "https://www.discogs.com\(uri)")
+                }
             }
         }
         return nil
@@ -257,6 +275,8 @@ struct SourceMatch {
     private let artist: String
     /// 「A & B」「A feat. B」の A
     private let mainArtist: String
+    /// 曲名の括弧の中のミックス名 (「Re-Con & Squad-E Remix」)。Original Mix や、括弧が無ければ空
+    private let mix: String
 
     init(_ track: Track) {
         name = Self.titleKey(track.name)
@@ -264,9 +284,21 @@ struct SourceMatch {
         nameHasMix = Self.withoutFeaturing(track.name).contains("(")
         album = Self.key(track.album)
         artist = Self.key(track.artist)
-        let main = track.artist.split(separator: #/ & | and |, | feat\.? | ft\.? | featuring | x | vs\.? /#.ignoresCase())
-            .first.map(String.init) ?? track.artist
-        mainArtist = Self.key(main)
+        mainArtist = Self.key(Self.mainArtist(of: track.artist))
+        let mixName = Self.withoutFeaturing(track.name).firstMatch(of: #/[(\[]\s*([^()\[\]]+?)\s*[)\]]/#).map { String($0.1) } ?? ""
+        mix = mixName.lowercased() == "original mix" ? "" : Self.titleKey(mixName)
+    }
+
+    /// 「A & B」「A feat. B」「A V B」の A
+    static func mainArtist(of artist: String) -> String {
+        artist.split(separator: #/ & | and |, | feat\.? | ft\.? | featuring | x | vs?\.? /#.ignoresCase())
+            .first.map { $0.trimmingCharacters(in: .whitespaces) } ?? artist
+    }
+
+    /// リリース名に、曲名のミックス名が入っているか (Discogs の「Doesn't Matter (Recon & Squad E Remix) /
+    /// (Dougal & Gammer Remix)」に「Re-Con & Squad-E Remix」が入っている)
+    func mixName(_ releaseTitle: String) -> Bool {
+        !mix.isEmpty && Self.titleKey(releaseTitle).contains(mix)
     }
 
     /// 曲名が同じか。「(Original Mix)」は付いていてもいなくても同じとみなす。
