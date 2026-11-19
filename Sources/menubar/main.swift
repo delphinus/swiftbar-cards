@@ -30,9 +30,14 @@
 // - ボタンが出ていたら (隠れている項目があれば)、縮めていないプラグインのうち、優先順の
 //   いちばん低いものを縮める。
 // - ボタンが無ければ、縮めているプラグインのうち、戻したときに増える幅が空いている幅に
-//   収まるもので、優先順のいちばん高いものを戻す。収まる状態が 6 秒続き、そのプラグインを
-//   縮めてから 60 秒たっていたら戻す (見積もりが外れて、縮める・戻すを繰り返さないように)。
-//   60 秒たつのを待っている間は、それより優先順の低いプラグインも戻さない。
+//   収まるもので、優先順のいちばん高いものを戻す。上が収まらなければ、下だけでも戻す。
+//   収まる状態が 6 秒続き、そのプラグインを縮めてから 60 秒たっていたら戻す (見積もりが
+//   外れて、縮める・戻すを繰り返さないように)。60 秒たつのを待っている間は、それより
+//   優先順の低いプラグインも戻さない。
+// - 縮めているプラグインが収まらなくても、それより優先順の低い、戻しているプラグインを
+//   縮めれば収まるなら、下を縮めて空きを上に回す (下が先に戻って空きを使ったときに、
+//   上が戻れなくならないように)。縮めれば収まる状態が 6 秒続いたら縮める。縮めた下の
+//   プラグインは 60 秒戻さないので、その間に上が戻る。
 // - 1 回に動かすのは 1 つだけ。動かしたら、そのプラグインが描き直した (報告の描き方が
 //   変わった) のを見届けてから、次の判断をする (描き直す前のメニューバーの幅で、
 //   もう 1 つ動かしてしまわないように)。
@@ -87,6 +92,8 @@ final class Watcher {
     private var compactedAt: [String: Date] = [:]
     /// 戻す候補と、空きが足りると見え始めた時刻。足りなくなったら nil に戻す
     private var fitsSince: (plugin: String, date: Date)?
+    /// 縮めて空きを譲る候補と、譲れば上が収まると見え始めた時刻
+    private var yieldSince: (plugin: String, date: Date)?
     /// 動かしたプラグインと、そのときの描き方。描き直すまで次の判断をしない
     private var waiting: (plugin: String, compact: Bool, date: Date)?
     private var lastWritten = ""
@@ -164,6 +171,22 @@ final class Watcher {
         }
 
         let free = freeWidth(items)
+
+        // 縮めているプラグインが空きに収まらなくても、それより優先順の低いプラグインを
+        // 縮めれば収まるなら、下を縮めて空きを上に回す (下が先に戻って空きを使い、上が
+        // 戻れなくなった状態を直す)
+        if let (plugin, beneficiary) = yieldTarget(ordered, reports, free) {
+            fitsSince = nil
+            if yieldSince?.plugin != plugin { yieldSince = (plugin, Date()) }
+            if let since = yieldSince?.date, Date().timeIntervalSince(since) >= fitsFor {
+                yieldSince = nil
+                set(plugin, compact: true)
+            }
+            return write(String(format: "yield=%@>%@ free=%.0f", plugin, beneficiary, free))
+        }
+        yieldSince = nil
+
+        // 戻すのは、収まるもののうち優先順のいちばん高いもの。上が収まらなければ、下だけでも戻す
         guard let candidate = ordered.first(where: { modes[$0] == true && free >= reports[$0]!.extra + slack }) else {
             fitsSince = nil
             return write(String(format: "free=%.0f", free))
@@ -176,6 +199,26 @@ final class Watcher {
             set(candidate, compact: false)
         }
         write(reason)
+    }
+
+    /// 空きを譲るために縮めるプラグインと、譲られるプラグイン。縮めているプラグインを
+    /// 優先順の高いものから見て、空きに収まるものがあればそれを戻せばよいので譲らない。
+    /// 収まらないものは、それより優先順の低い、戻しているプラグインを低いほうから縮めて
+    /// いったときに収まるなら、いちばん低いものを縮める (1 回に縮めるのは 1 つ。足りなければ
+    /// 描き直したあとに次を縮める)
+    private func yieldTarget(_ ordered: [String], _ reports: [String: (compact: Bool, extra: CGFloat)],
+                             _ free: CGFloat) -> (plugin: String, beneficiary: String)? {
+        for (index, plugin) in ordered.enumerated() where modes[plugin] == true {
+            let need = reports[plugin]!.extra + slack
+            if free >= need { return nil }
+            let lower = ordered[(index + 1)...].reversed().filter { modes[$0] == false && reports[$0]!.extra > 0 }
+            var gained: CGFloat = 0
+            for other in lower {
+                gained += reports[other]!.extra
+                if free + gained >= need { return (lower[0], plugin) }
+            }
+        }
+        return nil
     }
 
     /// `plugin` の描き方を変え、描き直すのを待つ
@@ -257,6 +300,7 @@ final class Watcher {
     private func writeUnknown(_ reason: String) {
         modes = [:]
         fitsSince = nil
+        yieldSince = nil
         waiting = nil
         write("unknown", reason)
     }
