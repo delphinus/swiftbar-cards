@@ -44,6 +44,16 @@ if arguments.count == 3, arguments[1] == "control" {
     MusicApp.perform(command)
     exit(0)
 }
+// メニューの「アーティスト - タイトル」をコピーする項目から `copy` で呼ばれる。メニューを
+// 作ったあとに曲が変わっていることもあるので、クリックした時点の曲を問い合わせる
+if arguments.count == 2, arguments[1] == "copy" {
+    let track = MusicApp.currentTrack()
+    if track.hasTrack {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(track.artistAndTitle, forType: .string)
+    }
+    exit(0)
+}
 
 SwiftBar.beginStreaming()
 let plugin = NowPlayingPlugin()

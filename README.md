@@ -6,7 +6,7 @@
 
 | Plugin | Menu bar | Card |
 |---|---|---|
-| `nowplaying` | Artwork and title of the track playing in Music.app | Artwork, title, artist, album, and playback position (click to open the track's page), with play/pause and next-track items |
+| `nowplaying` | Artwork and title of the track playing in Music.app | Artwork, title, artist, album, and playback position (click to open the track's page), with play/pause, next-track, and copy "Artist - Title" items |
 | `sysmon` | CPU history, memory, the Mac's own battery with time remaining when on battery (on a MacBook), and temperature | CPU (usage, last 10 minutes, E/P cores, temperatures), memory, top processes by CPU and memory, and batteries: the Mac's own battery (on a MacBook, with charging status and time remaining or until full) and Bluetooth devices |
 | `weather` | Today's weather icon, current temperature, chance of rain, and a warning mark | Current observations, a 24-hour temperature graph with weather, chance of rain, and wind, the regional forecast, and the weekly forecast with climate normals from the Japan Meteorological Agency (JMA) |
 
