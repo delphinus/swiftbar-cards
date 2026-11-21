@@ -63,17 +63,22 @@ struct NowPlayingMenu {
     }
 
     /// 操作の項目。前の曲に戻る操作は頻度が低いので、⌥ を押している間だけ「次の曲」と
-    /// 差し替える (SwiftBar の alternate)。
+    /// 差し替える (SwiftBar の alternate)。曲があるときは「アーティスト - タイトル」を
+    /// コピーする項目も出す。
     private func controlLines() -> [String] {
-        [
+        var lines = [
             track.isPlaying
                 ? Self.control(L("一時停止", "Pause"), icon: "pause.circle", command: .playpause)
                 : Self.control(L("再生", "Play"), icon: "play.circle", command: .play),
             Self.control(L("次の曲", "Next Track"), icon: "forward.end.circle", command: .next),
             Self.control(L("前の曲", "Previous Track"), icon: "backward.end.circle", command: .previous,
                          extra: " alternate=true"),
-            Self.openMusic,
         ]
+        if track.hasTrack {
+            lines.append(Self.copyArtistAndTitle)
+        }
+        lines.append(Self.openMusic)
+        return lines
     }
 
     // メニューのアイコンは幅 15pt のもの (円で囲んだ系統など) でそろえる。SF Symbols は
@@ -98,12 +103,23 @@ struct NowPlayingMenu {
     private static let openMusic = L("Music を開く", "Open Music")
         + " | sfimage=arrow.up.forward.circle href=file:///System/Applications/Music.app"
 
+    /// 再生中の曲の「アーティスト - タイトル」をクリップボードにコピーする項目。クリックすると、
+    /// SwiftBar がこのプラグインを `copy` の引数で起動し直す (main.swift)。
+    /// doc.on.doc はほかのアイコンより 1pt 広いが、コピーを表す円で囲んだ系統のものが無い
+    private static var copyArtistAndTitle: String {
+        L("「アーティスト - タイトル」をコピー", "Copy \u{201C}Artist - Title\u{201D}")
+            + " | sfimage=doc.on.doc bash=\(pluginPath) param1=copy terminal=false"
+    }
+
+    /// プラグインの場所。SwiftBar が環境変数 SWIFTBAR_PLUGIN_PATH で渡す
+    private static var pluginPath: String {
+        ProcessInfo.processInfo.environment["SWIFTBAR_PLUGIN_PATH"] ?? "nowplaying.sh"
+    }
+
     /// Music.app を操作する項目。クリックすると、SwiftBar がこのプラグインを
     /// `control <操作>` の引数で起動し直し、その実行が操作だけをして終わる (main.swift)。
     /// 常駐しているほうは、Music.app の通知を受けてメニューを差し替える。
-    /// プラグインの場所は、SwiftBar が環境変数 SWIFTBAR_PLUGIN_PATH で渡す。
     private static func control(_ title: String, icon: String, command: MusicApp.Command, extra: String = "") -> String {
-        let plugin = ProcessInfo.processInfo.environment["SWIFTBAR_PLUGIN_PATH"] ?? "nowplaying.sh"
-        return "\(title) | sfimage=\(icon) bash=\(plugin) param1=control param2=\(command.rawValue) terminal=false\(extra)"
+        "\(title) | sfimage=\(icon) bash=\(pluginPath) param1=control param2=\(command.rawValue) terminal=false\(extra)"
     }
 }

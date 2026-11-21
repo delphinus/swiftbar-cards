@@ -19,4 +19,9 @@ struct Track {
 
     var isPlaying: Bool { state == .playing }
     var hasTrack: Bool { !id.isEmpty }
+
+    /// コピーする「アーティスト - タイトル」。アーティストが無ければ曲名だけ
+    var artistAndTitle: String {
+        artist.isEmpty ? name : "\(artist) - \(name)"
+    }
 }
