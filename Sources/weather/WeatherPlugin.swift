@@ -58,6 +58,10 @@ final class WeatherPlugin {
     private var lastLocation: CurrentLocation?
     /// 前回の更新での、現在地に当たる観測点と現在地の状態
     private var lastHereSignature = ""
+    /// 地点 (`Place.Station.cacheKey`) → 最後に取り直した時刻 (UNIX 時刻)。選んでいない
+    /// 地点のカードは取り直さずに描き直すことがあり、カードの更新時刻では取り直した
+    /// 時刻が分からないので、別に覚えておく
+    private var lastFetched: [String: Double] = [:]
 
     private var jobs: [Job] = []
     private var isWorking = false
@@ -226,10 +230,12 @@ final class WeatherPlugin {
 
         guard await prefetchOtherPlaces(state, dark: dark, now: now), publishAgain else { return }
         // 描いた地点のカードが今のカードより高ければ、今のカードを下を空けて描き直す。
-        // 地点の項目に添える天気も増えるので、どちらにしても出し直す。
+        // ほかの地点を取り直して全観測点の最新値が新しくなったときも、気温をそろえる
+        // ために描き直す。地点の項目に添える天気も増えるので、どちらにしても出し直す。
         var selectedCard = card
         let newMinHeight = minimumHeight(state, dark: dark)
-        if newMinHeight > minHeight, let redrawn = maker.draw(station, now: now, dark: dark, minHeight: newMinHeight) {
+        if newMinHeight > minHeight || isBehindLatestObservations(station, dark: dark),
+           let redrawn = maker.draw(station, now: now, dark: dark, minHeight: max(newMinHeight, minHeight)) {
             selectedCard = redrawn
         }
         publish(menu.lines(card: selectedCard, radar: radar, office: station.office, updating: false))
@@ -238,7 +244,7 @@ final class WeatherPlugin {
     /// カードを描く。`fetch` でなくても、キャッシュに予報が無ければ取り直す
     private func makeCard(_ station: Place.Station, now: Double, dark: Bool, minHeight: Double, fetch: Bool) async -> PlaceCard? {
         if !fetch, let card = maker.draw(station, now: now, dark: dark, minHeight: minHeight) { return card }
-        await maker.fetch(station, now: now)
+        await fetchData(station, now: now)
         return maker.draw(station, now: now, dark: dark, minHeight: minHeight)
     }
 
@@ -257,19 +263,58 @@ final class WeatherPlugin {
 
     private func radarKey(_ station: Place.Station, dark: Bool) -> String { "\(station.cacheKey)-\(dark)" }
 
-    /// 選んでいない地点のうち、キャッシュのカードが 60 分より古い (か無い) ものを描いて
-    /// おく。地点を選んだときにすぐ出せるようにし、高さをそろえる元にもする。
-    /// 1 つでも描いたら true
+    /// 選んでいない地点のカードを描いておく。地点を選んだときにすぐ出せるようにし、
+    /// 高さをそろえる元にもする。1 つでも描いたら true
+    ///
+    /// 取り直すのは、60 分より前に取り直した (か、まだ取り直していない) 地点だけ。
+    /// 取り直さない地点も、カードを描いたあとに全観測点の最新値が新しくなっていれば、
+    /// キャッシュのデータから描き直す。最新値は全地点で共有していて、選んでいる地点を
+    /// 取り直したときに一緒に取れるので、地点の項目に添える気温がそれで新しくなる。
+    /// 描き直さないと、同じ観測点の「現在地（東京）」と「東京」で気温が最大 1 時間ぶん
+    /// 食い違った。外観を切り替えたときも、もう一方の外観のカードは古いことがあるので、
+    /// 同じように見て描き直す。
+    ///
+    /// 取り直しを先に全部済ませてから描く。取り直すと全観測点の最新値が新しい時刻の
+    /// もので上書きされることがあり、交互にすると、先に描いた地点だけ古い気温が残る。
     private func prefetchOtherPlaces(_ state: WeatherState, dark: Bool, now: Double) async -> Bool {
         guard state.places.count > 1 else { return false }
+        let others = state.places.enumerated().compactMap { i, place in i == state.selectedIndex ? nil : place.station }
+        var fetched: Set<String> = []
+        for station in others where needsFetch(station, dark: dark, now: now) {
+            await fetchData(station, now: now)
+            fetched.insert(station.cacheKey)
+        }
         var drew = false
-        for (i, place) in state.places.enumerated() where i != state.selectedIndex {
-            guard let station = place.station,
-                  !CacheFolder.isFresh(cache.card(station: station, dark: dark), maxAge: 3600) else { continue }
-            await maker.fetch(station, now: now)
+        for station in others where fetched.contains(station.cacheKey) || isBehindLatestObservations(station, dark: dark) {
             if maker.draw(station, now: now, dark: dark, minHeight: minimumHeight(state, dark: dark)) != nil { drew = true }
         }
         return drew
+    }
+
+    /// 選んでいない地点を取り直すか。60 分より前に取り直したか、カードが無いとき。
+    ///
+    /// 取り直した時刻は起動しているあいだしか覚えていないので、覚えていなければ
+    /// (起動した直後は) カードの更新時刻で代わりに判断する。起動するたびに全地点を
+    /// 取り直さないため。カードは取り直さずに描き直すこともあるので、カードの更新時刻は
+    /// 取り直した時刻より新しいことがある。
+    private func needsFetch(_ station: Place.Station, dark: Bool, now: Double) -> Bool {
+        let file = cache.card(station: station, dark: dark)
+        guard CacheFolder.isFresh(file, maxAge: .infinity) else { return true }
+        let sinceFetch = lastFetched[station.cacheKey].map { now - $0 } ?? CacheFolder.age(of: file) ?? .infinity
+        return sinceFetch > 3600
+    }
+
+    /// カードを描いたあとに、全観測点の最新値が新しくなったか
+    private func isBehindLatestObservations(_ station: Place.Station, dark: Bool) -> Bool {
+        guard let cardAge = CacheFolder.age(of: cache.card(station: station, dark: dark)),
+              let observationsAge = CacheFolder.age(of: cache.latestObservationsTime) else { return false }
+        return cardAge > observationsAge
+    }
+
+    /// 地点のデータを取り直し、取り直した時刻を覚えておく
+    private func fetchData(_ station: Place.Station, now: Double) async {
+        await maker.fetch(station, now: now)
+        lastFetched[station.cacheKey] = now
     }
 
     /// 設定した地点のカードの高さをそろえる。地点を切り替えた直後にメニューを開き直すと、
